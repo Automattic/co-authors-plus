@@ -653,6 +653,7 @@ class CoAuthors_Guest_Authors {
 					'selected'         => $linked_account_id,
 					// Don't let user accounts to be linked to more than one guest author
 					'exclude'          => $linked_account_user_ids,
+					'capability'       => array( apply_filters( 'coauthors_edit_author_cap', 'edit_posts' ) ),
 				)
 			)
 		);
