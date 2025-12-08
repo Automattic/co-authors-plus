@@ -114,6 +114,11 @@ function coauthors__echo( $tag, $type = 'tag', $separators = array(), $tag_args 
 	$output .= $separators['before'];
 	$i->iterate();
 	do {
+		// Skip if there's no valid author (e.g., post has no author)
+		if ( ! is_object( $i->current_author ) ) {
+			continue;
+		}
+
 		$author_text = '';
 
 		if ( 'tag' === $type ) {
@@ -125,10 +130,8 @@ function coauthors__echo( $tag, $type = 'tag', $separators = array(), $tag_args 
 		}
 
 		// Fallback to user_login if we get something empty
-		if ( empty( $author_text ) && is_object( $i->current_author ) && ! empty( $i->current_author->user_login ) ) {
-			if(!is_bool($i->current_author)){
-				$author_text = $i->current_author->user_login;
-			}
+		if ( empty( $author_text ) && ! empty( $i->current_author->user_login ) ) {
+			$author_text = $i->current_author->user_login;
 		}
 
 		// Append separators
