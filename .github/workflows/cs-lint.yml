@@ -1,15 +1,29 @@
 name: CS & Lint
 
 on:
-  # Run on all pushes and on all pull requests.
-  # Prevent the "push" build from running when there are only irrelevant changes.
-  push:
-    paths-ignore:
-      - "**.md"
   pull_request:
-
-  # Allow manually triggering the workflow.
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - '.phpcs.xml.dist'
+      - 'phpunit.xml.dist'
+      - '.github/workflows/cs-lint.yml'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - '.phpcs.xml.dist'
+      - 'phpunit.xml.dist'
+      - '.github/workflows/cs-lint.yml'
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   checkcs:
@@ -21,7 +35,7 @@ jobs:
 
     steps:
       - name: Setup PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
         with:
           php-version: "7.4"
           coverage: none
@@ -30,15 +44,17 @@ jobs:
       # Show PHP lint violations inline in the file diff.
       # @link https://github.com/marketplace/actions/xmllint-problem-matcher
       - name: Register PHP lint violations to appear as file diff comments
-        uses: korelstar/phplint-problem-matcher@v1
+        uses: korelstar/phplint-problem-matcher@cb2b753750ec7bf13a7cde0a476df8c5605bdfb1 # v1.2.0
 
       # Show XML violations inline in the file diff.
       # @link https://github.com/marketplace/actions/xmllint-problem-matcher
       - name: Register XML violations to appear as file diff comments
-        uses: korelstar/xmllint-problem-matcher@v1
+        uses: korelstar/xmllint-problem-matcher@1bd292d642ddf3d369d02aaa8b262834d61198c0 # v1.2.0
 
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
 
       # Validate the composer.json file.
       # @link https://getcomposer.org/doc/03-cli.md#validate
@@ -48,7 +64,7 @@ jobs:
       # Install dependencies and handle caching in one go.
       # @link https://github.com/marketplace/actions/install-composer-dependencies
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v2
+        uses: ramsey/composer-install@3cf229dc2919194e9e36783941438d17239e8520 # 3.1.1
 
       # Lint PHP.
       - name: Lint PHP against parse errors
@@ -57,7 +73,7 @@ jobs:
       # Needed as runs-on: system doesn't have xml-lint by default.
       # @link https://github.com/marketplace/actions/xml-lint
       - name: Lint phpunit.xml.dist
-        uses: ChristophWurst/xmllint-action@v1
+        uses: ChristophWurst/xmllint-action@7c54ff113fc0f6d4588a15cb4dfe31b6ecca5212 # v1.2.1
         with:
           xml-file: ./phpunit.xml.dist
           xml-schema-file: ./vendor/phpunit/phpunit/phpunit.xsd
@@ -65,7 +81,7 @@ jobs:
       # Needed as runs-on: system doesn't have xml-lint by default.
       # @link https://github.com/marketplace/actions/xml-lint
       - name: Lint .phpcs.xml.dist
-        uses: ChristophWurst/xmllint-action@v1
+        uses: ChristophWurst/xmllint-action@7c54ff113fc0f6d4588a15cb4dfe31b6ecca5212 # v1.2.1
         with:
           xml-file: ./.phpcs.xml.dist
           xml-schema-file: ./vendor/squizlabs/php_codesniffer/phpcs.xsd
