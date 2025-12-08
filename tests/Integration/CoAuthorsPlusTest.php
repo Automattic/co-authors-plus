@@ -1993,4 +1993,46 @@ class CoAuthorsPlusTest extends TestCase {
 		remove_filter( 'coauthors_supported_post_types', $callback );
 		unregister_post_type( 'foo' );
 	}
+
+	/**
+	 * Tests that deleting a user without a co-author term doesn't cause PHP warnings.
+	 *
+	 * @covers CoAuthors_Plus::delete_user_action()
+	 */
+	public function test_delete_user_without_coauthor_term_should_not_cause_warning(): void {
+		global $coauthors_plus;
+
+		// Create a user
+		$user = $this->create_author( 'test_user_deletion' );
+
+		// Create a post for the user
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $user->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		// Add the user as a co-author to ensure the term is created
+		$coauthors_plus->add_coauthors( $post_id, array( $user->user_nicename ), true );
+
+		// Verify the term exists
+		$term = $coauthors_plus->get_author_term( $user );
+		$this->assertNotFalse( $term, 'Co-author term should exist before deletion' );
+
+		// Manually delete the co-author term to simulate the bug scenario
+		// (e.g., term was manually deleted or corrupted)
+		wp_delete_term( $term->term_id, $coauthors_plus->coauthor_taxonomy );
+
+		// Verify the term is gone
+		$term_after_deletion = $coauthors_plus->get_author_term( $user );
+		$this->assertFalse( $term_after_deletion, 'Co-author term should not exist after manual deletion' );
+
+		// Now delete the user - this should not cause a PHP warning
+		// The bug is that the code tries to access $term->term_id when $term is false
+		wp_delete_user( $user->ID );
+
+		// If we get here without warnings, the test passes
+		$this->assertTrue( true, 'User deleted without PHP warnings' );
+	}
 }

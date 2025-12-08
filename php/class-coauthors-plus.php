@@ -1124,7 +1124,9 @@ class CoAuthors_Plus {
 		if ( is_object( $delete_user ) ) {
 			// Delete term
 			$term = $this->get_author_term( $delete_user );
-			wp_delete_term( $term->term_id, $this->coauthor_taxonomy );
+			if ( $term ) {
+				wp_delete_term( $term->term_id, $this->coauthor_taxonomy );
+			}
 		}
 
 		if ( $this->is_guest_authors_enabled() ) {
