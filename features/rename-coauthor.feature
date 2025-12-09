@@ -27,8 +27,8 @@ Feature: Co-authors can be renamed
           """
 
 	Scenario: Try to rename co-author to the same name
-		When I try `wp co-authors-plus create-guest-authors`
-		Then I try `wp co-authors-plus rename-coauthor --from="admin" --to="admin"`
+		When I run `wp co-authors-plus create-guest-authors`
+		When I try `wp co-authors-plus rename-coauthor --from="admin" --to="admin"`
 		Then STDERR should be:
           """
 	      Error: New user_login value conflicts with existing co-author
@@ -36,7 +36,7 @@ Feature: Co-authors can be renamed
 
 	Scenario: Rename co-author
 		When I run `wp co-authors-plus create-guest-authors`
-		Then I run `wp co-authors-plus rename-coauthor --from="admin" --to="renamed-admin"`
+		When I run `wp co-authors-plus rename-coauthor --from="admin" --to="renamed-admin"`
 		Then STDOUT should be:
           """
 	      Renaming admin to renamed-admin

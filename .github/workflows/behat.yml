@@ -8,6 +8,7 @@ on:
       - '**.feature'
       - 'behat.yml'
       - 'composer.json'
+      - '.wp-env.json'
   push:
     branches:
       - develop
@@ -18,6 +19,7 @@ on:
       - '**.feature'
       - 'behat.yml'
       - 'composer.json'
+      - '.wp-env.json'
   workflow_dispatch:
 
 permissions:
@@ -25,26 +27,8 @@ permissions:
 
 jobs:
   behat:
-    name: Behat
+    name: Behat Tests (WP trunk, PHP 8.4)
     runs-on: ubuntu-latest
-
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: wp_cli_test
-        ports:
-          - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3 --entrypoint sh mysql:8.0 -c "exec docker-entrypoint.sh mysqld --default-authentication-plugin=mysql_native_password"
-
-    env:
-      WP_CLI_TEST_DBROOTUSER: root
-      WP_CLI_TEST_DBROOTPASS: root
-      WP_CLI_TEST_DBNAME: wp_cli_test
-      WP_CLI_TEST_DBUSER: wp_cli_test
-      WP_CLI_TEST_DBPASS: password1
-      WP_CLI_TEST_DBHOST: 127.0.0.1:3306
 
     steps:
       - name: Checkout code
@@ -52,17 +36,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up PHP
+      - name: Install wordpress environment
+        run: npm install -g @wordpress/env
+
+      - name: Set up PHP 8.4
         uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
         with:
-          php-version: '7.4'
+          php-version: '8.4'
           coverage: none
 
       - name: Install Composer dependencies
         uses: ramsey/composer-install@3cf229dc2919194e9e36783941438d17239e8520 # 3.1.1
 
-      - name: Install WordPress test environment
-        run: composer prepare-behat-tests
+      - name: Setup wp-env
+        run: wp-env start
 
       - name: Run Behat tests
         run: composer behat
