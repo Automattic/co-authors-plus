@@ -1,16 +1,23 @@
 name: Deploy to WordPress.org
+
 on:
   release:
     types: [released]
   # Allow manual triggering of the workflow.
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   release:
     name: New release to WordPress.org
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
 
       - name: Install SVN (Subversion)
         run: |

@@ -1,0 +1,59 @@
+name: Behat Tests
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/behat.yml'
+      - '**.php'
+      - '**.feature'
+      - 'behat.yml'
+      - 'composer.json'
+      - '.wp-env.json'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - '.github/workflows/behat.yml'
+      - '**.php'
+      - '**.feature'
+      - 'behat.yml'
+      - 'composer.json'
+      - '.wp-env.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  behat:
+    name: Behat Tests (WP trunk, PHP 8.4)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install wordpress environment
+        run: npm install -g @wordpress/env
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@3cf229dc2919194e9e36783941438d17239e8520 # 3.1.1
+
+      - name: Setup wp-env
+        run: wp-env start
+
+      - name: Run Behat tests
+        run: composer behat
+
+      - name: Rerun failed tests
+        if: failure()
+        run: composer behat-rerun

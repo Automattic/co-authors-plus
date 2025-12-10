@@ -27,13 +27,13 @@
 	},
 	"require-dev": {
 		"automattic/vipwpcs": "^3",
+		"behat/behat": "^3.7",
 		"dms/phpunit-arraysubset-asserts": "^0.5.0",
 		"php-parallel-lint/php-parallel-lint": "^1.0",
 		"phpcompatibility/phpcompatibility-wp": "^2.1",
 		"phpunit/phpunit": "^9",
 		"wp-cli/extension-command": "^2.0",
 		"wp-cli/i18n-command": "^2.6",
-		"wp-cli/wp-cli-tests": "^4",
 		"yoast/wp-test-utils": "^1.2"
 	},
 	"autoload": {
@@ -54,8 +54,8 @@
 		"sort-packages": true
 	},
 	"scripts": {
-		"behat": "run-behat-tests",
-		"behat-rerun": "rerun-behat-tests",
+		"behat": "behat --colors",
+		"behat-rerun": "behat --colors --rerun",
 		"coverage": [
 			"@putenv WP_MULTISITE=1",
 			"@php ./vendor/bin/phpunit --exclude=ms-excluded --coverage-html ./.phpunit.cache/coverage-html"
@@ -79,9 +79,9 @@
 		"lint-ci": [
 			"@php ./vendor/php-parallel-lint/php-parallel-lint/parallel-lint . -e php --exclude vendor --exclude .git --checkstyle"
 		],
-		"prepare-behat-tests": "install-package-tests",
-		"test-integration": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus ./vendor/bin/phpunit --exclude=ms-required --no-coverage",
-		"test-integration-ms": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --exclude=ms-excluded --no-coverage'"
+		"prepare-behat-tests": "wp-env start",
+		"test:integration": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus ./vendor/bin/phpunit --exclude=ms-required --no-coverage",
+		"test:integration-ms": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --exclude=ms-excluded --no-coverage'"
 	},
 	"scripts-descriptions": {
 		"behat": "Run Behat tests",
@@ -93,8 +93,8 @@
 		"i18n": "Generate a POT file for translation",
 		"lint": "Run PHP linting",
 		"lint-ci": "Run PHP linting and send results to stdout",
-		"prepare-behat-tests": "Install Behat tests",
-		"test-integration": "Run integration tests",
-		"test-integration-ms": "Run integration tests in multisite mode"
+		"prepare-behat-tests": "Start wp-env environment for Behat tests",
+		"test:integration": "Run integration tests",
+		"test:integration-ms": "Run integration tests in multisite mode"
 	}
 }

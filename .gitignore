@@ -6,3 +6,4 @@
 /phpcs.xml
 /phpunit.xml
 /wpcom-helper.php
+/.wp-env.override.json

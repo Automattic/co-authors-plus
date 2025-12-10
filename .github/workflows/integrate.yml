@@ -1,6 +1,27 @@
 name: Integration Tests
 
-on: [push]
+on:
+  pull_request:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpunit.xml.dist'
+      - '.github/workflows/integrate.yml'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpunit.xml.dist'
+      - '.github/workflows/integrate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
@@ -19,7 +40,7 @@ jobs:
             php: '7.4'
             allowed_failure: false
           # Check latest WP with the highest supported PHP.
-          - wordpress: '6.8'
+          - wordpress: '6.9'
             php: 'latest'
             allowed_failure: false
           # Check upcoming WP.
@@ -34,13 +55,15 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
 
       - name: Install wordpress environment
         run: npm install -g @wordpress/env
 
       - name: Set up PHP ${{ matrix.php }}
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
         with:
           php-version: ${{ matrix.php }}
           extensions: ${{ matrix.extensions }}
@@ -48,7 +71,7 @@ jobs:
           coverage: ${{ matrix.coverage }}
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v3
+        uses: ramsey/composer-install@3cf229dc2919194e9e36783941438d17239e8520 # 3.1.1
         with:
           composer-options: --ignore-platform-req=php+
 
@@ -69,7 +92,7 @@ jobs:
           WP_ENV_CORE: WordPress/WordPress#${{ matrix.wordpress }}
 
       - name: Run integration tests (single site)
-        run: composer test-integration
+        run: composer test:integration
 
       - name: Run integration tests (multisite)
-        run: composer test-integration-ms
+        run: composer test:integration-ms
