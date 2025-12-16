@@ -38,19 +38,9 @@ jobs:
           # Check lowest supported WP version, with the lowest supported PHP.
           - wordpress: '6.4'
             php: '7.4'
-            allowed_failure: false
-          # Check latest WP with the highest supported PHP.
-          - wordpress: '6.9'
-            php: 'latest'
-            allowed_failure: false
-          # Check upcoming WP.
+          # Check latest WP with the latest PHP.
           - wordpress: 'master'
             php: 'latest'
-            allowed_failure: true
-          # Check upcoming PHP - only needed when a new version has been forked (typically Sep-Nov)
-#          - wordpress: 'trunk'
-#            php: 'nightly'
-#            allowed_failure: true
       fail-fast: false
 
     steps:
