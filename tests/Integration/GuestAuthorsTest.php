@@ -663,7 +663,7 @@ class GuestAuthorsTest extends TestCase {
 
 		} catch ( \Exception $e ) {
 
-			//$this->assertStringContainsString( $guest_author_obj->parent_page, $e->getMessage() );
+			// $this->assertStringContainsString( $guest_author_obj->parent_page, $e->getMessage() );
 			$this->assertStringContainsString( 'page=view-guest-authors', $e->getMessage() );
 			$this->assertStringContainsString( 'message=guest-author-deleted', $e->getMessage() );
 		}

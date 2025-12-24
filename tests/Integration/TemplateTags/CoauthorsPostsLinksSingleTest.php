@@ -43,17 +43,20 @@ class CoauthorsPostsLinksSingleTest extends TestCase {
 	 */
 	public function test_single_link_is_returned_with_filtered_args(): void {
 		$author = $this->create_author( 'filtered-author' );
-		add_filter( 'coauthors_posts_link', function( $args ) use ( $author ) {
-			return array(
-				'before_html' => 'Before',
-				'href'        => 'https://example.com/',
-				'rel'         => '',
-				'title'       => null, // Would be nice for the attribute not to appear at all for this.
-				'class'       => 'my-author-link',
-				'text'        => apply_filters( 'the_author', $author->display_name ),
-				'after_html'  => 'After',
-			);
-		});
+		add_filter(
+			'coauthors_posts_link',
+			function ( $args ) use ( $author ) {
+				return array(
+					'before_html' => 'Before',
+					'href'        => 'https://example.com/',
+					'rel'         => '',
+					'title'       => null, // Would be nice for the attribute not to appear at all for this.
+					'class'       => 'my-author-link',
+					'text'        => apply_filters( 'the_author', $author->display_name ),
+					'after_html'  => 'After',
+				);
+			}
+		);
 
 		$author_link = coauthors_posts_links_single( $author );
 

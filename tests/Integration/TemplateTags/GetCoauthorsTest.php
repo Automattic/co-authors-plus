@@ -74,7 +74,6 @@ class GetCoauthorsTest extends TestCase {
 
 		// Restore global post from backup.
 		$post = $post_backup;
-
 	}
 
 	/**
@@ -85,7 +84,7 @@ class GetCoauthorsTest extends TestCase {
 		global $post_ID;
 
 		// Backing up global post_ID.
-		$post_ID_backup = $post_ID;
+		$post_id_backup = $post_ID;
 
 		$post = $this->factory()->post->create_and_get();
 
@@ -105,7 +104,7 @@ class GetCoauthorsTest extends TestCase {
 		$this->assertEquals( array( $user_id ), wp_list_pluck( get_coauthors(), 'ID' ) );
 
 		// Restore global post from backup.
-		$post_ID = $post_ID_backup;
+		$post_ID = $post_id_backup;
 	}
 
 	/**
