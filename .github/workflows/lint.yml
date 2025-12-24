@@ -1,0 +1,41 @@
+name: Run JS linting
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+    paths-ignore:
+      - "**.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Run JS linting
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # v6.1.0
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint on JS files
+        run: npm run lint:js
+        continue-on-error: true
+
+      - name: Run Stylelint on CSS files
+        run: npm run lint:css
+        continue-on-error: true
