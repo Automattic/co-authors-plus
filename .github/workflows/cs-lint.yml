@@ -86,14 +86,11 @@ jobs:
           xml-file: ./.phpcs.xml.dist
           xml-schema-file: ./vendor/squizlabs/php_codesniffer/phpcs.xsd
 
-      # This script discards Warnings, and only checks one standard, so shouldn't be considered a full PHPCS run.
-      - name: Run PHPCS
-        run: composer cs
+      # Run PHPCS on tests directory (must pass).
+      - name: Run PHPCS on tests
+        run: composer cs -- tests/
 
-      # Check the code-style consistency of the PHP files.
-#      - name: Check PHP code style
-#        continue-on-error: true
-#        run: vendor/bin/phpcs --report-full --report-checkstyle=./phpcs-report.xml
-
-#      - name: Show PHPCS results in PR
-#        run: cs2pr ./phpcs-report.xml
+      # Run PHPCS on runtime code (informational, doesn't block PR).
+      - name: Run PHPCS on runtime code
+        run: composer cs -- --ignore=tests/
+        continue-on-error: true
