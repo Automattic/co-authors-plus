@@ -6,10 +6,8 @@
 
 	<!-- Rules: WordPress Coding Standards - see
 		https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards -->
-<!--	<rule ref="WordPress-Extra">--> <!-- Includes WordPress-Core -->
-<!--		<exclude name="Universal.Arrays.DisallowShortArraySyntax.Found" />-->
-<!--	</rule>-->
-	<!--<rule ref="WordPress-Docs"/>-->
+	<rule ref="WordPress-Extra"/> <!-- Includes WordPress-Core -->
+	<rule ref="WordPress-Docs"/>
 	<!-- For help in understanding this minimum_supported_wp_version:
 		https://github.com/WordPress-Coding-Standards/WordPress-Coding-Standards/wiki/Customizable-sniff-properties#setting-minimum-supported-wp-version-for-all-sniffs-in-one-go-wpcs-0140 -->
 	<config name="minimum_supported_wp_version" value="6.4"/>
@@ -36,9 +34,85 @@
 	<!-- Allow invoking just `phpcs` on command line without assuming STDIN for file input. -->
 	<file>.</file>
 
-	<exclude-pattern>*/dev-lib/*</exclude-pattern>
 	<exclude-pattern>*/node_modules/*</exclude-pattern>
 	<exclude-pattern>*/vendor/*</exclude-pattern>
-	<exclude-pattern>*/tests/*</exclude-pattern>
-	<exclude-pattern>*/dist/*</exclude-pattern>
+	<exclude-pattern>*/build/*</exclude-pattern>
+
+	<!-- Legacy files with non-standard names (renaming would break requires) -->
+	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
+		<exclude-pattern>php/class-coauthors-iterator.php</exclude-pattern>
+		<exclude-pattern>php/class-coauthors-endpoint.php</exclude-pattern>
+		<exclude-pattern>php/class-wp-cli.php</exclude-pattern>
+		<exclude-pattern>php/integrations/yoast.php</exclude-pattern>
+	</rule>
+
+	<!-- Exclusions for tests directory -->
+	<!-- Test code doesn't need the same documentation as production code -->
+	<rule ref="WordPress-Docs">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Squiz.Commenting">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="Generic.Commenting.DocComment.MissingShort">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- PHPUnit test files use PascalCase naming convention -->
+	<rule ref="WordPress.Files.FileName">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Test namespaces don't need plugin prefix -->
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedNamespaceFound">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Tests interact with WordPress globals and hooks -->
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Test stubs may have mixed structure -->
+	<rule ref="Universal.Files.SeparateFunctionsFromOO.Mixed">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Unused parameters common in test method signatures -->
+	<rule ref="Generic.CodeAnalysis.UnusedFunctionParameter">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Tests may need to override WordPress globals for setup -->
+	<rule ref="WordPress.WP.GlobalVariablesOverride.Prohibited">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Test bootstrap may need runtime configuration -->
+	<rule ref="WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_putenv">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- eval() may be needed for mocking functions in tests -->
+	<rule ref="Squiz.PHP.Eval.Discouraged">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Tests may use restricted functions like count_user_posts() -->
+	<rule ref="WordPressVIPMinimum.Functions.RestrictedFunctions.count_user_posts_count_user_posts">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Tests don't need nonce verification -->
+	<rule ref="WordPress.Security.NonceVerification.Missing">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Exception messages in tests don't need escaping -->
+	<rule ref="WordPress.Security.EscapeOutput.ExceptionNotEscaped">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Tests can use $_POST/$_GET directly without validation -->
+	<rule ref="WordPress.Security.ValidatedSanitizedInput.InputNotValidated">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+	<!-- Test filter callbacks may intentionally not return -->
+	<rule ref="WordPressVIPMinimum.Hooks.AlwaysReturnInFilter.MissingReturnStatement">
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
 </ruleset>

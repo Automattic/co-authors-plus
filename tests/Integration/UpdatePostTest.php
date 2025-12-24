@@ -320,5 +320,4 @@ class UpdatePostTest extends TestCase {
 		// Verify the post does NOT have coauthor terms
 		$this->assertFalse( $coauthors_plus->has_author_terms( $post_id ), 'Attachment post type should not have coauthor terms' );
 	}
-
 }

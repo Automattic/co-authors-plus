@@ -106,14 +106,14 @@ class AuthorQueriedObjectTest extends TestCase {
 		/**
 		* Author non-existent page throws 404
 		*/
-	   $non_existent_page = 1000;
-	   $this->go_to( get_author_posts_url( $author ) . 'page/' . $non_existent_page );
-	   $this->assertQueryTrue( 'is_404' );
+		$non_existent_page = 1000;
+		$this->go_to( get_author_posts_url( $author ) . 'page/' . $non_existent_page );
+		$this->assertQueryTrue( 'is_404' );
 
 		/**
 		* Author existent page loads
 		*/
-	   $this->go_to( get_author_posts_url( $author ) );
-	   $this->assertQueryTrue( 'is_archive', 'is_author' );
+		$this->go_to( get_author_posts_url( $author ) );
+		$this->assertQueryTrue( 'is_archive', 'is_author' );
 	}
 }
