@@ -1,25 +1,45 @@
 # Directories
 /.git/
 /.github/
+/.wordpress-org/
+/.claude/
+/.idea/
+/.phpunit.cache/
 /bin/
 /features/
 /node_modules/
+/src/
 /tests/
 /vendor/
 
-# Files
+# Development configuration
 .distignore
 .editorconfig
 .gitattributes
 .gitignore
+.nvmrc
+.phpcs.xml
 .phpcs.xml.dist
 .wp-env.json
 .wp-env.override.json
+
+# Build tooling
 behat.yml
-CHANGELOG.md
+Makefile
+webpack.config.js
+
+# Package management
 composer.json
 composer.lock
-Makefile
 package.json
 package-lock.json
+
+# Documentation (not needed in plugin distribution)
+CHANGELOG.md
+
+# Test configuration
+phpunit.xml
 phpunit.xml.dist
+
+# WP.com specific
+wpcom-helper.php
