@@ -29,7 +29,7 @@ jobs:
   test:
     name: WP ${{ matrix.wordpress }} on PHP ${{ matrix.php }}
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.allowed_failure }}
+    continue-on-error: ${{ matrix.allowed_failure || false }}
 
     env:
       WP_VERSION: ${{ matrix.wordpress }}
@@ -40,9 +40,11 @@ jobs:
           # Check lowest supported WP version, with the lowest supported PHP.
           - wordpress: '6.4'
             php: '7.4'
-          # Check latest WP with the latest PHP.
+            allowed_failure: false
+          # Check latest WP with the latest PHP (may fail due to bleeding edge changes).
           - wordpress: 'master'
             php: 'latest'
+            allowed_failure: true
       fail-fast: false
 
     steps:
