@@ -2,9 +2,14 @@
  * WordPress dependencies
  */
 import { registerPlugin } from '@wordpress/plugins';
-import { PluginDocumentSettingPanel } from '@wordpress/editor';
 import { __ } from '@wordpress/i18n';
 import { select, subscribe } from "@wordpress/data";
+
+// PluginDocumentSettingPanel moved from @wordpress/edit-post to @wordpress/editor in WP 6.6.
+// Use fallback for backwards compatibility with WP 6.4-6.5.
+const PluginDocumentSettingPanel =
+	wp.editor?.PluginDocumentSettingPanel ||
+	wp.editPost?.PluginDocumentSettingPanel;
 
 /**
  * Components
