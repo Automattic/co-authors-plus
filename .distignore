@@ -13,33 +13,37 @@
 /vendor/
 
 # Development configuration
-.distignore
-.editorconfig
-.gitattributes
-.gitignore
-.nvmrc
-.phpcs.xml
-.phpcs.xml.dist
-.wp-env.json
-.wp-env.override.json
+/.distignore
+/.editorconfig
+/.gitattributes
+/.gitignore
+/.npmrc
+/.nvmrc
+/.phpcs.xml
+/.phpcs.xml.dist
+/.wp-env.json
+/.wp-env.override.json
 
 # Build tooling
-behat.yml
-Makefile
-webpack.config.js
+/behat.yml
+/Makefile
+/webpack.config.js
 
 # Package management
-composer.json
-composer.lock
-package.json
-package-lock.json
+/composer.json
+/composer.lock
+/package.json
+/package-lock.json
 
 # Documentation (not needed in plugin distribution)
-CHANGELOG.md
+/CHANGELOG.md
 
 # Test configuration
-phpunit.xml
-phpunit.xml.dist
+/phpunit.xml
+/phpunit.xml.dist
 
 # WP.com specific
-wpcom-helper.php
+/wpcom-helper.php
+
+# Caches and logs
+*.log
