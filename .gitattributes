@@ -1,21 +1,33 @@
 # Exclude these files from release archives.
 # This will also make them unavailable when using Composer with `--prefer-dist`.
-# If you develop for CAP using Composer, use `--prefer-source`.
+# If you develop for this plugin using Composer, use `--prefer-source`.
 # https://blog.madewithlove.be/post/gitattributes/
 
-/.github/         export-ignore
-/bin/             export-ignore
-/src/__mocks__/   export-ignore
-/src/__tests__/   export-ignore
-/tests/           export-ignore
-/.distignore      export-ignore
-/.editorconfig    export-ignore
-/.gitattributes   export-ignore
-/.gitignore       export-ignore
-/.phpcs.xml.dist  export-ignore
-/phpunit.xml.dist export-ignore
-/CHANGELOG.md     export-ignore
-/phpunit.xml.dist export-ignore
+# Directories
+/.github/                        export-ignore
+/.wordpress-org/                 export-ignore
+/bin/                            export-ignore
+/node_modules/                   export-ignore
+/src/                            export-ignore
+/tests/                          export-ignore
+/vendor/                         export-ignore
+
+# Files
+/.distignore                     export-ignore
+/.editorconfig                   export-ignore
+/.gitattributes                  export-ignore
+/.gitignore                      export-ignore
+/.npmrc                          export-ignore
+/.phpcs.xml.dist                 export-ignore
+/.wp-env.json                    export-ignore
+/.wp-env.override.json           export-ignore
+/CHANGELOG.md                    export-ignore
+/composer.json                   export-ignore
+/composer.lock                   export-ignore
+/package.json                    export-ignore
+/package-lock.json               export-ignore
+/phpunit.xml.dist                export-ignore
+/webpack.config.js               export-ignore
 
 # Auto detect text files and perform LF normalization
 # https://pablorsk.medium.com/be-a-git-ninja-the-gitattributes-file-e58c07c9e915

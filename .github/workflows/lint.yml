@@ -2,11 +2,26 @@ name: Run JS linting
 
 on:
   pull_request:
+    paths:
+      - '**.js'
+      - '**.jsx'
+      - '**.css'
+      - '**.scss'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/lint.yml'
   push:
     branches:
       - develop
-    paths-ignore:
-      - "**.md"
+      - main
+    paths:
+      - '**.js'
+      - '**.jsx'
+      - '**.css'
+      - '**.scss'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/lint.yml'
   workflow_dispatch:
 
 permissions:
@@ -30,7 +45,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run ESLint on JS files
         run: npm run lint:js

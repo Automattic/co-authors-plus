@@ -2,15 +2,37 @@ name: Build
 
 on:
   pull_request:
+    paths:
+      - '**.js'
+      - '**.jsx'
+      - '**.css'
+      - '**.scss'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'webpack.config.js'
+      - '.github/workflows/build.yml'
   push:
     branches:
       - develop
-    paths-ignore:
-      - "**.md"
+      - main
+    paths:
+      - '**.js'
+      - '**.jsx'
+      - '**.css'
+      - '**.scss'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'webpack.config.js'
+      - '.github/workflows/build.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
+
+# Cancels all previous workflow runs for the same branch that have not yet completed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -30,7 +52,7 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Build production assets
         run: npm run build

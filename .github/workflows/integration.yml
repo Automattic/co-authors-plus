@@ -7,7 +7,8 @@ on:
       - 'composer.json'
       - 'composer.lock'
       - 'phpunit.xml.dist'
-      - '.github/workflows/integrate.yml'
+      - '.wp-env.json'
+      - '.github/workflows/integration.yml'
   push:
     branches:
       - develop
@@ -17,7 +18,8 @@ on:
       - 'composer.json'
       - 'composer.lock'
       - 'phpunit.xml.dist'
-      - '.github/workflows/integrate.yml'
+      - '.wp-env.json'
+      - '.github/workflows/integration.yml'
   workflow_dispatch:
 
 permissions:
