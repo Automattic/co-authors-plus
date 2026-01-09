@@ -31,6 +31,7 @@ require_once __DIR__ . '/php/class-coauthors-template-filters.php';
 require_once __DIR__ . '/php/class-coauthors-endpoint.php';
 require_once __DIR__ . '/php/integrations/amp.php';
 require_once __DIR__ . '/php/integrations/yoast.php';
+require_once __DIR__ . '/php/integrations/class-wordpress-importer.php';
 require_once __DIR__ . '/php/class-coauthors-plus.php';
 require_once __DIR__ . '/php/class-coauthors-iterator.php';
 
@@ -48,6 +49,9 @@ global $coauthors_plus;
 $coauthors_plus     = new CoAuthors_Plus();
 $coauthors_endpoint = new CoAuthors\API\Endpoints( $coauthors_plus );
 CoAuthors\Blocks::run();
+
+// Initialize integrations.
+( new Automattic\CoAuthorsPlus\Integrations\WordPress_Importer() )->init();
 
 if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 	/**
