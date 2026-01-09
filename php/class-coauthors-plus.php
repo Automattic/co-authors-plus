@@ -53,7 +53,7 @@ class CoAuthors_Plus {
 		// Action to reassign posts when a guest author is deleted
 		add_action( 'delete_user', array( $this, 'delete_user_action' ) );
 
-		add_filter( 'get_usernumposts', array( $this, 'filter_count_user_posts' ), 10, 2 );
+		add_filter( 'get_usernumposts', array( $this, 'filter_count_user_posts' ), 10, 4 );
 
 		// Action to set up co-author auto-suggest
 		add_action( 'wp_ajax_coauthors_ajax_suggest', array( $this, 'ajax_suggest' ) );
@@ -1195,14 +1195,24 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Filter the count_users_posts() core function to include our correct count.
+	 * Filter the count_user_posts() core function to include correct count for co-authors.
 	 *
-	 * @param int $count Post count
-	 * @param int $user_id WP user ID
-	 * @return int Post count
+	 * @since 2.6.4
+	 * @since 3.6.3 Added support for custom post types via $post_type parameter.
+	 *
+	 * @param int          $count       Post count.
+	 * @param int          $user_id     WP user ID.
+	 * @param string|array $post_type   Post type(s) to count. Default 'post'.
+	 * @param bool         $public_only Whether to only count public posts. Default false.
+	 * @return int Post count.
 	 */
-	public function filter_count_user_posts( $count, $user_id ): int {
-		$user     = get_userdata( $user_id );
+	public function filter_count_user_posts( $count, $user_id, $post_type = 'post', $public_only = false ): int {
+		$user = get_userdata( $user_id );
+
+		if ( ! $user ) {
+			return $count;
+		}
+
 		$coauthor = $this->get_coauthor_by( 'user_nicename', $user->user_nicename );
 
 		// Return $count if no co-author exists.
@@ -1212,18 +1222,66 @@ class CoAuthors_Plus {
 
 		$term = $this->get_author_term( $coauthor );
 
-		if ( is_object( $term ) ) {
-			// Return combined post count, if account is linked.
-			if ( strlen( $coauthor->linked_account ) > 2 ) {
-				return $count + $term->count;
-			}
-
-			// Otherwise, return the term count.
-			return $term->count;
+		if ( ! is_object( $term ) ) {
+			return $count;
 		}
 
-		// Return $count as fallback.
-		return $count;
+		// For backwards compatibility: when WordPress passes the default 'post' type,
+		// apply the coauthors_count_published_post_types filter to allow overriding.
+		// WordPress may pass as string 'post' or array ['post'] depending on version.
+		$is_default_post_type = ( 'post' === $post_type || ( is_array( $post_type ) && array( 'post' ) === $post_type ) );
+		if ( $is_default_post_type ) {
+			$post_type = apply_filters( 'coauthors_count_published_post_types', array( 'post' ) );
+		}
+
+		// Query actual post count for the specified post types.
+		$coauthor_count = $this->get_post_count_for_author_term( $term, $post_type, $public_only );
+
+		// If account is linked, add the original count (which covers post_author field).
+		if ( ! empty( $coauthor->linked_account ) && strlen( $coauthor->linked_account ) > 2 ) {
+			return $count + $coauthor_count;
+		}
+
+		return $coauthor_count;
+	}
+
+	/**
+	 * Get the post count for an author term with specific post types.
+	 *
+	 * @since 3.6.3
+	 *
+	 * @param WP_Term      $term        Author term object.
+	 * @param string|array $post_type   Post type(s) to count.
+	 * @param bool         $public_only Whether to only count public posts.
+	 * @return int Post count.
+	 */
+	private function get_post_count_for_author_term( $term, $post_type = 'post', $public_only = false ): int {
+		$post_types = (array) $post_type;
+
+		$args = array(
+			'tax_query'              => array(
+				array(
+					'taxonomy' => $this->coauthor_taxonomy,
+					'field'    => 'term_id',
+					'terms'    => $term->term_id,
+				),
+			),
+			'post_type'              => $post_types,
+			'posts_per_page'         => -1,
+			'fields'                 => 'ids',
+			'update_post_meta_cache' => false,
+			'update_post_term_cache' => false,
+		);
+
+		if ( $public_only ) {
+			$args['post_status'] = 'publish';
+		} else {
+			$args['post_status'] = array( 'publish', 'private' );
+		}
+
+		$query = new \WP_Query( $args );
+
+		return $query->found_posts;
 	}
 
 	/**
