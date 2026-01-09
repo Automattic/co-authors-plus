@@ -1906,6 +1906,11 @@ class CoAuthorsPlusTest extends TestCase {
 	 * @covers CoAuthors_Plus::enqueue_sidebar_plugin_assets()
 	 */
 	public function test_enqueue_editor_assets(): void {
+		$asset_file = dirname( COAUTHORS_PLUS_FILE ) . '/build/index.asset.php';
+
+		if ( ! file_exists( $asset_file ) ) {
+			$this->markTestSkipped( 'Build files not present. Run npm run build to test asset enqueuing.' );
+		}
 
 		// Default state
 		do_action( 'enqueue_block_editor_assets' );

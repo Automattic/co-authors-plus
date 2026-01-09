@@ -165,7 +165,13 @@ class CoAuthors_Plus {
 	 */
 	public function enqueue_sidebar_plugin_assets(): void {
 		if ( $this->is_post_type_enabled() && $this->current_user_can_set_authors() ) {
-			$asset = require dirname( COAUTHORS_PLUS_FILE ) . '/build/index.asset.php';
+			$asset_file = dirname( COAUTHORS_PLUS_FILE ) . '/build/index.asset.php';
+
+			if ( ! file_exists( $asset_file ) ) {
+				return;
+			}
+
+			$asset = require $asset_file;
 
 			wp_register_script(
 				'coauthors-sidebar-js',
