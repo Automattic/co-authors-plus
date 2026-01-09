@@ -1226,6 +1226,14 @@ class CoAuthors_Plus {
 			return $count;
 		}
 
+		// For backwards compatibility: when WordPress passes the default 'post' type,
+		// apply the coauthors_count_published_post_types filter to allow overriding.
+		// WordPress may pass as string 'post' or array ['post'] depending on version.
+		$is_default_post_type = ( 'post' === $post_type || ( is_array( $post_type ) && array( 'post' ) === $post_type ) );
+		if ( $is_default_post_type ) {
+			$post_type = apply_filters( 'coauthors_count_published_post_types', array( 'post' ) );
+		}
+
 		// Query actual post count for the specified post types.
 		$coauthor_count = $this->get_post_count_for_author_term( $term, $post_type, $public_only );
 
