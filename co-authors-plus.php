@@ -32,6 +32,7 @@ require_once __DIR__ . '/php/class-coauthors-endpoint.php';
 require_once __DIR__ . '/php/integrations/amp.php';
 require_once __DIR__ . '/php/integrations/yoast.php';
 require_once __DIR__ . '/php/integrations/class-wordpress-importer.php';
+require_once __DIR__ . '/php/integrations/class-jetpack-subscriber-emails.php';
 require_once __DIR__ . '/php/class-coauthors-plus.php';
 require_once __DIR__ . '/php/class-coauthors-iterator.php';
 
@@ -52,6 +53,7 @@ CoAuthors\Blocks::run();
 
 // Initialize integrations.
 ( new Automattic\CoAuthorsPlus\Integrations\WordPress_Importer() )->init();
+( new Automattic\CoAuthorsPlus\Integrations\Jetpack_Subscriber_Emails() )->init();
 
 if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 	/**
