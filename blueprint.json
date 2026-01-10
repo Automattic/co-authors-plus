@@ -1,6 +1,6 @@
 {
   "$schema": "https://playground.wordpress.net/blueprint-schema.json",
-  "landingPage": "/wp-admin/post-new.php",
+  "landingPage": "/wp-admin/post.php?post=4&action=edit",
   "preferredVersions": {
     "php": "8.0",
     "wp": "latest"
@@ -20,7 +20,7 @@
     },
     {
       "step": "runPHP",
-      "code": "<?php require '/wordpress/wp-load.php'; wp_insert_user(['user_login' => 'janesmith', 'user_pass' => 'password', 'display_name' => 'Jane Smith', 'role' => 'author', 'user_email' => 'jane@example.com']); ?>"
+      "code": "<?php require '/wordpress/wp-load.php'; wp_insert_user(['user_login' => 'janesmith', 'user_pass' => 'password', 'display_name' => 'Jane Smith', 'role' => 'author', 'user_email' => 'jane@example.com']); global $coauthors_plus; if ($coauthors_plus && $coauthors_plus->guest_authors) { $coauthors_plus->guest_authors->create(['display_name' => 'Alex Johnson (Guest Author)', 'user_login' => 'alex-johnson', 'user_email' => 'alex@example.com']); } $post_id = wp_insert_post(['post_title' => 'Article with Multiple Authors', 'post_content' => '<!-- wp:paragraph --><p>This post demonstrates Co-Authors Plus with multiple authors assigned, including a guest author. Open the Authors panel in the sidebar to see and manage the co-authors.</p><!-- /wp:paragraph -->', 'post_status' => 'draft', 'post_author' => 1]); if ($coauthors_plus) { $coauthors_plus->add_coauthors($post_id, ['admin', 'janesmith', 'alex-johnson']); } ?>"
     }
   ]
 }
