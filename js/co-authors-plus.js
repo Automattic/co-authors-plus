@@ -336,14 +336,12 @@ jQuery( document ).ready(function () {
 
 
 		// Make co-authors sortable so an editor can control the order of the co-authors
-		jQuery( '#coauthors-edit' ).ready(function( $ ) {
-			$( '#coauthors-list' ).sortable({
-				axis: 'y',
-				handle: '.coauthor-tag',
-				placeholder: 'ui-state-highlight',
-				items: 'div.coauthor-row:not(div.coauthor-row:last)',
-				containment: 'parent',
-			});
+		jQuery( '#coauthors-list' ).sortable({
+			axis: 'y',
+			handle: '.coauthor-tag',
+			placeholder: 'ui-state-highlight',
+			items: 'div.coauthor-row:not(div.coauthor-row:last)',
+			containment: 'parent',
 		});
 
 	}
