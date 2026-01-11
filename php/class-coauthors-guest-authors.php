@@ -309,14 +309,15 @@ class CoAuthors_Guest_Authors {
 		global $coauthors_plus;
 
 		if ( ! current_user_can( $this->list_guest_authors_cap ) ) {
-			die();
+			wp_send_json( array() );
 		}
 
-		if ( ! isset( $_GET['q'] ) ) {
-			die();
+		// jQuery UI autocomplete uses 'term' parameter.
+		$search = isset( $_GET['term'] ) ? sanitize_text_field( $_GET['term'] ) : '';
+		if ( empty( $search ) ) {
+			wp_send_json( array() );
 		}
 
-		$search = sanitize_text_field( $_GET['q'] );
 		if ( ! empty( $_GET['guest_author'] ) ) {
 			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_login );
 		} else {
@@ -324,21 +325,16 @@ class CoAuthors_Guest_Authors {
 		}
 
 		$authors = $coauthors_plus->search_authors( $search, $ignore );
+		$results = array();
 
-		if ( empty( $authors ) ) {
-			echo esc_html__( 'No matching authors found.', 'co-authors-plus' );
-			die();
-		}
-
-		// Return in the same format as the main co-author suggest for consistency.
 		foreach ( $authors as $author ) {
-			printf(
-				"%s ∣ %s\n",
-				esc_html( $author->display_name ),
-				esc_html( $author->user_nicename )
+			$results[] = array(
+				'label' => $author->display_name,
+				'value' => $author->user_nicename,
 			);
 		}
-		die();
+
+		wp_send_json( $results );
 	}
 
 
@@ -397,7 +393,7 @@ class CoAuthors_Guest_Authors {
 		// Enqueue our guest author CSS on the related pages
 		if ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'view-guest-authors' === $_GET['page'] ) {
 			wp_enqueue_style( 'guest-authors-css', plugins_url( 'css/guest-authors.css', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
-			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), array( 'jquery', 'suggest' ), COAUTHORS_PLUS_VERSION );
+			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), array( 'jquery', 'jquery-ui-autocomplete' ), COAUTHORS_PLUS_VERSION );
 
 			// Pass AJAX URL for co-author search.
 			$guest_author_id = isset( $_GET['id'] ) ? (int) $_GET['id'] : 0;
@@ -539,9 +535,10 @@ class CoAuthors_Guest_Authors {
 				echo '<li class="hide-if-no-js"><label for="reassign-another">';
 				echo '<input type="radio" id="reassign-another" name="reassign" class="reassign-option" value="reassign-another" />&nbsp;&nbsp;' . esc_html__( 'Reassign to another co-author:', 'co-authors-plus' ) . '&nbsp;&nbsp;</label>';
 				printf(
-					'<input type="text" id="leave-assigned-to" name="leave-assigned-to" class="coauthor-suggest" placeholder="%s" autocomplete="off" style="width:200px;" />',
+					'<input type="text" id="leave-assigned-to-display" class="coauthor-suggest" placeholder="%s" autocomplete="off" style="width:200px;" />',
 					esc_attr__( 'Search for author...', 'co-authors-plus' )
 				);
+				echo '<input type="hidden" id="leave-assigned-to" name="leave-assigned-to" />';
 				echo '</li>';
 				// Leave mapped to a linked account
 				if ( get_user_by( 'login', $guest_author->linked_account ) ) {

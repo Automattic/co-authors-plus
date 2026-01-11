@@ -173,10 +173,13 @@ class CoAuthors_Plus {
 
 			$asset = require $asset_file;
 
+			// Add wp-editor dependency for PluginDocumentSettingPanel (accessed via global wp object for WP 6.4+ compatibility).
+			$dependencies = array_merge( $asset['dependencies'], array( 'wp-editor' ) );
+
 			wp_register_script(
 				'coauthors-sidebar-js',
 				plugins_url( 'build/index.js', COAUTHORS_PLUS_FILE ),
-				$asset['dependencies'],
+				$dependencies,
 				$asset['version']
 			);
 
@@ -1388,22 +1391,22 @@ class CoAuthors_Plus {
 	public function ajax_suggest(): void {
 
 		if ( ! isset( $_REQUEST['_wpnonce'] ) || ! wp_verify_nonce( $_REQUEST['_wpnonce'], 'coauthors-search' ) ) {
-			die();
+			wp_send_json( array() );
 		}
 
-		if ( empty( $_REQUEST['q'] ) ) {
-			die();
+		// jQuery UI autocomplete uses 'term' parameter.
+		$search = isset( $_REQUEST['term'] ) ? sanitize_text_field( strtolower( $_REQUEST['term'] ) ) : '';
+		if ( empty( $search ) ) {
+			wp_send_json( array() );
 		}
 
-		$search = sanitize_text_field( strtolower( $_REQUEST['q'] ) );
-		$ignore = array_map( 'sanitize_text_field', explode( ',', $_REQUEST['existing_authors'] ) ); // phpcs:ignore
+		$ignore = array();
+		if ( ! empty( $_REQUEST['existing_authors'] ) ) {
+			$ignore = array_map( 'sanitize_text_field', explode( ',', $_REQUEST['existing_authors'] ) );
+		}
 
 		$authors = $this->search_authors( $search, $ignore );
-
-		// Return message if no authors found
-		if ( empty( $authors ) ) {
-			echo esc_html( apply_filters( 'coauthors_no_matching_authors_message', 'Sorry, no matching authors found.' ) );
-		}
+		$results = array();
 
 		foreach ( $authors as $author ) {
 			$user_type = 'guest-user';
@@ -1411,20 +1414,18 @@ class CoAuthors_Plus {
 				$user_type = 'wp-user';
 			}
 
-			printf(
-				"%s ∣ %s ∣ %s ∣ %s ∣ %s ∣ %s \n",
-				esc_html( $author->ID ),
-				esc_html( $author->user_login ),
-				// Ensure that author names can contain a pipe character by replacing the pipe character with the
-				// divides character, which will now serve as a delimiter of the author parameters. (#370)
-				esc_html( str_replace( '∣', '|', $author->display_name ) ),
-				esc_html( $author->user_email ),
-				esc_html( rawurldecode( $author->user_nicename ) ),
-				esc_url( get_avatar_url( $author->ID,  array( 'user_type' => $user_type ) ) )
+			$results[] = array(
+				'id'       => $author->ID,
+				'login'    => $author->user_login,
+				'label'    => $author->display_name,
+				'value'    => $author->display_name,
+				'email'    => $author->user_email,
+				'nicename' => rawurldecode( $author->user_nicename ),
+				'avatar'   => get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ),
 			);
 		}
 
-		die();
+		wp_send_json( $results );
 
 	}
 
@@ -1524,7 +1525,7 @@ class CoAuthors_Plus {
 		wp_enqueue_script( 'jquery' );
 		wp_enqueue_script( 'jquery-ui-sortable' );
 		wp_enqueue_style( 'co-authors-plus-css', plugins_url( 'css/co-authors-plus.css', COAUTHORS_PLUS_FILE ), false, COAUTHORS_PLUS_VERSION );
-		wp_enqueue_script( 'co-authors-plus-js', plugins_url( 'js/co-authors-plus.js', COAUTHORS_PLUS_FILE ), array( 'jquery', 'suggest' ), COAUTHORS_PLUS_VERSION, true );
+		wp_enqueue_script( 'co-authors-plus-js', plugins_url( 'js/co-authors-plus.js', COAUTHORS_PLUS_FILE ), array( 'jquery', 'jquery-ui-autocomplete' ), COAUTHORS_PLUS_VERSION, true );
 
 		$js_strings = array(
 			'edit_label'      => __( 'Edit', 'co-authors-plus' ),
@@ -2102,7 +2103,7 @@ class CoAuthors_Plus {
 		</label>
 		<div id="coauthors-edit" class="inline-edit-group wp-clearfix hide-if-no-js">
 			<p id="coauthors-bulk-edit-desc"><?php echo wp_kses( __( 'Leave the field below blank to keep the Authors unchanged. Any change here will overwrite all previously assigned Authors.', 'co-authors-plus' ), array( 'strong' => array() ) ); ?></p>
-			<?php wp_nonce_field( 'coauthors-edit', 'coauthors-nonce' ); ?>
+			<input type="hidden" name="coauthors-nonce" value="<?php echo esc_attr( wp_create_nonce( 'coauthors-edit' ) ); ?>" />
 		</div>
 		<?php
 	}

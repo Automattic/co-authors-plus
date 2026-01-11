@@ -29,19 +29,30 @@ const PluginDocumentSettingPanelAuthors = () => (
 	</PluginDocumentSettingPanel>
 );
 
-registerPlugin( 'plugin-coauthors-document-setting', {
-	render: PluginDocumentSettingPanelAuthors,
-	icon: 'users',
-} );
+// Only register plugin if PluginDocumentSettingPanel is available.
+if ( PluginDocumentSettingPanel ) {
+	registerPlugin( 'plugin-coauthors-document-setting', {
+		render: PluginDocumentSettingPanelAuthors,
+		icon: 'users',
+	} );
+}
 
 // Save authors when the post is saved.
 // https://github.com/WordPress/gutenberg/issues/17632
-const { isSavingPost, getCurrentPost } = select("core/editor");
-const { getAuthors, saveAuthors } = select("cap/authors");
-
 let checked = true; // Start in a checked state.
 
 subscribe(() => {
+	const editorStore = select("core/editor");
+	const authorsStore = select("cap/authors");
+
+	// Bail early if stores aren't ready yet.
+	if (!editorStore || !authorsStore) {
+		return;
+	}
+
+	const { isSavingPost, getCurrentPost } = editorStore;
+	const { getAuthors, saveAuthors } = authorsStore;
+
 	if (isSavingPost()) {
 		checked = false;
 	} else if (!checked) {

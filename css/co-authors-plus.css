@@ -127,3 +127,30 @@
 .cap-author .cap-author-flex-item:first-child {
     overflow-wrap: break-word;
 }
+
+/* Autocomplete dropdown styles */
+.ui-autocomplete {
+	max-height: 300px;
+	overflow-y: auto;
+	overflow-x: hidden;
+	z-index: 100001; /* Above WordPress admin elements */
+}
+
+.ui-autocomplete .ui-menu-item-wrapper {
+	display: flex;
+	align-items: center;
+}
+
+.coauthor-autocomplete-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.coauthor-autocomplete-avatar {
+	width: 20px;
+	height: 20px;
+	border-radius: 50%;
+	flex-shrink: 0;
+	vertical-align: middle;
+}

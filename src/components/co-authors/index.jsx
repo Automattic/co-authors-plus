@@ -81,13 +81,6 @@ const CoAuthors = () => {
 	const { setAuthorsStore } = useDispatch( 'cap/authors' );
 
 	/**
-	 * Is saving post
-	 */
-	const isSavingPost = useSelect(
-		(select) => select('core/editor').isSavingPost
-	);
-
-	/**
 	 * Threshold filter for determining when a search query is preformed.
 	 *
 	 * @param {integer} threshold length threshold. default 2.
