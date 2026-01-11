@@ -323,17 +323,21 @@ class CoAuthors_Guest_Authors {
 			$ignore = array();
 		}
 
-		$results = wp_list_pluck( $coauthors_plus->search_authors( $search, $ignore ), 'user_login' );
-		$retval  = array();
-		foreach ( $results as $user_login ) {
-			$coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $user_login );
-			$retval[] = (object) array(
-				'display_name' => $coauthor->display_name,
-				'user_login'   => $coauthor->user_login,
-				'id'           => $coauthor->user_nicename,
+		$authors = $coauthors_plus->search_authors( $search, $ignore );
+
+		if ( empty( $authors ) ) {
+			echo esc_html__( 'No matching authors found.', 'co-authors-plus' );
+			die();
+		}
+
+		// Return in the same format as the main co-author suggest for consistency.
+		foreach ( $authors as $author ) {
+			printf(
+				"%s ∣ %s\n",
+				esc_html( $author->display_name ),
+				esc_html( $author->user_nicename )
 			);
 		}
-		echo wp_json_encode( $retval );
 		die();
 	}
 
@@ -392,11 +396,24 @@ class CoAuthors_Guest_Authors {
 		global $pagenow;
 		// Enqueue our guest author CSS on the related pages
 		if ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'view-guest-authors' === $_GET['page'] ) {
-			wp_enqueue_script( 'jquery-select2', plugins_url( 'lib/select2/select2.min.js', __DIR__ ), array( 'jquery' ), COAUTHORS_PLUS_VERSION );
-			wp_enqueue_style( 'cap-jquery-select2-css', plugins_url( 'lib/select2/select2.css', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
-
 			wp_enqueue_style( 'guest-authors-css', plugins_url( 'css/guest-authors.css', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
-			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
+			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), array( 'jquery', 'suggest' ), COAUTHORS_PLUS_VERSION );
+
+			// Pass AJAX URL for co-author search.
+			$guest_author_id = isset( $_GET['id'] ) ? (int) $_GET['id'] : 0;
+			wp_localize_script(
+				'guest-authors-js',
+				'coAuthorsGuestAuthors',
+				array(
+					'ajaxUrl' => add_query_arg(
+						array(
+							'action'       => 'search_coauthors_to_assign',
+							'guest_author' => $guest_author_id,
+						),
+						admin_url( 'admin-ajax.php' )
+					),
+				)
+			);
 		} elseif ( in_array( $pagenow, array( 'post.php', 'post-new.php' ) ) && $this->post_type === get_post_type() ) {
 			add_action( 'admin_head', array( $this, 'change_title_icon' ) );
 		}
@@ -521,7 +538,10 @@ class CoAuthors_Guest_Authors {
 				// Reassign to another user
 				echo '<li class="hide-if-no-js"><label for="reassign-another">';
 				echo '<input type="radio" id="reassign-another" name="reassign" class="reassign-option" value="reassign-another" />&nbsp;&nbsp;' . esc_html__( 'Reassign to another co-author:', 'co-authors-plus' ) . '&nbsp;&nbsp;</label>';
-				echo '<input type="hidden" id="leave-assigned-to" name="leave-assigned-to" style="width:200px;" />';
+				printf(
+					'<input type="text" id="leave-assigned-to" name="leave-assigned-to" class="coauthor-suggest" placeholder="%s" autocomplete="off" style="width:200px;" />',
+					esc_attr__( 'Search for author...', 'co-authors-plus' )
+				);
 				echo '</li>';
 				// Leave mapped to a linked account
 				if ( get_user_by( 'login', $guest_author->linked_account ) ) {
