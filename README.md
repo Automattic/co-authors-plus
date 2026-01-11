@@ -6,7 +6,7 @@ Tested up to: 6.9
 Requires PHP: 7.4  
 License: GPLv2 or later  
 License URI: https://www.gnu.org/licenses/gpl-2.0.html  
-Tags: authors, users, multiple authors, co-authors, multi-author, publishing  
+Tags: authors, users, multiple authors, co-authors, multi-author  
 Contributors: batmoo, danielbachhuber, automattic, GaryJ  
 
 Assign multiple bylines to posts, pages, and custom post types with a search-as-you-type input box.
