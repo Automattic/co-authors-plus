@@ -24,6 +24,8 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	public function create_guest_authors( $args, $assoc_args ): void {
 		global $coauthors_plus;
 
+		$this->verify_guest_authors_or_die();
+
 		$defaults = array(
 				// There are no arguments at this time
 		);
@@ -576,6 +578,8 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	public function rename_coauthor( $args, $assoc_args ): void {
 		global $coauthors_plus, $wpdb;
 
+		$this->verify_guest_authors_or_die();
+
 		$defaults   = array(
 			'from' => null,
 			'to'   => null,
@@ -830,6 +834,9 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 */
 	public function update_author_terms(): void {
 		global $coauthors_plus;
+
+		$this->verify_guest_authors_or_die();
+
 		$author_terms = get_terms( $coauthors_plus->coauthor_taxonomy, array( 'hide_empty' => false ) );
 		WP_CLI::log( 'Now updating ' . count( $author_terms ) . ' terms' );
 		foreach ( $author_terms as $author_term ) {
@@ -1082,6 +1089,9 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 */
 	private function create_guest_author( $author ): void {
 		global $coauthors_plus;
+
+		$this->verify_guest_authors_or_die();
+
 		$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'user_email', $author['user_email'], true );
 
 		if ( ! $guest_author ) {
@@ -1315,5 +1325,17 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 */
 	private function get_formatted_complete_percentage( $completed, $total ) {
 		return number_format( ( $completed / $total ) * 100, 2 ) . '%';
+	}
+
+	/**
+	 * Verify Guest Authors is enabled and instantiated, otherwise print error and die.
+	 *
+	 * @return void
+	 */
+	private function verify_guest_authors_or_die(): void {
+		global $coauthors_plus;
+		if ( ! $coauthors_plus->is_guest_authors_enabled() || ! $coauthors_plus->guest_authors instanceof CoAuthors_Guest_Authors ) {
+			WP_CLI::error( __( 'Guest Authors needs to be enabled and instantiated to run this command.', 'co-authors-plus' ) );
+		}
 	}
 }
