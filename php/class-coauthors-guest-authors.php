@@ -1304,6 +1304,19 @@ class CoAuthors_Guest_Authors {
 
 		// Make sure the author term exists and that we're assigning it to this post type
 		$author_term = $coauthors_plus->update_author_term( $this->get_guest_author_by( 'ID', $post_id ) );
+
+		if ( is_wp_error( $author_term ) ) {
+			// Clean up the post we just created since term creation failed.
+			wp_delete_post( $post_id, true );
+			return $author_term;
+		}
+
+		if ( ! $author_term ) {
+			// Clean up the post we just created since term creation failed.
+			wp_delete_post( $post_id, true );
+			return new WP_Error( 'term-creation-failed', __( 'Failed to create author term. The author slug may conflict with an existing user.', 'co-authors-plus' ) );
+		}
+
 		wp_set_post_terms( $post_id, array( $author_term->slug ), $coauthors_plus->coauthor_taxonomy );
 
 		// Explicitly clear all caches, to remove negative caches that may have existed prior to this
