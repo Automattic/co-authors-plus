@@ -1077,20 +1077,14 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	private function create_guest_author( $author ): void {
 		global $coauthors_plus;
 
+		$guest_author = false;
+
 		if ( ! empty( $author['user_email'] ) ) {
 			$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'user_email', $author['user_email'], true );
 		}
 
-		if ( ! $guest_author && ! empty ( $author['user_login'] ) ) {
+		if ( ! $guest_author && ! empty( $author['user_login'] ) ) {
 			$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'user_login', $author['user_login'], true );
-		}
-
-		if ( ! $guest_author && ! empty ( $author['display_name'] ) ) {
-			$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'display_name', $author['display_name'], true );
-
-			if ( $guest_author->user_email !== $author['user_email'] || $guest_author->user_login !== $author['user_login'] ) {
-				$guest_author = null;
-			}
 		}
 
 		if ( $guest_author ) {
