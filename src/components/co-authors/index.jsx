@@ -184,6 +184,8 @@ const CoAuthors = () => {
 				options={ dropdownOptions }
 				onChange={ onChange }
 				onFilterValueChange={ onFilterValueChange }
+				__next40pxDefaultSize
+				__nextHasNoMarginBottom
 			/>
 		</>
 	);
