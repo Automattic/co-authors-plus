@@ -816,8 +816,9 @@ class CoAuthors_Plus {
 				return $where;
 			}
 
-			if ( $query->get( 'author_name' ) ) {
-				$author_name = sanitize_title( $query->get( 'author_name' ) );
+			$author_name_var = $query->get( 'author_name' );
+			if ( $author_name_var && is_string( $author_name_var ) ) {
+				$author_name = sanitize_title( $author_name_var );
 			} else {
 				$author_data = get_userdata( $query->get( $this->coauthor_taxonomy ) );
 				if ( is_object( $author_data ) ) {
@@ -1335,10 +1336,11 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		$author_name = sanitize_title( get_query_var( 'author_name' ) );
-		if ( ! $author_name ) {
+		$author_name_var = get_query_var( 'author_name' );
+		if ( ! $author_name_var || ! is_string( $author_name_var ) ) {
 			return;
 		}
+		$author_name = sanitize_title( $author_name_var );
 
 		$author = $this->get_coauthor_by( 'user_nicename', $author_name );
 		if ( is_object( $author ) ) {
@@ -1963,7 +1965,12 @@ class CoAuthors_Plus {
 			return $title;
 		}
 
-		$author_slug = sanitize_user( get_query_var( 'author_name' ) );
+		$author_name_var = get_query_var( 'author_name' );
+		if ( ! is_string( $author_name_var ) ) {
+			return $title;
+		}
+
+		$author_slug = sanitize_user( $author_name_var );
 		$author      = $this->get_coauthor_by( 'user_nicename', $author_slug );
 
 		/* translators: Author display name. */

@@ -345,7 +345,7 @@ class CoAuthors_Guest_Authors {
 	 */
 	public function action_parse_request( $query ) {
 
-		if ( ! isset( $query->query_vars['author_name'] ) ) {
+		if ( ! isset( $query->query_vars['author_name'] ) || ! is_string( $query->query_vars['author_name'] ) ) {
 			return $query;
 		}
 
