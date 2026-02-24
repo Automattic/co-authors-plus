@@ -1432,11 +1432,10 @@ class CoAuthors_Guest_Authors {
 			return $maybe_empty;
 		}
 
-		if ( empty( $postarr['post_title'] ) ) {
-			return true;
-		}
-
-		return $maybe_empty;
+		// Guest author posts store their data in post meta, not post_content/post_excerpt.
+		// Allow empty content so auto-drafts and new posts can be created.
+		// Display name validation is handled separately in manage_guest_author_filter_post_data().
+		return false;
 	}
 
 	/**
