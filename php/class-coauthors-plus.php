@@ -1144,11 +1144,13 @@ class CoAuthors_Plus {
 			$user_data = get_user_by( 'id', $delete_id );
 
 			// Get the associated user.
-			$associated_user = $this->guest_authors->get_guest_author_by( 'linked_account', $user_data->data->user_login );
+			if ( $user_data && ! empty( $user_data->data->user_login ) ) {
+				$associated_user = $this->guest_authors->get_guest_author_by( 'linked_account', $user_data->data->user_login );
 
-			if ( isset( $associated_user->ID ) ) {
-				// Delete associated guest user.
-				$this->guest_authors->delete( $associated_user->ID );
+				if ( $associated_user && isset( $associated_user->ID ) ) {
+					// Delete associated guest user.
+					$this->guest_authors->delete( $associated_user->ID );
+				}
 			}
 		}
 	}
