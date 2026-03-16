@@ -35,7 +35,7 @@ jobs:
 
     steps:
       - name: Setup PHP
-        uses: shivammathur/setup-php@44454db4f0199b8b9685a5d763dc37cbf79108e1 # 2.36.0
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # 2.37.0
         with:
           php-version: "7.4"
           coverage: none
@@ -64,7 +64,7 @@ jobs:
       # Install dependencies and handle caching in one go.
       # @link https://github.com/marketplace/actions/install-composer-dependencies
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@3cf229dc2919194e9e36783941438d17239e8520 # 3.1.1
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
       # Lint PHP.
       - name: Lint PHP against parse errors
