@@ -24,6 +24,22 @@ class CoAuthors_Plus {
 	public $to_be_filtered_caps = array();
 
 	/**
+	 * Whether co-authors have been processed via the REST API bridge
+	 * for the current request. Prevents double-processing in save_post.
+	 *
+	 * @var bool
+	 */
+	private $rest_coauthors_processed = false;
+
+	/**
+	 * Whether we are currently inside a REST save bridge call.
+	 * Used to fire deprecation notices for legacy filters.
+	 *
+	 * @var bool
+	 */
+	private $is_rest_save = false;
+
+	/**
 	 * @var CoAuthors_Guest_Authors
 	 */
 	public $guest_authors;
@@ -231,6 +247,60 @@ class CoAuthors_Plus {
 		}
 
 		register_taxonomy( $this->coauthor_taxonomy, $this->supported_post_types(), $args );
+
+		// Bridge REST API saves to add_coauthors() for post_author sync and legacy filter compatibility.
+		// Backfill empty coauthor terms from post_author in REST responses (handles legacy posts).
+		foreach ( $this->supported_post_types() as $post_type ) {
+			add_action( "rest_after_insert_{$post_type}", array( $this, 'sync_coauthors_on_rest_save' ), 10, 2 );
+			add_filter( "rest_prepare_{$post_type}", array( $this, 'backfill_coauthor_terms_in_rest' ), 10, 2 );
+		}
+	}
+
+	/**
+	 * Backfill coauthor taxonomy terms for posts that predate Co-Authors Plus.
+	 *
+	 * When a post has no author taxonomy terms (e.g. created before the plugin
+	 * was activated), assign the term derived from post_author so the editor
+	 * receives valid coauthor data in the REST response.
+	 *
+	 * @param WP_REST_Response $response The response object.
+	 * @param WP_Post          $post     The post object.
+	 * @return WP_REST_Response
+	 */
+	public function backfill_coauthor_terms_in_rest( $response, $post ) {
+		$data = $response->get_data();
+
+		if ( ! empty( $data['coauthors'] ) ) {
+			return $response;
+		}
+
+		// Only backfill when the current user can edit the post to avoid
+		// database writes on unauthenticated GET requests.
+		if ( ! current_user_can( 'edit_post', $post->ID ) ) {
+			return $response;
+		}
+
+		// Post has no coauthor terms — seed from post_author.
+		$user = get_userdata( $post->post_author );
+		if ( ! $user ) {
+			return $response;
+		}
+
+		$this->add_coauthors( $post->ID, array( $user->user_nicename ) );
+
+		// Refresh the coauthors field in the response.
+		$terms = wp_get_object_terms(
+			$post->ID,
+			$this->coauthor_taxonomy,
+			array( 'fields' => 'ids' )
+		);
+
+		if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
+			$data['coauthors'] = array_map( 'intval', $terms );
+			$response->set_data( $data );
+		}
+
+		return $response;
 	}
 
 	/**
@@ -979,11 +1049,57 @@ class CoAuthors_Plus {
 	}
 
 	/**
+	 * Sync co-authors when a post is saved via the REST API.
+	 *
+	 * Bridges the REST API save flow to add_coauthors() so that post_author
+	 * stays in sync and legacy filters continue to fire (with deprecation notices).
+	 *
+	 * @param WP_Post         $post    Inserted or updated post object.
+	 * @param WP_REST_Request $request Request object.
+	 */
+	public function sync_coauthors_on_rest_save( $post, $request ): void {
+		$params = $request->get_params();
+
+		// Only process if coauthors taxonomy data was included in the request.
+		if ( ! isset( $params['coauthors'] ) ) {
+			return;
+		}
+
+		$terms = wp_get_object_terms(
+			$post->ID,
+			$this->coauthor_taxonomy,
+			array(
+				'orderby' => 'term_order',
+				'order'   => 'ASC',
+			)
+		);
+
+		if ( empty( $terms ) || is_wp_error( $terms ) ) {
+			return;
+		}
+
+		$coauthor_nicenames = array();
+		foreach ( $terms as $term ) {
+			$slug = $term->slug;
+			$coauthor_nicenames[] = str_starts_with( $slug, 'cap-' ) ? substr( $slug, 4 ) : $slug;
+		}
+
+		$this->is_rest_save = true;
+		$this->add_coauthors( $post->ID, $coauthor_nicenames );
+		$this->rest_coauthors_processed = true;
+		$this->is_rest_save = false;
+	}
+
+	/**
 	 * Update a post's co-authors on the 'save_post' hook
 	 *
 	 * @param $post_ID
 	 */
 	public function coauthors_update_post( $post_id, $post ): void {
+
+		if ( $this->rest_coauthors_processed ) {
+			return;
+		}
 
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
 			return;
@@ -1001,7 +1117,8 @@ class CoAuthors_Plus {
 			$coauthors = array_map( 'sanitize_title', $coauthors );
 			$this->add_coauthors( $post_id, $coauthors );
 		} else {
-			// If a co-author isn't currently set, we need to explicity set one
+			// If a co-author isn't currently set, we need to explicitly set one.
+			// This covers both classic and REST-created posts (e.g. auto-drafts).
 			if ( ! $this->has_author_terms( $post_id ) ) {
 				$user = get_userdata( $post->post_author );
 				if ( $user ) {
@@ -1032,6 +1149,14 @@ class CoAuthors_Plus {
 
 		// Best way to persist order
 		if ( $append ) {
+			if ( $this->is_rest_save && has_filter( 'coauthors_post_list_pluck_field' ) ) {
+				_deprecated_hook(
+					'coauthors_post_list_pluck_field',
+					'Co-Authors Plus 3.8',
+					'set_object_terms',
+					__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
+				);
+			}
 			$field              = apply_filters( 'coauthors_post_list_pluck_field', 'user_login' );
 			$existing_coauthors = wp_list_pluck( get_coauthors( $post_id ), $field );
 		} else {
@@ -1052,6 +1177,14 @@ class CoAuthors_Plus {
 		$coauthors        = array_unique( array_merge( $existing_coauthors, $coauthors ) );
 		$coauthor_objects = array();
 		foreach ( $coauthors as &$author_name ) {
+			if ( $this->is_rest_save && has_filter( 'coauthors_post_get_coauthor_by_field' ) ) {
+				_deprecated_hook(
+					'coauthors_post_get_coauthor_by_field',
+					'Co-Authors Plus 3.8',
+					'set_object_terms',
+					__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
+				);
+			}
 			$field = apply_filters( 'coauthors_post_get_coauthor_by_field', $query_type, $author_name );
 
 			$author             = $this->get_coauthor_by( $field, $author_name );

@@ -3,7 +3,6 @@
  */
 import { registerPlugin } from '@wordpress/plugins';
 import { __ } from '@wordpress/i18n';
-import { select, subscribe } from "@wordpress/data";
 
 // PluginDocumentSettingPanel moved from @wordpress/edit-post to @wordpress/editor in WP 6.6.
 // Use fallback for backwards compatibility with WP 6.4-6.5.
@@ -36,30 +35,3 @@ if ( PluginDocumentSettingPanel ) {
 		icon: 'users',
 	} );
 }
-
-// Save authors when the post is saved.
-// https://github.com/WordPress/gutenberg/issues/17632
-let checked = true; // Start in a checked state.
-
-subscribe(() => {
-	const editorStore = select("core/editor");
-	const authorsStore = select("cap/authors");
-
-	// Bail early if stores aren't ready yet.
-	if (!editorStore || !authorsStore) {
-		return;
-	}
-
-	const { isSavingPost, getCurrentPost } = editorStore;
-	const { getAuthors, saveAuthors } = authorsStore;
-
-	if (isSavingPost()) {
-		checked = false;
-	} else if (!checked) {
-		const { id } = getCurrentPost();
-		const authors = getAuthors(id);
-		saveAuthors(id, authors);
-		checked = true;
-	}
-});
-
