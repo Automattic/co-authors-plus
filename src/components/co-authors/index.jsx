@@ -10,8 +10,8 @@ import apiFetch from '@wordpress/api-fetch';
 import { ComboboxControl, Spinner } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { applyFilters } from '@wordpress/hooks';
-import { useDispatch, useSelect, register } from '@wordpress/data';
-import { useEffect, useState } from '@wordpress/element';
+import { dispatch as wpDispatch, useDispatch, useSelect, register } from '@wordpress/data';
+import { useEffect, useRef, useState } from '@wordpress/element';
 import { useDebounce } from '@wordpress/compose';
 
 /**
@@ -51,6 +51,7 @@ const CoAuthors = () => {
 	 */
 	const [ selectedAuthors, setSelectedAuthors ] = useState( [] ); // Currently selected options.
 	const [ dropdownOptions, setDropdownOptions ] = useState( [] ); // Options that are available in the dropdown.
+	const isHydrated = useRef( false ); // Tracks whether initial author data has loaded.
 
 	/**
 	 * Retrieve post id.
@@ -89,12 +90,22 @@ const CoAuthors = () => {
 
 	/**
 	 * Setter for updating authors and selected authors simultaneously.
+	 * When the change is user-initiated (after initial hydration),
+	 * also marks the post as dirty so the editor enables the save button.
 	 *
 	 * @param {Array} newAuthors array of new authors.
 	 */
 	const updateAuthors = ( newAuthors ) => {
 		setAuthorsStore( newAuthors );
 		setSelectedAuthors( newAuthors );
+
+		// Mark the post dirty in the core editor store so the
+		// Update/Publish button enables when authors are the only change.
+		if ( isHydrated.current ) {
+			wpDispatch( 'core/editor' ).editPost( {
+				coauthors_modified: Date.now(),
+			} );
+		}
 	};
 
 	/**
@@ -162,6 +173,11 @@ const CoAuthors = () => {
 
 		updateAuthors( authors );
 
+		// Mark hydration complete after the first load so that
+		// subsequent calls to updateAuthors mark the post dirty.
+		if ( ! isHydrated.current ) {
+			isHydrated.current = true;
+		}
 	}, [ authors ] );
 
 	return (
