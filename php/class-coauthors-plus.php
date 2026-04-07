@@ -1144,7 +1144,7 @@ class CoAuthors_Plus {
 			if ( $delete_user ) {
 				$associated_user = $this->guest_authors->get_guest_author_by( 'linked_account', $delete_user->user_login );
 
-				if ( $associated_user && isset( $associated_user->ID ) ) {
+				if ( isset( $associated_user->ID ) ) {
 					// Delete associated guest user.
 					$this->guest_authors->delete( $associated_user->ID );
 				}
