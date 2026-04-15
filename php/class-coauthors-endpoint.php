@@ -218,9 +218,7 @@ class Endpoints {
 				continue;
 			}
 
-			$slug     = $term->slug;
-			$nicename = str_starts_with( $slug, 'cap-' ) ? substr( $slug, 4 ) : $slug;
-			$author   = $this->coauthors->get_coauthor_by( 'user_nicename', $nicename );
+			$author = $this->coauthors->get_coauthor_by( 'user_nicename', $term->slug );
 
 			if ( $author ) {
 				$response[] = $this->_format_author_data( $author );

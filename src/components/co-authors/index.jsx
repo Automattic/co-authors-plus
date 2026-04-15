@@ -46,11 +46,11 @@ const CoAuthors = () => {
 	 * Returns undefined until the post entity has loaded, then an array of term IDs.
 	 */
 	const { coauthorTermIds, hasResolvedPost } = useSelect( ( select ) => {
-		const { getEditedPostAttribute, hasFinishedResolution, getCurrentPostId } = select( 'core/editor' );
-		const postId = getCurrentPostId();
+		const { getEditedPostAttribute } = select( 'core/editor' );
+		const coauthors = getEditedPostAttribute( 'coauthors' );
 		return {
-			coauthorTermIds: getEditedPostAttribute( 'coauthors' ),
-			hasResolvedPost: !! postId,
+			coauthorTermIds: coauthors,
+			hasResolvedPost: coauthors !== undefined,
 		};
 	}, [] );
 

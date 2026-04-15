@@ -1080,8 +1080,7 @@ class CoAuthors_Plus {
 
 		$coauthor_nicenames = array();
 		foreach ( $terms as $term ) {
-			$slug = $term->slug;
-			$coauthor_nicenames[] = str_starts_with( $slug, 'cap-' ) ? substr( $slug, 4 ) : $slug;
+			$coauthor_nicenames[] = $term->slug;
 		}
 
 		$this->is_rest_save = true;
