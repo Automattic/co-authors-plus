@@ -125,9 +125,10 @@ class CoAuthors_Guest_Authors {
 				'use_featured_image'    => $this->labels['use_featured_image'] ?? '',
 				'remove_featured_image' => $this->labels['remove_featured_image'] ?? '',
 			),
-			'public'              => true,
+			'public'              => false,
 			'publicly_queryable'  => false,
 			'exclude_from_search' => true,
+			'show_ui'             => true,
 			'show_in_menu'        => false,
 			'show_in_rest'        => true,
 			'supports'            => array(
