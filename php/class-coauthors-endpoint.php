@@ -214,7 +214,7 @@ class Endpoints {
 			'userNicename' => esc_html( rawurldecode( $author->user_nicename ) ),
 			'login'        => esc_html( $author->user_login ),
 			'email'        => sanitize_email( $author->user_email ),
-			'displayName'  => esc_html( str_replace( '∣', '|', $author->display_name ) ),
+			'displayName'  => strip_tags( str_replace( '∣', '|', $author->display_name ) ),
 			'avatar'       => esc_url( get_avatar_url( $author->ID ) ),
 			'userType'     => esc_html( $author->type ),
 		);
