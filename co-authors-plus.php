@@ -25,7 +25,6 @@ const COAUTHORS_PLUS_VERSION = '3.7.0';
 const COAUTHORS_PLUS_FILE = __FILE__;
 
 require_once __DIR__ . '/template-tags.php';
-require_once __DIR__ . '/deprecated.php';
 
 require_once __DIR__ . '/php/class-coauthors-template-filters.php';
 require_once __DIR__ . '/php/class-coauthors-endpoint.php';
