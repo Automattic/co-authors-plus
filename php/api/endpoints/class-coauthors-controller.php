@@ -82,7 +82,7 @@ class CoAuthors_Controller extends WP_REST_Controller {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_items' ),
-					'permission_callback' => '__return_true'
+					'permission_callback' => array( $this, 'get_items_permissions_check' ),
 				),
 			)
 		);
@@ -118,10 +118,124 @@ class CoAuthors_Controller extends WP_REST_Controller {
 				array(
 					'methods'             => WP_REST_Server::READABLE,
 					'callback'            => array( $this, 'get_item' ),
-					'permission_callback' => '__return_true',
+					'permission_callback' => array( $this, 'get_item_permissions_check' ),
 				),
 			)
 		);
+	}
+
+	/**
+	 * Check Permission For Get Items
+	 *
+	 * Co-authors should only be listed for a post when the post is publicly
+	 * viewable, or when the current user has permission to read the post.
+	 *
+	 * @since 4.0.0
+	 * @param WP_REST_Request $request
+	 * @return true|WP_Error True if the request has read access, WP_Error otherwise.
+	 */
+	public function get_items_permissions_check( $request ) {
+
+		$post_id = (int) $request->get_param( 'post_id' );
+		$post    = get_post( $post_id );
+
+		if ( ! $post ) {
+			return new WP_Error(
+				'rest_post_invalid_id',
+				__( 'Invalid post ID.', 'co-authors-plus' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		if ( is_post_publicly_viewable( $post ) ) {
+			return true;
+		}
+
+		if ( current_user_can( 'read_post', $post->ID ) ) {
+			return true;
+		}
+
+		return new WP_Error(
+			'rest_forbidden',
+			__( 'Sorry, you are not allowed to view co-authors for this post.', 'co-authors-plus' ),
+			array( 'status' => rest_authorization_required_code() )
+		);
+	}
+
+	/**
+	 * Check Permission For Get Item
+	 *
+	 * A single co-author profile is exposed to unauthenticated users only when
+	 * the author has at least one publicly viewable post. Otherwise the
+	 * requester must be able to edit others' posts, matching the capability
+	 * check used by the plugin's older authors endpoint.
+	 *
+	 * @since 4.0.0
+	 * @param WP_REST_Request $request
+	 * @return true|WP_Error True if the request has read access, WP_Error otherwise.
+	 */
+	public function get_item_permissions_check( $request ) {
+
+		if ( $this->coauthors_plus->current_user_can_set_authors() ) {
+			return true;
+		}
+
+		$coauthor = $this->coauthors_plus->get_coauthor_by(
+			'user_nicename',
+			$request->get_param( 'user_nicename' )
+		);
+
+		if ( is_object( $coauthor ) && self::is_coauthor( $coauthor ) && $this->has_public_posts( $coauthor ) ) {
+			return true;
+		}
+
+		return new WP_Error(
+			'rest_forbidden',
+			__( 'Sorry, you are not allowed to view this co-author.', 'co-authors-plus' ),
+			array( 'status' => rest_authorization_required_code() )
+		);
+	}
+
+	/**
+	 * Does Co-Author Have Publicly Viewable Posts
+	 *
+	 * Determines whether the co-author is attributed on at least one post that
+	 * any visitor could read. Guest authors and WP users are handled by the
+	 * same co-author term lookup so the check is consistent across both.
+	 *
+	 * @since 4.0.0
+	 * @param WP_User|stdClass $coauthor
+	 */
+	public function has_public_posts( $coauthor ): bool {
+
+		$term = $this->coauthors_plus->get_author_term( $coauthor );
+
+		if ( ! $term ) {
+			return false;
+		}
+
+		$public_post_types = get_post_types( array( 'public' => true ) );
+
+		$query = new \WP_Query(
+			array(
+				'post_type'              => array_values( $public_post_types ),
+				'post_status'            => 'publish',
+				'posts_per_page'         => 1,
+				'fields'                 => 'ids',
+				'no_found_rows'          => true,
+				'update_post_meta_cache' => false,
+				'update_post_term_cache' => false,
+				'tax_query'              => array(
+					array(
+						'taxonomy' => $this->coauthors_plus->coauthor_taxonomy,
+						'field'    => 'term_id',
+						'terms'    => $term->term_id,
+					),
+				),
+			)
+		);
+
+		return ! empty( $query->posts );
 	}
 
 	/**
