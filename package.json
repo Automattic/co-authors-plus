@@ -32,15 +32,15 @@
 		"test:unit:watch": "wp-scripts test-unit-js --watch"
 	},
 	"dependencies": {
-		"@wordpress/api-fetch": "^7.37.0",
-		"@wordpress/components": "^31.0.0",
+		"@wordpress/api-fetch": "^7.44.0",
+		"@wordpress/components": "^32.6.0",
 		"@wordpress/data": "^10.36.0",
 		"@wordpress/element": "^6.36.0",
 		"@wordpress/i18n": "^6.9.0"
 	},
 	"devDependencies": {
-		"@wordpress/icons": "^11.3.0",
-		"@wordpress/scripts": "^31.2.0",
+		"@wordpress/icons": "^12.2.0",
+		"@wordpress/scripts": "^32.0.0",
 		"classnames": "^2.5.1",
 		"prettier": "npm:wp-prettier@^2.2.1-beta-1",
 		"prop-types": "^15.8.1",
