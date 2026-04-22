@@ -1272,15 +1272,14 @@ class CoAuthors_Plus {
 		}
 
 		if ( $this->is_guest_authors_enabled() ) {
-			// Get the deleted user data by user id.
-			$user_data = get_user_by( 'id', $delete_id );
+			// Get the associated user from the already fetched $delete_user object.
+			if ( $delete_user ) {
+				$associated_user = $this->guest_authors->get_guest_author_by( 'linked_account', $delete_user->user_login );
 
-			// Get the associated user.
-			$associated_user = $this->guest_authors->get_guest_author_by( 'linked_account', $user_data->data->user_login );
-
-			if ( isset( $associated_user->ID ) ) {
-				// Delete associated guest user.
-				$this->guest_authors->delete( $associated_user->ID );
+				if ( isset( $associated_user->ID ) ) {
+					// Delete associated guest user.
+					$this->guest_authors->delete( $associated_user->ID );
+				}
 			}
 		}
 	}
