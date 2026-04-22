@@ -1151,7 +1151,7 @@ class CoAuthors_Plus {
 			if ( $this->is_rest_save && has_filter( 'coauthors_post_list_pluck_field' ) ) {
 				_deprecated_hook(
 					'coauthors_post_list_pluck_field',
-					'Co-Authors Plus 3.8',
+					'Co-Authors Plus 4.0',
 					'set_object_terms',
 					__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
 				);
@@ -1179,7 +1179,7 @@ class CoAuthors_Plus {
 			if ( $this->is_rest_save && has_filter( 'coauthors_post_get_coauthor_by_field' ) ) {
 				_deprecated_hook(
 					'coauthors_post_get_coauthor_by_field',
-					'Co-Authors Plus 3.8',
+					'Co-Authors Plus 4.0',
 					'set_object_terms',
 					__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
 				);
