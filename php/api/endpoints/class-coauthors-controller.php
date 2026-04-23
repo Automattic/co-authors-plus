@@ -437,6 +437,8 @@ class CoAuthors_Controller extends WP_REST_Controller {
 
 		$fields = $this->get_fields_for_response( $request );
 
+		$user_type = ( $author instanceof \WP_User || ( isset( $author->type ) && 'guest-author' !== $author->type ) ) ? 'wp-user' : 'guest-user';
+
 		if ( $author instanceof \WP_User ) {
 			$author              = $author->data;
 			$author->description = get_user_meta( $author->ID, 'description', true );
@@ -449,7 +451,17 @@ class CoAuthors_Controller extends WP_REST_Controller {
 		}
 
 		if ( rest_is_field_included( 'avatar_urls', $fields ) ) {
-			$data['avatar_urls'] = rest_get_avatar_urls( $author->ID );
+			$avatar_urls = array();
+			foreach ( rest_get_avatar_sizes() as $size ) {
+				$avatar_urls[ $size ] = get_avatar_url(
+					$author->ID,
+					array(
+						'size'      => $size,
+						'user_type' => $user_type,
+					)
+				);
+			}
+			$data['avatar_urls'] = $avatar_urls;
 		}
 
 		if ( rest_is_field_included( 'description', $fields ) ) {
