@@ -125,9 +125,10 @@ class CoAuthors_Guest_Authors {
 				'use_featured_image'    => $this->labels['use_featured_image'] ?? '',
 				'remove_featured_image' => $this->labels['remove_featured_image'] ?? '',
 			),
-			'public'              => true,
+			'public'              => false,
 			'publicly_queryable'  => false,
 			'exclude_from_search' => true,
+			'show_ui'             => true,
 			'show_in_menu'        => false,
 			'show_in_rest'        => true,
 			'supports'            => array(
@@ -309,32 +310,32 @@ class CoAuthors_Guest_Authors {
 		global $coauthors_plus;
 
 		if ( ! current_user_can( $this->list_guest_authors_cap ) ) {
-			die();
+			wp_send_json( array() );
 		}
 
-		if ( ! isset( $_GET['q'] ) ) {
-			die();
+		// jQuery UI autocomplete uses 'term' parameter.
+		$search = isset( $_GET['term'] ) ? sanitize_text_field( $_GET['term'] ) : '';
+		if ( empty( $search ) ) {
+			wp_send_json( array() );
 		}
 
-		$search = sanitize_text_field( $_GET['q'] );
 		if ( ! empty( $_GET['guest_author'] ) ) {
 			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_login );
 		} else {
 			$ignore = array();
 		}
 
-		$results = wp_list_pluck( $coauthors_plus->search_authors( $search, $ignore ), 'user_login' );
-		$retval  = array();
-		foreach ( $results as $user_login ) {
-			$coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $user_login );
-			$retval[] = (object) array(
-				'display_name' => $coauthor->display_name,
-				'user_login'   => $coauthor->user_login,
-				'id'           => $coauthor->user_nicename,
+		$authors = $coauthors_plus->search_authors( $search, $ignore );
+		$results = array();
+
+		foreach ( $authors as $author ) {
+			$results[] = array(
+				'label' => $author->display_name,
+				'value' => $author->user_nicename,
 			);
 		}
-		echo wp_json_encode( $retval );
-		die();
+
+		wp_send_json( $results );
 	}
 
 
@@ -345,7 +346,7 @@ class CoAuthors_Guest_Authors {
 	 */
 	public function action_parse_request( $query ) {
 
-		if ( ! isset( $query->query_vars['author_name'] ) ) {
+		if ( ! isset( $query->query_vars['author_name'] ) || ! is_string( $query->query_vars['author_name'] ) ) {
 			return $query;
 		}
 
@@ -392,11 +393,24 @@ class CoAuthors_Guest_Authors {
 		global $pagenow;
 		// Enqueue our guest author CSS on the related pages
 		if ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'view-guest-authors' === $_GET['page'] ) {
-			wp_enqueue_script( 'jquery-select2', plugins_url( 'lib/select2/select2.min.js', __DIR__ ), array( 'jquery' ), COAUTHORS_PLUS_VERSION );
-			wp_enqueue_style( 'cap-jquery-select2-css', plugins_url( 'lib/select2/select2.css', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
-
 			wp_enqueue_style( 'guest-authors-css', plugins_url( 'css/guest-authors.css', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
-			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
+			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), array( 'jquery', 'jquery-ui-autocomplete' ), COAUTHORS_PLUS_VERSION );
+
+			// Pass AJAX URL for co-author search.
+			$guest_author_id = isset( $_GET['id'] ) ? (int) $_GET['id'] : 0;
+			wp_localize_script(
+				'guest-authors-js',
+				'coAuthorsGuestAuthors',
+				array(
+					'ajaxUrl' => add_query_arg(
+						array(
+							'action'       => 'search_coauthors_to_assign',
+							'guest_author' => $guest_author_id,
+						),
+						admin_url( 'admin-ajax.php' )
+					),
+				)
+			);
 		} elseif ( in_array( $pagenow, array( 'post.php', 'post-new.php' ) ) && $this->post_type === get_post_type() ) {
 			add_action( 'admin_head', array( $this, 'change_title_icon' ) );
 		}
@@ -521,7 +535,11 @@ class CoAuthors_Guest_Authors {
 				// Reassign to another user
 				echo '<li class="hide-if-no-js"><label for="reassign-another">';
 				echo '<input type="radio" id="reassign-another" name="reassign" class="reassign-option" value="reassign-another" />&nbsp;&nbsp;' . esc_html__( 'Reassign to another co-author:', 'co-authors-plus' ) . '&nbsp;&nbsp;</label>';
-				echo '<input type="hidden" id="leave-assigned-to" name="leave-assigned-to" style="width:200px;" />';
+				printf(
+					'<input type="text" id="leave-assigned-to-display" class="coauthor-suggest" placeholder="%s" autocomplete="off" style="width:200px;" />',
+					esc_attr__( 'Search for author...', 'co-authors-plus' )
+				);
+				echo '<input type="hidden" id="leave-assigned-to" name="leave-assigned-to" />';
 				echo '</li>';
 				// Leave mapped to a linked account
 				if ( get_user_by( 'login', $guest_author->linked_account ) ) {
@@ -1287,6 +1305,19 @@ class CoAuthors_Guest_Authors {
 
 		// Make sure the author term exists and that we're assigning it to this post type
 		$author_term = $coauthors_plus->update_author_term( $this->get_guest_author_by( 'ID', $post_id ) );
+
+		if ( is_wp_error( $author_term ) ) {
+			// Clean up the post we just created since term creation failed.
+			wp_delete_post( $post_id, true );
+			return $author_term;
+		}
+
+		if ( ! $author_term ) {
+			// Clean up the post we just created since term creation failed.
+			wp_delete_post( $post_id, true );
+			return new WP_Error( 'term-creation-failed', __( 'Failed to create author term. The author slug may conflict with an existing user.', 'co-authors-plus' ) );
+		}
+
 		wp_set_post_terms( $post_id, array( $author_term->slug ), $coauthors_plus->coauthor_taxonomy );
 
 		// Explicitly clear all caches, to remove negative caches that may have existed prior to this
@@ -1402,11 +1433,10 @@ class CoAuthors_Guest_Authors {
 			return $maybe_empty;
 		}
 
-		if ( empty( $postarr['post_title'] ) ) {
-			return true;
-		}
-
-		return $maybe_empty;
+		// Guest author posts store their data in post meta, not post_content/post_excerpt.
+		// Allow empty content so auto-drafts and new posts can be created.
+		// Display name validation is handled separately in manage_guest_author_filter_post_data().
+		return false;
 	}
 
 	/**

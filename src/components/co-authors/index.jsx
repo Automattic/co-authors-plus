@@ -1,23 +1,18 @@
 /**
- * Dependencies.
- */
-import PropTypes from 'prop-types';
-
-/**
  * WordPress dependencies
  */
 import apiFetch from '@wordpress/api-fetch';
 import { ComboboxControl, Spinner } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { applyFilters } from '@wordpress/hooks';
-import { useDispatch, useSelect, register } from '@wordpress/data';
-import { useEffect, useState } from '@wordpress/element';
+import { useDispatch, useSelect } from '@wordpress/data';
+import { useState } from '@wordpress/element';
 import { useDebounce } from '@wordpress/compose';
 
 /**
  * Components
  */
-import AuthorsSelection from '../author-selection'
+import AuthorsSelection from '../author-selection';
 
 /**
  * Utilities
@@ -25,19 +20,14 @@ import AuthorsSelection from '../author-selection'
 import { addItemByValue, formatAuthorData } from '../../utils';
 
 /**
- * Store
+ * Hooks
  */
-import coauthorsStore from '../../store';
+import useCoauthorDetails from '../../hooks/use-coauthor-details';
 
 /**
  * Styles
  */
 import './style.css';
-
-/**
- * Register our data store.
- */
-register( coauthorsStore );
 
 /**
  * The Render component that will be populated with data from
@@ -47,45 +37,32 @@ register( coauthorsStore );
 */
 const CoAuthors = () => {
 	/**
-	 * Local state
+	 * Local state for dropdown options (search results).
 	 */
-	const [ selectedAuthors, setSelectedAuthors ] = useState( [] ); // Currently selected options.
-	const [ dropdownOptions, setDropdownOptions ] = useState( [] ); // Options that are available in the dropdown.
+	const [ dropdownOptions, setDropdownOptions ] = useState( [] );
 
 	/**
-	 * Retrieve post id.
+	 * Read co-author term IDs from the core entity store.
+	 * Returns undefined until the post entity has loaded, then an array of term IDs.
 	 */
-	const postId = useSelect( ( select ) =>
-		select( 'core/editor' ).getCurrentPostId()
-	);
+	const { coauthorTermIds, hasResolvedPost } = useSelect( ( select ) => {
+		const { getEditedPostAttribute } = select( 'core/editor' );
+		const coauthors = getEditedPostAttribute( 'coauthors' );
+		return {
+			coauthorTermIds: coauthors,
+			hasResolvedPost: coauthors !== undefined,
+		};
+	}, [] );
 
 	/**
-	 * CoAuthor select functions.
+	 * Resolve term IDs to rich author data.
 	 */
-	const saveAuthors = useSelect(
-		( select ) => select( 'cap/authors' )?.saveAuthors,
-		[]
-	);
+	const { authors: selectedAuthors, isLoading } = useCoauthorDetails( coauthorTermIds );
 
 	/**
-	 * CoAuthor select functions.
+	 * Get editPost dispatcher to write changes back to the core entity.
 	 */
-	const authors = useSelect(
-		( select ) => select( 'cap/authors' )?.getAuthors( postId ),
-		[ postId ]
-	);
-
-	/**
-	 * Dispatchers
-	 */
-	const { setAuthorsStore } = useDispatch( 'cap/authors' );
-
-	/**
-	 * Is saving post
-	 */
-	const isSavingPost = useSelect(
-		(select) => select('core/editor').isSavingPost
-	);
+	const { editPost } = useDispatch( 'core/editor' );
 
 	/**
 	 * Threshold filter for determining when a search query is preformed.
@@ -95,18 +72,18 @@ const CoAuthors = () => {
 	const threshold = applyFilters( 'coAuthors.search.threshold', 2 );
 
 	/**
-	 * Setter for updating authors and selected authors simultaneously.
+	 * Setter for updating authors via the core entity store.
 	 *
-	 * @param {Array} newAuthors array of new authors.
+	 * @param {Array} newAuthors array of rich author objects (with termId).
 	 */
 	const updateAuthors = ( newAuthors ) => {
-		setAuthorsStore( newAuthors );
-		setSelectedAuthors( newAuthors );
+		const termIds = newAuthors.map( ( author ) => author.termId );
+		editPost( { coauthors: termIds } );
 	};
 
 	/**
 	 * Change handler for adding new item by value.
-	 * Updates authors state.
+	 * Updates authors state via the core entity.
 	 *
 	 * @param {Object} newAuthorValue new authors selected.
 	 */
@@ -158,22 +135,12 @@ const CoAuthors = () => {
 		}
 	}, 500 );
 
-	/**
-	 * Run when authors updates.
-	 */
-	useEffect( () => {
-		// Bail if no authors exist, no need to set empty values.
-		if ( ! authors.length ) {
-			return;
-		}
-
-		updateAuthors( authors );
-
-	}, [ authors ] );
+	// Show spinner while the post entity is loading or authors are being resolved.
+	const showSpinner = ! hasResolvedPost || isLoading || ( hasResolvedPost && coauthorTermIds?.length && ! selectedAuthors.length );
 
 	return (
 		<>
-			{ Boolean( selectedAuthors.length ) ? (
+			{ ! showSpinner && Boolean( selectedAuthors.length ) ? (
 				<>
 					<AuthorsSelection
 						selectedAuthors={ selectedAuthors }
@@ -191,6 +158,8 @@ const CoAuthors = () => {
 				options={ dropdownOptions }
 				onChange={ onChange }
 				onFilterValueChange={ onFilterValueChange }
+				__next40pxDefaultSize
+				__nextHasNoMarginBottom
 			/>
 		</>
 	);

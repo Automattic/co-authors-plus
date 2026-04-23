@@ -551,4 +551,42 @@ class TemplateTagsTest extends TestCase {
 		// Restore global post from backup.
 		$post = $post_backup;
 	}
+
+	/**
+	 * Tests that template tags don't cause PHP warnings when post has no author.
+	 *
+	 * @see https://github.com/Automattic/Co-Authors-Plus/issues/1066
+	 *
+	 * @covers ::coauthors_links()
+	 * @covers ::coauthors__echo()
+	 */
+	public function test_coauthors_links_when_post_has_no_author(): void {
+		global $post;
+
+		// Backing up global post.
+		$post_backup = $post;
+
+		// Create a post with no author (post_author = 0)
+		$post_without_author = $this->factory()->post->create_and_get(
+			array(
+				'post_author'  => 0,
+				'post_status'  => 'publish',
+				'post_content' => rand_str(),
+				'post_title'   => 'Post without author',
+				'post_type'    => 'post',
+			)
+		);
+
+		$post = $post_without_author;
+
+		// This should not cause a PHP warning about accessing property on null
+		// The function should handle the case where there's no author gracefully
+		$result = coauthors_links( null, null, null, null, false );
+
+		// When there's no author, expect empty string or a safe fallback
+		$this->assertIsString( $result, 'Result should be a string' );
+
+		// Restore global post from backup.
+		$post = $post_backup;
+	}
 }

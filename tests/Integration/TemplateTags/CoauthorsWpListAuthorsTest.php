@@ -153,7 +153,7 @@ class CoauthorsWpListAuthorsTest extends TestCase {
 		$author = $this->create_author();
 		$post   = $this->create_post( $author );
 
-		$feed_image = WP_TESTS_DOMAIN . '/path/to/a/graphic.png';
+		$feed_image = includes_url( 'images/w-logo-blue-white-bg.png' );
 		$coauthors  = coauthors_wp_list_authors(
 			array(
 				'echo'       => false,
@@ -162,7 +162,7 @@ class CoauthorsWpListAuthorsTest extends TestCase {
 		);
 
 		$this->assertStringContainsString( esc_url( get_author_feed_link( $author->ID ) ), $coauthors );
-		$this->assertStringContainsString( $feed_image, $coauthors );
+		$this->assertStringContainsString( 'w-logo-blue-white-bg.png', $coauthors );
 	}
 
 	/**

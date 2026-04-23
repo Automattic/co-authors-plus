@@ -1,9 +1,8 @@
 {
 	"name": "automattic/co-authors-plus",
 	"description": "Multiple bylines and Guest Authors for WordPress",
-	"homepage": "https://wordpress.org/plugins/co-authors-plus/",
-	"type": "wordpress-plugin",
 	"license": "GPL-2.0-or-later",
+	"type": "wordpress-plugin",
 	"authors": [
 		{
 			"name": "Daniel Bachhuber",
@@ -16,25 +15,26 @@
 			"homepage": "https://automattic.com/"
 		}
 	],
+	"homepage": "https://wordpress.org/plugins/co-authors-plus/",
 	"support": {
 		"issues": "https://github.com/Automattic/Co-Authors-Plus/issues",
-		"source": "https://github.com/Automattic/Co-Authors-Plus",
-		"forum": "https://wordpress.org/support/plugin/co-authors-plus"
+		"forum": "https://wordpress.org/support/plugin/co-authors-plus",
+		"source": "https://github.com/Automattic/Co-Authors-Plus"
 	},
 	"require": {
-		"composer/installers": "^2",
-		"php": ">=7.4"
+		"php": ">=7.4",
+		"composer/installers": "^1.0 || ^2.0"
 	},
 	"require-dev": {
+		"automattic/behat-wp-env-context": "^0.1.0",
 		"automattic/vipwpcs": "^3",
+		"behat/behat": "^3.7",
 		"dms/phpunit-arraysubset-asserts": "^0.5.0",
 		"php-parallel-lint/php-parallel-lint": "^1.0",
 		"phpcompatibility/phpcompatibility-wp": "^2.1",
 		"phpunit/phpunit": "^9",
 		"wp-cli/extension-command": "^2.0",
 		"wp-cli/i18n-command": "^2.6",
-		"wp-cli/wp-cli-tests": "^v4",
-		"wp-coding-standards/wpcs": "^3.1",
 		"yoast/wp-test-utils": "^1.2"
 	},
 	"autoload": {
@@ -47,7 +47,16 @@
 			"Automattic\\CoAuthorsPlus\\Tests\\": "tests/"
 		}
 	},
+	"config": {
+		"allow-plugins": {
+			"composer/installers": true,
+			"dealerdirect/phpcodesniffer-composer-installer": true
+		},
+		"sort-packages": true
+	},
 	"scripts": {
+		"behat": "behat --colors",
+		"behat-rerun": "behat --colors --rerun",
 		"coverage": [
 			"@putenv WP_MULTISITE=1",
 			"@php ./vendor/bin/phpunit --exclude=ms-excluded --coverage-html ./.phpunit.cache/coverage-html"
@@ -57,13 +66,13 @@
 			"@php ./vendor/bin/phpunit --exclude=ms-excluded"
 		],
 		"cs": [
-			"@php ./vendor/bin/phpcs"
+			"@php ./vendor/bin/phpcs -q"
 		],
-		"cbf": [
-			"@php ./vendor/bin/phpcbf"
+		"cs-fix": [
+			"@php ./vendor/bin/phpcbf -q"
 		],
 		"i18n": [
-			"wp i18n make-pot . languages/co-authors-plus.pot"
+			"@php wp i18n make-pot . languages/co-authors-plus.pot --slug=co-authors-plus"
 		],
 		"lint": [
 			"@php ./vendor/php-parallel-lint/php-parallel-lint/parallel-lint . -e php --exclude vendor --exclude .git"
@@ -71,24 +80,22 @@
 		"lint-ci": [
 			"@php ./vendor/php-parallel-lint/php-parallel-lint/parallel-lint . -e php --exclude vendor --exclude .git --checkstyle"
 		],
-		"prepare": [
-			"bash bin/install-wp-tests.sh wordpress_test root root localhost"
-		],
-		"integration": [
-			"@php ./vendor/bin/phpunit --exclude=ms-required --no-coverage"
-		],
-		"integration-ms": [
-			"@putenv WP_MULTISITE=1",
-			"@php ./vendor/bin/phpunit --exclude=ms-excluded --no-coverage"
-		],
-		"behat": "run-behat-tests",
-		"behat-rerun": "rerun-behat-tests",
-		"prepare-behat-tests": "install-package-tests"
+		"prepare-behat-tests": "wp-env start",
+		"test:integration": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus ./vendor/bin/phpunit --exclude=ms-required --no-coverage",
+		"test:integration-ms": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --exclude=ms-excluded --no-coverage'"
 	},
-	"config": {
-		"allow-plugins": {
-			"composer/installers": true,
-			"dealerdirect/phpcodesniffer-composer-installer": true
-		}
+	"scripts-descriptions": {
+		"behat": "Run Behat tests",
+		"behat-rerun": "Rerun failed Behat tests",
+		"coverage": "Run tests with code coverage reporting",
+		"coverage-ci": "Run tests with code coverage reporting and send results to stdout",
+		"cs": "Run PHP Code Sniffer",
+		"cs-fix": "Run PHP Code Sniffer and fix violations",
+		"i18n": "Generate a POT file for translation",
+		"lint": "Run PHP linting",
+		"lint-ci": "Run PHP linting and send results to stdout",
+		"prepare-behat-tests": "Start wp-env environment for Behat tests",
+		"test:integration": "Run integration tests",
+		"test:integration-ms": "Run integration tests in multisite mode"
 	}
 }

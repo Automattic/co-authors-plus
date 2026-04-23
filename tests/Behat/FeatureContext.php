@@ -7,65 +7,68 @@
 
 namespace Automattic\CoAuthorsPlus\Tests\Behat;
 
-use WP_CLI\Tests\Context\FeatureContext as WP_CLI_FeatureContext;
+use Automattic\BehatWpEnv\WpEnvFeatureContext;
+use RuntimeException;
 
 /**
- * Feature tests context class with Co-Authors Plus-specific steps.
+ * Feature tests context class for Co-Authors Plus.
  *
- * This class extends the one that is provided by the wp-cli/wp-cli-tests package.
- * To see a list of all recognized step definitions, run `vendor/bin/behat -dl`.
+ * Extends the shared WpEnvFeatureContext to provide plugin-specific
+ * step definitions and cleanup logic.
  */
-final class FeatureContext extends WP_CLI_FeatureContext {
+final class FeatureContext extends WpEnvFeatureContext {
 
 	/**
-	 * Set up the plugin to be active.
+	 * Get the plugin slug for Co-Authors Plus.
 	 *
-	 * @Given a WP install(ation) with the Co-Authors Plus plugin
-	 *
-	 * Adapted from https://github.com/wearerequired/traduttore/blob/master/tests/phpunit/tests/Behat/FeatureContext.php
-	 * with credit and thanks to them.
+	 * @return string Plugin slug.
 	 */
-	public function given_a_wp_installation_with_the_cap_plugin(): void {
-		$this->install_wp();
-
-		// Symlink the current project folder into the WP folder as a plugin.
-		$project_dir = realpath( self::get_vendor_dir() . '/../' );
-		$plugin_dir  = $this->variables['RUN_DIR'] . '/wp-content/plugins';
-		$this->ensure_dir_exists( $plugin_dir );
-		$this->proc( "ln -s {$project_dir} {$plugin_dir}/co-authors-plus" )->run_check();
-
-		// Activate the plugin.
-		$this->proc( 'wp plugin activate co-authors-plus' )->run_check();
+	protected function get_plugin_slug(): string {
+		return 'co-authors-plus';
 	}
 
 	/**
-	 * Ensure that a requested directory exists and create it recursively as needed.
+	 * Clean up plugin-specific data between scenarios.
 	 *
-	 * Copied as is from the Tradutorre repo as well.
+	 * Removes all guest-author posts created during tests.
 	 *
-	 * @param string $directory Directory to ensure the existence of.
-	 * @throws \RuntimeException Directory could not be created.
+	 * @return void
 	 */
-	private function ensure_dir_exists( $directory ): void {
-		$parent = dirname( $directory );
-
-		if ( ! empty( $parent ) && ! is_dir( $parent ) ) {
-			$this->ensure_dir_exists( $parent );
-		}
-
-		if ( ! is_dir( $directory ) && ! mkdir( $directory ) && ! is_dir( $directory ) ) {
-			throw new \RuntimeException( "Could not create directory '{$directory}'." );
+	protected function plugin_specific_cleanup(): void {
+		// Delete guest authors.
+		$this->run_wp_cli_command( 'post list --post_type=guest-author --format=ids', false );
+		$ids = trim( $this->output );
+		if ( ! empty( $ids ) ) {
+			$this->run_wp_cli_command( "post delete {$ids} --force", false );
 		}
 	}
 
 	/**
-	 * Add a published post.
+	 * Set up a clean WordPress installation with Co-Authors Plus activated.
+	 *
+	 * @Given a WP installation with the Co-Authors Plus plugin
+	 * @return void
+	 */
+	public function given_a_wp_installation_with_plugin(): void {
+		$this->reset_database_state();
+		$this->run_wp_cli_command( 'plugin activate co-authors-plus', false );
+
+		if ( 0 !== $this->exit_code ) {
+			throw new RuntimeException( 'Failed to activate plugin: ' . $this->output );
+		}
+	}
+
+	/**
+	 * Create a published post with a specific slug.
 	 *
 	 * @Given there is a published post with a slug of :post_name
-	 *
-	 * @param string $post_name Post name to use.
+	 * @param string $post_name Post slug.
+	 * @return void
 	 */
-	public function there_is_a_published_post( $post_name ): void {
-		$this->proc( "wp post create --post_title='{$post_name}' --post_name='{$post_name}' --post_status='publish'" )->run_check();
+	public function there_is_a_published_post_with_slug( string $post_name ): void {
+		$this->run_wp_cli_command(
+			"post create --post_name={$post_name} --post_status=publish --porcelain",
+			false
+		);
 	}
 }

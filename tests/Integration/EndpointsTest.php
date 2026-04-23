@@ -52,7 +52,6 @@ class EndpointsTest extends TestCase {
 				)
 			)
 		);
-
 	}
 
 	/**
@@ -111,7 +110,6 @@ class EndpointsTest extends TestCase {
 			$routes[ $authors_route ][1]['methods'],
 			'Failed to assert that authors endpoint has POST method.'
 		);
-
 	}
 
 	/**
@@ -236,19 +234,19 @@ class EndpointsTest extends TestCase {
 		return array(
 			'Subscriber' => array(
 				'subscriber',
-				false
+				false,
 			),
 			'Contributor' => array(
 				'contributor',
-				false
+				false,
 			),
 			'Author' => array(
 				'author',
-				false
+				false,
 			),
 			'Editor' => array(
 				'editor',
-				true
+				true,
 			),
 		);
 	}

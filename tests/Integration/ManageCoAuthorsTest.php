@@ -110,7 +110,6 @@ class ManageCoAuthorsTest extends TestCase {
 		$coauthors_plus->add_coauthors( $this->author1_post1, array( $editor1->user_login ) );
 		$coauthors = get_coauthors( $this->author1_post1 );
 		$this->assertEquals( array( $this->editor1 ), wp_list_pluck( $coauthors, 'ID' ) );
-
 	}
 
 	/**
@@ -130,7 +129,6 @@ class ManageCoAuthorsTest extends TestCase {
 		// append = false, overrides existing post_author
 		$coauthors_plus->add_coauthors( $this->author1_post1, array( $editor1->user_login ) );
 		$this->assertEquals( $this->editor1, get_post( $this->author1_post1 )->post_author );
-
 	}
 
 	/**
@@ -157,7 +155,7 @@ class ManageCoAuthorsTest extends TestCase {
 		$this->assertEquals( 2, count_user_posts( $editor1->ID ) );
 
 		// Publish count to include posts and pages
-		$filter = function() {
+		$filter = function () {
 			return array( 'post', 'page' );
 		};
 		add_filter( 'coauthors_count_published_post_types', $filter );
@@ -170,7 +168,7 @@ class ManageCoAuthorsTest extends TestCase {
 
 		// Publish count is just pages
 		remove_filter( 'coauthors_count_published_post_types', $filter );
-		$filter = function() {
+		$filter = function () {
 			return array( 'page' );
 		};
 		add_filter( 'coauthors_count_published_post_types', $filter );
@@ -181,7 +179,6 @@ class ManageCoAuthorsTest extends TestCase {
 		$author1 = get_user_by( 'id', $this->author1 );
 		$coauthors_plus->add_coauthors( $this->author1_page2, array( $author1->user_login ) );
 		$this->assertEquals( 1, count_user_posts( $editor1->ID ) );
-
 	}
 
 	/**
@@ -215,11 +212,12 @@ class ManageCoAuthorsTest extends TestCase {
 
 		$post = get_post( $post_id );
 
-		$data = $post_array = array(
+		$post_array = array(
 			'ID'          => $post->ID,
 			'post_type'   => $post->post_type,
 			'post_author' => $post->post_author,
 		);
+		$data       = $post_array;
 
 		$new_data = $coauthors_plus->coauthors_set_post_author_field( $data, $post_array );
 
@@ -239,11 +237,12 @@ class ManageCoAuthorsTest extends TestCase {
 
 		$author1_post1 = get_post( $this->author1_post1 );
 
-		$data = $post_array = array(
+		$post_array = array(
 			'ID'          => $author1_post1->ID,
 			'post_type'   => $author1_post1->post_type,
 			'post_author' => $author1_post1->post_author,
 		);
+		$data       = $post_array;
 
 		$new_data = $coauthors_plus->coauthors_set_post_author_field( $data, $post_array );
 
@@ -288,11 +287,12 @@ class ManageCoAuthorsTest extends TestCase {
 
 		$post = get_post( $post_id );
 
-		$data = $post_array = array(
+		$post_array = array(
 			'ID'          => $post->ID,
 			'post_type'   => $post->post_type,
 			'post_author' => $post->post_author,
 		);
+		$data       = $post_array;
 
 		$new_data = $coauthors_plus->coauthors_set_post_author_field( $data, $post_array );
 
@@ -318,11 +318,12 @@ class ManageCoAuthorsTest extends TestCase {
 
 		$author1_post1 = get_post( $this->author1_post1 );
 
-		$data = $post_array = array(
+		$post_array = array(
 			'ID'          => $author1_post1->ID,
 			'post_type'   => $author1_post1->post_type,
 			'post_author' => $author1_post1->post_author,
 		);
+		$data       = $post_array;
 
 		// Backing up global variables.
 		$post_backup    = $_POST;
@@ -364,15 +365,17 @@ class ManageCoAuthorsTest extends TestCase {
 		$post_backup    = $_POST;
 		$request_backup = $_REQUEST;
 
-		$_REQUEST = $_POST = array();
+		$_POST    = array();
+		$_REQUEST = array();
 
 		$author1_post1 = get_post( $this->author1_post1 );
 
-		$data = $post_array = array(
+		$post_array = array(
 			'ID'          => $author1_post1->ID,
 			'post_type'   => $author1_post1->post_type,
 			'post_author' => $author1_post1->post_author,
 		);
+		$data       = $post_array;
 
 		unset( $data['post_author'] );
 
@@ -448,7 +451,9 @@ class ManageCoAuthorsTest extends TestCase {
 		$post_backup    = $_POST;
 		$request_backup = $_REQUEST;
 
-		$_POST['coauthors-nonce'] = $_REQUEST['coauthors-nonce'] = wp_create_nonce( 'coauthors-edit' );
+		$nonce                       = wp_create_nonce( 'coauthors-edit' );
+		$_POST['coauthors-nonce']    = $nonce;
+		$_REQUEST['coauthors-nonce'] = $nonce;
 		$_POST['coauthors']       = array(
 			$admin1->user_nicename,
 			$author1->user_nicename,

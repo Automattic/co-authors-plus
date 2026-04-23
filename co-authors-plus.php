@@ -11,8 +11,8 @@
  * Plugin Name:       Co-Authors Plus
  * Plugin URI:        https://wordpress.org/plugins/co-authors-plus/
  * Description:       Allows multiple authors to be assigned to a post. This plugin is an extended version of the Co-Authors plugin developed by Weston Ruter.
- * Version:           3.7.0
- * Requires at least: 5.9
+ * Version:           4.0.0
+ * Requires at least: 6.4
  * Requires PHP:      7.4
  * Author:            Mohammad Jangda, Daniel Bachhuber, Automattic
  * Author URI:        https://automattic.com
@@ -21,16 +21,17 @@
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  */
 
-const COAUTHORS_PLUS_VERSION = '3.7.0';
+const COAUTHORS_PLUS_VERSION = '4.0.0';
 const COAUTHORS_PLUS_FILE = __FILE__;
 
 require_once __DIR__ . '/template-tags.php';
-require_once __DIR__ . '/deprecated.php';
 
 require_once __DIR__ . '/php/class-coauthors-template-filters.php';
 require_once __DIR__ . '/php/class-coauthors-endpoint.php';
 require_once __DIR__ . '/php/integrations/amp.php';
 require_once __DIR__ . '/php/integrations/yoast.php';
+require_once __DIR__ . '/php/integrations/class-wordpress-importer.php';
+require_once __DIR__ . '/php/integrations/class-jetpack-subscriber-emails.php';
 require_once __DIR__ . '/php/class-coauthors-plus.php';
 require_once __DIR__ . '/php/class-coauthors-iterator.php';
 
@@ -48,6 +49,10 @@ global $coauthors_plus;
 $coauthors_plus     = new CoAuthors_Plus();
 $coauthors_endpoint = new CoAuthors\API\Endpoints( $coauthors_plus );
 CoAuthors\Blocks::run();
+
+// Initialize integrations.
+( new Automattic\CoAuthorsPlus\Integrations\WordPress_Importer() )->init();
+( new Automattic\CoAuthorsPlus\Integrations\Jetpack_Subscriber_Emails() )->init();
 
 if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 	/**

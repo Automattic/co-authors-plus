@@ -19,8 +19,9 @@ class Endpoints {
 	/**
 	 * Routes for various endpoints.
 	 */
-	const SEARCH_ROUTE  = 'search';
-	const AUTHORS_ROUTE = 'authors';
+	const SEARCH_ROUTE          = 'search';
+	const AUTHORS_ROUTE         = 'authors';
+	const AUTHORS_BY_TERMS_ROUTE = 'authors-by-term-ids';
 
 	/**
 	 * Link to remove from REST response to manage core author visibility in
@@ -89,6 +90,25 @@ class Endpoints {
 							'required'          => true,
 							'type'              => 'number',
 							'validate_callback' => array( $this, 'validate_numeric' ),
+						),
+					),
+				),
+			)
+		);
+
+		register_rest_route(
+			static::NS,
+			static::AUTHORS_BY_TERMS_ROUTE,
+			array(
+				array(
+					'methods'             => 'GET',
+					'callback'            => array( $this, 'get_coauthors_by_term_ids' ),
+					'permission_callback' => array( $this, 'can_edit_coauthors' ),
+					'args'                => array(
+						'ids' => array(
+							'description' => __( 'Comma-separated list of taxonomy term IDs.', 'co-authors-plus' ),
+							'required'    => true,
+							'type'        => 'string',
 						),
 					),
 				),
@@ -182,6 +202,33 @@ class Endpoints {
 	}
 
 	/**
+	 * Resolve taxonomy term IDs to rich co-author data.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response
+	 */
+	public function get_coauthors_by_term_ids( $request ): WP_REST_Response {
+		$response = array();
+		$ids      = array_map( 'absint', explode( ',', $request->get_param( 'ids' ) ) );
+
+		foreach ( $ids as $term_id ) {
+			$term = get_term( $term_id, $this->coauthors->coauthor_taxonomy );
+
+			if ( ! $term || is_wp_error( $term ) ) {
+				continue;
+			}
+
+			$author = $this->coauthors->get_coauthor_by( 'user_nicename', $term->slug );
+
+			if ( $author ) {
+				$response[] = $this->_format_author_data( $author );
+			}
+		}
+
+		return rest_ensure_response( $response );
+	}
+
+	/**
 	 * Validate input arguments.
 	 *
 	 * @param mixed $param Value to validate.
@@ -208,9 +255,11 @@ class Endpoints {
 	 * @return array
 	 */
 	public function _format_author_data( $author ): array {
+		$term = $this->coauthors->update_author_term( $author );
 
 		return array(
 			'id'           => esc_html( $author->ID ),
+			'termId'       => $term ? (int) $term->term_id : null,
 			'userNicename' => esc_html( rawurldecode( $author->user_nicename ) ),
 			'login'        => esc_html( $author->user_login ),
 			'email'        => sanitize_email( $author->user_email ),

@@ -117,8 +117,8 @@ class CoAuthorsPlusTest extends TestCase {
 		$user_login = 'محمود-الحسيني';
 		$guest_author_id = $coauthors_plus->guest_authors->create(
 			array(
-				'user_login'	=> $user_login,
-				'display_name'	=> 'محمود الحسيني',
+				'user_login'    => $user_login,
+				'display_name'  => 'محمود الحسيني',
 			)
 		);
 
@@ -345,7 +345,6 @@ class CoAuthorsPlusTest extends TestCase {
 
 		// Restore original user from backup.
 		wp_set_current_user( $current_user );
-
 	}
 
 	/**
@@ -764,18 +763,18 @@ class CoAuthorsPlusTest extends TestCase {
 
 	/**
 	 * This test fully validates the expected behavior of the @return void
-	 * @see CoAuthorPlus::get_coauthor_by function.
 	 *
+	 * @see CoAuthorPlus::get_coauthor_by function.
 	 */
 	public function test_get_coauthor_by() {
 		$author = $this->factory()->user->create_and_get(
-			[
+			array(
 				'role'         => 'author',
 				'user_login'   => 'i_am_batman',
 				'display_name' => 'Bruce Wayne',
 				'first_name'   => 'Bruce',
 				'last_name'    => 'Wayne',
-			]
+			)
 		);
 
 		$first_author_retrieval = $this->_cap->get_coauthor_by( 'user_nicename', $author->user_nicename );
@@ -816,10 +815,10 @@ class CoAuthorsPlusTest extends TestCase {
 		$display_name    = str_replace( '_', ' ', $random_username );
 
 		$this->_cap->guest_authors->create(
-			[
+			array(
 				'user_login'   => $random_username,
 				'display_name' => $display_name,
-			]
+			)
 		);
 		$fifth_author_retrieval = $this->_cap->get_coauthor_by( 'user_login', $random_username );
 		$this->assertIsGuestAuthorNotWpUser( $fifth_author_retrieval );
@@ -943,10 +942,10 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author2,
 				$this->author3,
-			]
+			)
 		);
 	}
 
@@ -987,11 +986,11 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author3,
 				$this->editor1,
 				$this->author2,
-			]
+			)
 		);
 	}
 
@@ -1149,11 +1148,11 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author1,
 				$guest_author_1,
 				$guest_author_2,
-			]
+			)
 		);
 	}
 
@@ -1216,10 +1215,10 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author3,
 				$guest_author_1,
-			]
+			)
 		);
 	}
 
@@ -1282,11 +1281,11 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author1,
 				$this->author3,
 				$guest_author_1,
-			]
+			)
 		);
 	}
 
@@ -1296,56 +1295,56 @@ class CoAuthorsPlusTest extends TestCase {
 	 * @return array[]
 	 */
 	public function provide_data_for_assign_post_authors_test() {
-		return [
-			'setting_linked_coauthors'                => [
-				'author_set'         => [
+		return array(
+			'setting_linked_coauthors'                => array(
+				'author_set'         => array(
 					'author_1' => 'linked',
 					'author_2' => 'linked',
-				],
+				),
 				'all_authors_linked' => true,
 				'append'             => false,
-			],
-			'appending_linked_coauthors'              => [
-				'author_set'         => [
+			),
+			'appending_linked_coauthors'              => array(
+				'author_set'         => array(
 					'author_1' => 'linked',
 					'author_2' => 'linked',
-				],
+				),
 				'all_authors_linked' => true,
 				'append'             => true,
-			],
-			'setting_linked_and_unlinked_coauthors'   => [
-				'author_set'         => [
+			),
+			'setting_linked_and_unlinked_coauthors'   => array(
+				'author_set'         => array(
 					'author_1' => 'guest',
 					'author_2' => 'linked',
-				],
+				),
 				'all_authors_linked' => false,
 				'append'             => false,
-			],
-			'appending_linked_and_unlinked_coauthors' => [
-				'author_set'         => [
+			),
+			'appending_linked_and_unlinked_coauthors' => array(
+				'author_set'         => array(
 					'author_1' => 'linked',
 					'author_2' => 'guest',
-				],
+				),
 				'all_authors_linked' => false,
 				'append'             => true,
-			],
-			'setting_unlinked_coauthors'              => [
-				'author_set'         => [
+			),
+			'setting_unlinked_coauthors'              => array(
+				'author_set'         => array(
 					'author_1' => 'user',
 					'author_2' => 'guest',
-				],
+				),
 				'all_authors_linked' => false,
 				'append'             => false,
-			],
-			'appending_unlinked_coauthors'            => [
-				'author_set'         => [
+			),
+			'appending_unlinked_coauthors'            => array(
+				'author_set'         => array(
 					'author_1' => 'guest',
 					'author_2' => 'user',
-				],
+				),
 				'all_authors_linked' => false,
 				'append'             => true,
-			],
-		];
+			),
+		);
 	}
 
 	/**
@@ -1354,22 +1353,23 @@ class CoAuthorsPlusTest extends TestCase {
 	 * function CoAuthors_Plus::get_coauthor_by() should return a guest author object along with meta data
 	 * indicating that the object is linked to a WP_User. The wp_posts.post_author column should change,
 	 * and the response from CoAuthors_Plus::add_coauthors() should be true.
+	 *
 	 * @dataProvider provide_data_for_assign_post_authors_test
 	 * @return void
 	 */
 	public function test_assign_post_authors_from_coauthors( $author_set, $all_authors_linked, $append ) {
-		$coauthors = [];
+		$coauthors = array();
 
 		foreach ( $author_set as $author_key => $link_type ) {
-			if ( in_array( $link_type, [ 'linked', 'user' ], true ) ) {
+			if ( in_array( $link_type, array( 'linked', 'user' ), true ) ) {
 				$author = $this->factory()->user->create_and_get(
-					[
+					array(
 						'role'         => 'author',
 						'user_login'   => wp_rand( 1, 1000 ) . '_author_' . $author_key,
 						'display_name' => 'Author ' . $author_key,
 						'first_name'   => 'Author',
 						'last_name'    => $author_key,
-					]
+					)
 				);
 
 				if ( 'linked' === $link_type ) {
@@ -1380,33 +1380,33 @@ class CoAuthorsPlusTest extends TestCase {
 
 					$this->assertIsGuestAuthorNotWpUser( $linked_author );
 
-					$coauthors[] = [
+					$coauthors[] = array(
 						'user'     => $author,
 						'coauthor' => $linked_author,
-					];
+					);
 				} else {
-					$coauthors[] = [
+					$coauthors[] = array(
 						'user' => $author,
-					];
+					);
 				}
 			} else {
 				$random_username = 'random_user_' . wp_rand( 1001, 2000 );
 				$display_name    = str_replace( '_', ' ', $random_username );
 
 				$guest_author_id = $this->_cap->guest_authors->create(
-					[
+					array(
 						'user_login'   => $random_username,
 						'display_name' => $display_name,
-					]
+					)
 				);
 
 				$guest_author = $this->_cap->get_coauthor_by( 'id', $guest_author_id );
 
 				$this->assertIsGuestAuthorNotWpUser( $guest_author );
 
-				$coauthors[] = [
+				$coauthors[] = array(
 					'coauthor' => $guest_author,
-				];
+				);
 			}
 		}
 
@@ -1474,31 +1474,29 @@ class CoAuthorsPlusTest extends TestCase {
 		if ( $all_authors_linked ) {
 			if ( $append ) {
 				$this->assertEquals( $this->editor1->ID, $second_query->posts[0]->post_author );
-				$this->assertPostHasCoAuthors( $post_id, array_merge( [ $this->editor1 ], $assigned_authors ) );
+				$this->assertPostHasCoAuthors( $post_id, array_merge( array( $this->editor1 ), $assigned_authors ) );
 			} else {
 				if ( $first_user_account ) {
 					$this->assertEquals( $first_user_account->ID, $second_query->posts[0]->post_author );
 				}
 				$this->assertPostHasCoAuthors( $post_id, $assigned_authors );
 			}
-		} else {
-			if ( $append ) {
+		} elseif ( $append ) {
 				$this->assertEquals( $this->editor1->ID, $second_query->posts[0]->post_author );
 				$this->assertPostHasCoAuthors(
 					$post_id,
 					array_merge(
-						[
+						array(
 							$this->editor1,
-						],
+						),
 						$assigned_authors
 					)
 				);
-			} else {
-				if ( $first_user_account ) {
-					$this->assertEquals( $first_user_account->ID, $second_query->posts[0]->post_author );
-				}
-				$this->assertPostHasCoAuthors( $post_id, $assigned_authors );
+		} else {
+			if ( $first_user_account ) {
+				$this->assertEquals( $first_user_account->ID, $second_query->posts[0]->post_author );
 			}
+			$this->assertPostHasCoAuthors( $post_id, $assigned_authors );
 		}
 	}
 
@@ -1510,7 +1508,7 @@ class CoAuthorsPlusTest extends TestCase {
 	 *
 	 * @return void
 	 */
-	public function test_assign_multiple_post_authors_wp_user_guest_author_linked_user(  ) {
+	public function test_assign_multiple_post_authors_wp_user_guest_author_linked_user() {
 		$random_username = 'random_user_' . wp_rand( 1, 1000 );
 		$display_name    = str_replace( '_', ' ', $random_username );
 
@@ -1568,11 +1566,11 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author1,
 				$guest_author_1,
 				$this->author3,
-			]
+			)
 		);
 	}
 
@@ -1656,11 +1654,11 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author3,
 				$guest_author_1,
 				$guest_author_2,
-			]
+			)
 		);
 	}
 
@@ -1728,11 +1726,11 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author2,
 				$this->author3,
 				$guest_author_1,
-			]
+			)
 		);
 	}
 
@@ -1801,11 +1799,11 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author2,
 				$this->author3,
 				$guest_author_1,
-			]
+			)
 		);
 	}
 
@@ -1875,11 +1873,11 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertPostHasCoAuthors(
 			$post_id,
-			[
+			array(
 				$this->author2,
 				$this->author3,
 				$guest_author_1,
-			]
+			)
 		);
 
 		$guest_author_term = wp_get_post_terms( $linked_author_1->ID, $this->_cap->coauthor_taxonomy );
@@ -1908,6 +1906,11 @@ class CoAuthorsPlusTest extends TestCase {
 	 * @covers CoAuthors_Plus::enqueue_sidebar_plugin_assets()
 	 */
 	public function test_enqueue_editor_assets(): void {
+		$asset_file = dirname( COAUTHORS_PLUS_FILE ) . '/build/index.asset.php';
+
+		if ( ! file_exists( $asset_file ) ) {
+			$this->markTestSkipped( 'Build files not present. Run npm run build to test asset enqueuing.' );
+		}
 
 		// Default state
 		do_action( 'enqueue_block_editor_assets' );
@@ -1923,7 +1926,6 @@ class CoAuthorsPlusTest extends TestCase {
 
 		$this->assertTrue( wp_script_is( 'coauthors-sidebar-js' ) );
 		$this->assertTrue( wp_style_is( 'coauthors-sidebar-css' ) );
-
 	}
 
 	/**
@@ -1938,14 +1940,13 @@ class CoAuthorsPlusTest extends TestCase {
 		$coauthors_plus->add_coauthors_box();
 
 		$this->assertNull( $wp_meta_boxes, 'Failed to assert the coauthors metabox is not added when the block editor is loaded.' );
-
 	}
 
 	/**
 	 * Test the expected default supported post types.
 	 */
 	public function test_default_supported_post_types(): void {
-		$supported_post_types = (new \CoAuthors_Plus())->supported_post_types();
+		$supported_post_types = ( new \CoAuthors_Plus() )->supported_post_types();
 		$expected = array(
 			'post',
 			'page',
@@ -1973,7 +1974,7 @@ class CoAuthorsPlusTest extends TestCase {
 			)
 		);
 
-		$callback = function( $post_types ) {
+		$callback = function ( $post_types ) {
 			$key = array_search( 'page', $post_types, true );
 			unset( $post_types[ $key ] );
 
@@ -1992,5 +1993,47 @@ class CoAuthorsPlusTest extends TestCase {
 		// Clean up.
 		remove_filter( 'coauthors_supported_post_types', $callback );
 		unregister_post_type( 'foo' );
+	}
+
+	/**
+	 * Tests that deleting a user without a co-author term doesn't cause PHP warnings.
+	 *
+	 * @covers CoAuthors_Plus::delete_user_action()
+	 */
+	public function test_delete_user_without_coauthor_term_should_not_cause_warning(): void {
+		global $coauthors_plus;
+
+		// Create a user
+		$user = $this->create_author( 'test_user_deletion' );
+
+		// Create a post for the user
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $user->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		// Add the user as a co-author to ensure the term is created
+		$coauthors_plus->add_coauthors( $post_id, array( $user->user_nicename ), true );
+
+		// Verify the term exists
+		$term = $coauthors_plus->get_author_term( $user );
+		$this->assertNotFalse( $term, 'Co-author term should exist before deletion' );
+
+		// Manually delete the co-author term to simulate the bug scenario
+		// (e.g., term was manually deleted or corrupted)
+		wp_delete_term( $term->term_id, $coauthors_plus->coauthor_taxonomy );
+
+		// Verify the term is gone
+		$term_after_deletion = $coauthors_plus->get_author_term( $user );
+		$this->assertFalse( $term_after_deletion, 'Co-author term should not exist after manual deletion' );
+
+		// Now delete the user - this should not cause a PHP warning
+		// The bug is that the code tries to access $term->term_id when $term is false
+		wp_delete_user( $user->ID );
+
+		// If we get here without warnings, the test passes
+		$this->assertTrue( true, 'User deleted without PHP warnings' );
 	}
 }

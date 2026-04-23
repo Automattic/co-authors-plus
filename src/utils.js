@@ -77,10 +77,11 @@ export const addItemByValue = (
  * @return {Object} The object containing data relevant to the Coauthors component.
  */
 export const formatAuthorData = ( author ) => {
-	const { id, displayName, userNicename, email, userType } = author;
+	const { id, displayName, userNicename, email, userType, termId } = author;
 
 	return {
 		id,
+		termId,
 		label: applyFilters( 'coAuthors.formatAuthorData.label', `${ displayName } | ${ email }`, author ),
 		display: displayName,
 		value: userNicename,

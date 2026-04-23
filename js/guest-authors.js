@@ -1,32 +1,29 @@
-jQuery( document ).ready(function( $ ){
-	$( '.reassign-option' ).on( 'click',function(){
+jQuery( document ).ready( function( $ ) {
+	$( '.reassign-option' ).on( 'click', function() {
 		$( '#wpbody-content input#submit' ).addClass( 'button-primary' ).removeAttr( 'disabled' );
-	});
-	$( '#leave-assigned-to' ).select2({
-		minimumInputLength: 2,
-		width: 'copy',
-		multiple: false,
-		ajax: {
-			url: ajaxurl,
-			dataType: 'json',
-			data: function( term, page ) {
-				return {
-					q: term,
-					action: 'search_coauthors_to_assign',
-					guest_author: $( '#id' ).val()
-				};
-			},
-			results: function( data, page ) {
-				return { results: data };
-			}
+	} );
+
+	// Initialize the co-author autocomplete for reassignment.
+	$( '#leave-assigned-to-display' ).autocomplete( {
+		source: coAuthorsGuestAuthors.ajaxUrl,
+		minLength: 2,
+		delay: 500,
+		select: function( event, ui ) {
+			// Show the display name in the visible field.
+			$( this ).val( ui.item.label );
+
+			// Store the user_nicename in the hidden field for form submission.
+			$( '#leave-assigned-to' ).val( ui.item.value );
+
+			// Auto-select the "Reassign to another co-author" radio option.
+			$( '#reassign-another' ).trigger( 'click' );
+
+			return false;
 		},
-		formatResult: function( object, container, query ) {
-			return object.display_name;
-		},
-		formatSelection: function( object, container ) {
-			return object.display_name;
+		focus: function( event, ui ) {
+			// Show the display name while navigating options.
+			$( this ).val( ui.item.label );
+			return false;
 		}
-	}).on( 'change', function() {
-		$( '#reassign-another' ).trigger( 'click' );
-	});
-});
+	} );
+} );

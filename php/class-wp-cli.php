@@ -30,9 +30,13 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		$this->args = wp_parse_args( $assoc_args, $defaults );
 
 		$users    = get_users();
+		$count    = count( $users );
 		$created  = 0;
 		$skipped  = 0;
-		$progress = \WP_CLI\Utils\make_progress_bar( 'Processing guest authors...', count( $users ) );
+
+		WP_CLI::log( "Attempting to create guest author profiles for {$count} users." );
+
+		$progress = \WP_CLI\Utils\make_progress_bar( 'Processing guest authors...', $count );
 		foreach ( $users as $user ) {
 
 			$result = $coauthors_plus->guest_authors->create_guest_author_from_user_id( $user->ID );
@@ -428,7 +432,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		$post_types = implode( "','", $coauthors_plus->supported_post_types() );
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$posts    = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author=%d AND post_type IN ({$post_types})", $user->ID ) );
+		$posts    = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author=%d AND post_type IN ('{$post_types}')", $user->ID ) );
 		$affected = 0;
 		foreach ( $posts as $post_id ) {
 			$coauthors = cap_get_coauthor_terms_for_post( $post_id );
@@ -981,13 +985,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 *
 	 * @subcommand create-author
 	 * @synopsis
-	 * [--display_name=<display_name>]
-	 * [--user_login=<user_login>]
-	 * [--first_name=<first_name>]
-	 * [--last_name=<last_name>]
-	 * [--website=<website>]
-	 * [--user_email=<user_email>]
-	 * [--description=<description>]
+	 * [--display_name=<display_name>] [--user_login=<user_login>] [--first_name=<first_name>] [--last_name=<last_name>] [--website=<website>] [--user_email=<user_email>] [--description=<description>]
 	 */
 	public function create_author( $args, $assoc_args ): void {
 		$this->create_guest_author( $assoc_args );
@@ -1082,9 +1080,14 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 */
 	private function create_guest_author( $author ): void {
 		global $coauthors_plus;
-		$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'user_email', $author['user_email'], true );
 
-		if ( ! $guest_author ) {
+		$guest_author = false;
+
+		if ( ! empty( $author['user_email'] ) ) {
+			$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'user_email', $author['user_email'], true );
+		}
+
+		if ( ! $guest_author && ! empty( $author['user_login'] ) ) {
 			$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'user_login', $author['user_login'], true );
 		}
 

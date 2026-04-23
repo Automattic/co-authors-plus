@@ -1,25 +1,57 @@
 name: Deploy to WordPress.org
+
 on:
   release:
     types: [released]
-  # Allow manual triggering of the workflow.
   workflow_dispatch:
+
+# Workflow-level permissions set to none; jobs declare their own minimal permissions
+permissions: {}
+
+# Cancels all previous workflow runs for the same branch that have not yet completed.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
-    name: New release to WordPress.org
+    name: Deploy to WordPress.org
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # Required to upload release assets to the GitHub release
+
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - name: Install SVN (Subversion)
-        run: |
-          sudo apt-get update
-          sudo apt-get install subversion
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: '20'
+          # Disabled to prevent cache poisoning in release workflows
+          package-manager-cache: false
 
-      - name: Push to WordPress.org
-        uses: 10up/action-wordpress-plugin-deploy@stable
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Deploy to WordPress.org
+        uses: 10up/action-wordpress-plugin-deploy@54bd289b8525fd23a5c365ec369185f2966529c2 # v2.3.0
+        with:
+          generate-zip: true
         env:
           SLUG: co-authors-plus
-          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
           SVN_USERNAME: ${{ secrets.SVN_USERNAME }}
+          SVN_PASSWORD: ${{ secrets.SVN_PASSWORD }}
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
+        with:
+          files: ${{ github.workspace }}/${{ github.event.repository.name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,6 +1,6 @@
 {
 	"name": "co-authors-plus",
-	"version": "3.7.0",
+	"version": "4.0.0",
 	"description": "Allows multiple authors to be assigned to a post.",
 	"license": "GPL-2.0-or-later",
 	"private": true,
@@ -32,16 +32,16 @@
 		"test:unit:watch": "wp-scripts test-unit-js --watch"
 	},
 	"dependencies": {
-		"@wordpress/api-fetch": "^6.14.0",
-		"@wordpress/components": "^21.0.0",
-		"@wordpress/data": "^7.1.0",
-		"@wordpress/element": "^4.15.0",
-		"@wordpress/i18n": "^4.17.0"
+		"@wordpress/api-fetch": "^7.44.0",
+		"@wordpress/components": "^32.6.0",
+		"@wordpress/data": "^10.36.0",
+		"@wordpress/element": "^6.36.0",
+		"@wordpress/i18n": "^6.9.0"
 	},
 	"devDependencies": {
-		"@wordpress/icons": "^9.33.0",
-		"@wordpress/scripts": "^24.0.0",
-		"classnames": "^2.3.2",
+		"@wordpress/icons": "^12.2.0",
+		"@wordpress/scripts": "^32.0.0",
+		"classnames": "^2.5.1",
 		"prettier": "npm:wp-prettier@^2.2.1-beta-1",
 		"prop-types": "^15.8.1",
 		"version-bump-prompt": "^6.1.0"

@@ -1,12 +1,35 @@
 name: Integration Tests
 
-on: [push]
+on:
+  pull_request:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpunit.xml.dist'
+      - '.wp-env.json'
+      - '.github/workflows/integration.yml'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpunit.xml.dist'
+      - '.wp-env.json'
+      - '.github/workflows/integration.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   test:
     name: WP ${{ matrix.wordpress }} on PHP ${{ matrix.php }}
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.allowed_failure }}
+    continue-on-error: ${{ matrix.allowed_failure || false }}
 
     env:
       WP_VERSION: ${{ matrix.wordpress }}
@@ -15,34 +38,26 @@ jobs:
       matrix:
         include:
           # Check lowest supported WP version, with the lowest supported PHP.
-          - wordpress: '5.9'
+          - wordpress: '6.4'
             php: '7.4'
             allowed_failure: false
-          # Check latest WP with the highest supported PHP.
-          - wordpress: 'latest'
-            php: 'latest'
-            allowed_failure: false
-          # Check upcoming WP.
-          - wordpress: 'trunk'
+          # Check latest WP with the latest PHP (may fail due to bleeding edge changes).
+          - wordpress: 'master'
             php: 'latest'
             allowed_failure: true
-          # Check upcoming PHP - only needed when a new version has been forked (typically Sep-Nov)
-#          - wordpress: 'trunk'
-#            php: 'nightly'
-#            allowed_failure: true
       fail-fast: false
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
 
-      - name: Install SVN (Subversion)
-        run: |
-           sudo apt-get update
-           sudo apt-get install subversion
-           
+      - name: Install wordpress environment
+        run: npm install -g @wordpress/env
+
       - name: Set up PHP ${{ matrix.php }}
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # 2.37.0
         with:
           php-version: ${{ matrix.php }}
           extensions: ${{ matrix.extensions }}
@@ -50,7 +65,7 @@ jobs:
           coverage: ${{ matrix.coverage }}
 
       - name: Install Composer dependencies
-        uses: ramsey/composer-install@v3
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
         with:
           composer-options: --ignore-platform-req=php+
 
@@ -65,14 +80,13 @@ jobs:
           php --version
           ./vendor/bin/phpunit --version
 
-      - name: Start MySQL service
-        run: sudo systemctl start mysql.service
-
-      - name: Install WordPress environment
-        run: composer prepare ${{ matrix.wordpress }}
+      - name: Setup wp-env
+        run: wp-env start
+        env:
+          WP_ENV_CORE: WordPress/WordPress#${{ matrix.wordpress }}
 
       - name: Run integration tests (single site)
-        run: composer integration
+        run: composer test:integration
 
       - name: Run integration tests (multisite)
-        run: composer integration-ms
+        run: composer test:integration-ms
