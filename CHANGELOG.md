@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.0] - 2026-04-22
+
+**Breaking changes:**
+
+* **Block editor data store replaced.** The custom `cap/authors` Redux store has been removed. Third-party JavaScript that calls `select( 'cap/authors' )` must migrate to WordPress's core entity store (`getEditedPostAttribute( 'coauthors' )` / `editPost( { coauthors: [...] } )`). This change is what makes Co-Authors Plus compatible with real-time collaboration.
+* **Deprecated filter hooks.** `coauthors_post_list_pluck_field` and `coauthors_post_get_coauthor_by_field` are deprecated when saving via the REST API. Use the `set_object_terms` action for the author taxonomy instead. Both filters still fire for now but emit a `_deprecated_hook` notice and will be removed in a future release.
+* **Guest-author post type is now private.** The `guest-author` CPT is now registered with `public => false` (with `show_ui => true` to preserve the admin editor). Any front-end queries for `?post_type=guest-author` will stop resolving. This was never a supported path, but the change makes the intent explicit and closes a long-standing leak into plugins like Yoast SEO that scan for public post types.
+* **`COAUTHORS_PLUS_PATH` and `COAUTHORS_PLUS_URL` constants removed.** The long-dead `deprecated.php` file has been deleted. These constants were moved there in 2013 and have been unreferenced ever since. Any third-party code still relying on them must switch to WordPress's `plugin_dir_path()` and `plugin_dir_url()`.
+* **Minimum WordPress version is now 6.4** (previously 5.9).
+
+### Added
+
+* Real-time collaboration compatibility via the core entity store by @smithjw1 in https://github.com/Automattic/Co-Authors-Plus/pull/1217
+* New `authors-by-term-ids` REST endpoint for resolving term IDs to rich author data by @smithjw1 in https://github.com/Automattic/Co-Authors-Plus/pull/1217
+* Jetpack Subscriber Emails integration for co-authors by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1183
+* WordPress Playground blueprint for Live Preview by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1184
+* Show user count before creating guest authors by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1195
+
+### Changed
+
+* Make guest-author CPT private by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1232
+* Replace `suggest` library with jQuery UI autocomplete by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1187
+* Raise minimum supported WordPress version to 6.4 by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1152
+
+### Deprecated
+
+* Filters `coauthors_post_list_pluck_field` and `coauthors_post_get_coauthor_by_field` when saving via REST — use the `set_object_terms` action for the author taxonomy instead by @smithjw1 in https://github.com/Automattic/Co-Authors-Plus/pull/1217
+
+### Removed
+
+* `cap/authors` custom Redux store by @smithjw1 in https://github.com/Automattic/Co-Authors-Plus/pull/1217
+* Long-dead `deprecated.php` file and its unused `COAUTHORS_PLUS_PATH` / `COAUTHORS_PLUS_URL` constants by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1233
+
+### Fixed
+
+* Fix SQL syntax error in CLI command when migrating users to guest authors by @NateWr in https://github.com/Automattic/Co-Authors-Plus/pull/1162
+* Prevent PHP warning when deleting users without co-author terms by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1166
+* Fix PHP warning when post has no author by @shakyjake in https://github.com/Automattic/Co-Authors-Plus/pull/1133
+* Simplify guest author lookup in `delete_user_action()` to prevent warnings by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1209
+* Prevent duplicate guest-authors during import by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1181
+* Support custom post types in `count_user_posts` filter by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1182
+* Remove deprecated jQuery `ready()` call on element selector by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1186
+* Prevent fatal error when guest author slug conflicts with existing user by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1190
+* `create-guest-authors` CLI command now accepts required arguments by @NateWr in https://github.com/Automattic/Co-Authors-Plus/pull/1164
+* Fix `ComboboxControl` deprecation warnings by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1193
+* Prevent fatal error when `author_name` is an array by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1196
+* Fix avatar collision on profile, post and edit screens by @katag9k in https://github.com/Automattic/Co-Authors-Plus/pull/996
+* Adjust import of `PluginDocumentSettingPanel` to resolve deprecation notice by @kadamwhite in https://github.com/Automattic/Co-Authors-Plus/pull/1108
+* Allow guest author creation on WordPress 7.0 by @smithjw1 in https://github.com/Automattic/Co-Authors-Plus/pull/1206
+
+### Security
+
+* Gate `CoAuthors_Controller` REST endpoints on post visibility by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1234
+
+### Maintenance
+
+* Add wp-env configuration for local development by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1151
+* Update composer.json for consistency by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1153
+* Migrate integration tests to use wp-env by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1155
+* Replace undefined `WP_TESTS_DOMAIN` constant with `home_url()` by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1158
+* Migrate Behat tests to wp-env and modernise CI workflows by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1167, https://github.com/Automattic/Co-Authors-Plus/pull/1168, and https://github.com/Automattic/Co-Authors-Plus/pull/1169
+* Migrate dependabot reviewers to CODEOWNERS by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1172
+* Standardise test matrix and update readme by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1173
+* Add JS build and lint workflows for npm updates by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1175
+* Enable WordPress-Extra and WordPress-Docs PHPCS rulesets with test exclusions by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1176
+* Automate deployment with build step and security hardening by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1177
+* Exclude build directory from git tracking by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1180
+* Use real WordPress image path in feed image test by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1189
+* Guard guest-author CPT visibility properties with an integration test by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1232
+* Bump wp-env dev PHP to 8.2 to restore local development by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1235
+* Keep multiple npm and GitHub Actions dependencies up to date via Dependabot
+
+### Documentation
+
+* Reduce readme tags to WordPress.org limit of 5 by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1188
+* Add AGENTS.md and Claude Code config by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1207
+
 ## [3.7.0] - 2025-10-20
 
 ### Added
@@ -557,6 +634,7 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
+[4.0.0]: https://github.com/automattic/co-authors-plus/compare/3.7.0...4.0.0
 [3.7.0]: https://github.com/automattic/co-authors-plus/compare/3.6.6...3.7.0
 [3.6.6]: https://github.com/automattic/co-authors-plus/compare/3.6.5...3.6.6
 [3.6.5]: https://github.com/automattic/co-authors-plus/compare/3.6.4...3.6.5
