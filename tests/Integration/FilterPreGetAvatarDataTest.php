@@ -25,6 +25,7 @@ class FilterPreGetAvatarDataTest extends TestCase {
 	private function create_user_at_id( int $id, string $login, string $email ): void {
 		global $wpdb;
 		$wpdb->insert(
+			// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.user_meta__wpdb__users -- Test-only helper: we need to reserve a specific user id to reproduce the GA/user collision fixed by PR #996, which wp_insert_user() cannot do.
 			$wpdb->users,
 			array(
 				'ID'            => $id,
