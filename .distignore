@@ -37,6 +37,7 @@
 
 # Documentation (not needed in plugin distribution)
 /CHANGELOG.md
+/docs/
 
 # Test configuration
 /phpunit.xml

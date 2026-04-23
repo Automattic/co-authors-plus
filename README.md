@@ -22,7 +22,7 @@ On the frontend, use the [Co-Authors Plus template tags](https://github.com/Auto
 ## Documentation
 
 - **Usage** — themer and site-owner guides live on the [GitHub Wiki](https://github.com/Automattic/Co-Authors-Plus/wiki): template tags, blocks, guest author management, and multisite.
-- **Developer reference** — ships with the code under [`docs/`](./docs/):
+- **Developer reference** — lives in-repo under [`docs/`](./docs/) (not bundled in the distribution ZIP):
   - [Filters and actions](./docs/filters.md)
   - [REST API](./docs/rest-api.md)
   - [Upgrading to 4.0](./docs/upgrading-to-4.0.md)
