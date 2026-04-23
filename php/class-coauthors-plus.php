@@ -572,7 +572,7 @@ class CoAuthors_Plus {
 					$avatar_url = get_avatar_url( $coauthor->ID, array( 'user_type' => $user_type ) );
 					?>
 					<li>
-						<?php echo get_avatar( $coauthor->ID ); ?>
+						<?php echo get_avatar( $coauthor->ID, 96, '', '', array( 'user_type' => $user_type ) ); ?>
 						<span id="<?php echo esc_attr( 'coauthor-readonly-' . $count ); ?>" class="coauthor-tag">
 							<input type="text" name="coauthorsinput[]" readonly="readonly" value="<?php echo esc_attr( $coauthor->display_name ); ?>" />
 							<input type="text" name="coauthors[]" value="<?php echo esc_attr( $coauthor->user_login ); ?>" />
@@ -675,13 +675,14 @@ class CoAuthors_Plus {
 					$args['post_type'] = $post->post_type;
 				}
 				$author_filter_url = add_query_arg( array_map( 'rawurlencode', $args ), admin_url( 'edit.php' ) );
+				$user_type         = $author instanceof WP_User ? 'wp-user' : 'guest-user';
 				?>
 				<a href="<?php echo esc_url( $author_filter_url ); ?>"
 				data-user_nicename="<?php echo esc_attr( $author->user_nicename ); ?>"
 				data-user_email="<?php echo esc_attr( $author->user_email ); ?>"
 				data-display_name="<?php echo esc_attr( $author->display_name ); ?>"
 				data-user_login="<?php echo esc_attr( $author->user_login ); ?>"
-				data-avatar="<?php echo esc_attr( get_avatar_url( $author->ID ) ); ?>"
+				data-avatar="<?php echo esc_attr( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ); ?>"
 				><?php echo esc_html( $author->display_name ); ?></a><?php echo ( $count < count( $authors ) ) ? ',' : ''; ?>
 				<?php
 				$count++;
@@ -2156,25 +2157,24 @@ class CoAuthors_Plus {
 			return $args;
 		}
 
-		// Do not filter when we have a WordPress user sent from CAP meta box
+		// Do not filter when the caller has flagged the lookup as a WP user.
 		if ( isset( $args['user_type'] ) && 'wp-user' === $args['user_type'] ) {
 			return $args;
 		}
 
-		// Do not filter when on the user screen
+		// Do not filter when on the Users admin screens (core handles those).
 		$current_screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		if ( ! is_null( $current_screen ) && isset( $current_screen->parent_base ) && 'users' === $current_screen->parent_base ) {
 			return $args;
 		}
 
-		// Do not filter on the post list screen, profile screen, and post takeover pop-up.
-		if ( isset( $current_screen->base ) && ( 'post' === $current_screen->base || 'profile' === $current_screen->base || 'edit' === $current_screen->base ) ) {
-			return $args;
-		}
-
-		// Do not filter the avatar if this is doing a heartbeat request on WP refresh lock.
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Only checking action name, not processing data.
-		if ( wp_doing_ajax() && isset( $_POST['action'] ) && 'heartbeat' === sanitize_key( $_POST['action'] ) ) {
+		// A numeric ID is ambiguous: a WP user ID can collide with a guest-author
+		// post ID. Unless the caller has explicitly flagged the lookup as a
+		// guest author, defer to WordPress when a matching user exists so core
+		// contexts like post locks, the profile screen and heartbeat refreshes
+		// keep rendering the correct user's avatar.
+		$explicit_guest = isset( $args['user_type'] ) && 'guest-user' === $args['user_type'];
+		if ( ! $explicit_guest && get_user_by( 'id', $id ) ) {
 			return $args;
 		}
 
