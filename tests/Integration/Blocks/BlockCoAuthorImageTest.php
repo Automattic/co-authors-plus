@@ -82,7 +82,7 @@ class BlockCoAuthorImageTest extends TestCase {
 	 */
 	public function test_javascript_link_is_stripped_from_href(): void {
 		$block  = $this->make_block_for_link( 'javascript:alert(1)' );
-		$output = Block_CoAuthor_Image::render_block( array( 'isLink' => true ), '', $block );
+		$output = $block->render();
 
 		$this->assertStringNotContainsString( 'javascript:', $output );
 		$this->assertStringNotContainsString( 'href="javascript', $output );
@@ -95,7 +95,7 @@ class BlockCoAuthorImageTest extends TestCase {
 	public function test_valid_http_link_survives_escaping(): void {
 		$link   = 'https://example.com/author/example-author/';
 		$block  = $this->make_block_for_link( $link );
-		$output = Block_CoAuthor_Image::render_block( array( 'isLink' => true ), '', $block );
+		$output = $block->render();
 
 		$this->assertStringContainsString( 'href="' . esc_url( $link ) . '"', $output );
 	}
@@ -106,7 +106,7 @@ class BlockCoAuthorImageTest extends TestCase {
 	 */
 	public function test_no_anchor_is_rendered_when_is_link_is_false(): void {
 		$block  = $this->make_block_for_link( 'https://example.com/author/example-author/', false );
-		$output = Block_CoAuthor_Image::render_block( array( 'isLink' => false ), '', $block );
+		$output = $block->render();
 
 		$this->assertStringNotContainsString( '<a ', $output );
 		$this->assertStringNotContainsString( 'href=', $output );
