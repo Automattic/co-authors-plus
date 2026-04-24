@@ -249,58 +249,9 @@ class CoAuthors_Plus {
 		register_taxonomy( $this->coauthor_taxonomy, $this->supported_post_types(), $args );
 
 		// Bridge REST API saves to add_coauthors() for post_author sync and legacy filter compatibility.
-		// Backfill empty coauthor terms from post_author in REST responses (handles legacy posts).
 		foreach ( $this->supported_post_types() as $post_type ) {
 			add_action( "rest_after_insert_{$post_type}", array( $this, 'sync_coauthors_on_rest_save' ), 10, 2 );
-			add_filter( "rest_prepare_{$post_type}", array( $this, 'backfill_coauthor_terms_in_rest' ), 10, 2 );
 		}
-	}
-
-	/**
-	 * Backfill coauthor taxonomy terms for posts that predate Co-Authors Plus.
-	 *
-	 * When a post has no author taxonomy terms (e.g. created before the plugin
-	 * was activated), assign the term derived from post_author so the editor
-	 * receives valid coauthor data in the REST response.
-	 *
-	 * @param WP_REST_Response $response The response object.
-	 * @param WP_Post          $post     The post object.
-	 * @return WP_REST_Response
-	 */
-	public function backfill_coauthor_terms_in_rest( $response, $post ) {
-		$data = $response->get_data();
-
-		if ( ! empty( $data['coauthors'] ) ) {
-			return $response;
-		}
-
-		// Only backfill when the current user can edit the post to avoid
-		// database writes on unauthenticated GET requests.
-		if ( ! current_user_can( 'edit_post', $post->ID ) ) {
-			return $response;
-		}
-
-		// Post has no coauthor terms — seed from post_author.
-		$user = get_userdata( $post->post_author );
-		if ( ! $user ) {
-			return $response;
-		}
-
-		$this->add_coauthors( $post->ID, array( $user->user_nicename ) );
-
-		// Refresh the coauthors field in the response.
-		$terms = wp_get_object_terms(
-			$post->ID,
-			$this->coauthor_taxonomy,
-			array( 'fields' => 'ids' )
-		);
-
-		if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
-			$data['coauthors'] = array_map( 'intval', $terms );
-			$response->set_data( $data );
-		}
-
-		return $response;
 	}
 
 	/**
