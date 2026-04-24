@@ -1,6 +1,6 @@
 ﻿# Co-Authors Plus
 
-Stable tag: 4.0.0  
+Stable tag: 4.0.1  
 Requires at least: 6.4  
 Tested up to: 6.9  
 Requires PHP: 7.4  
@@ -17,9 +17,15 @@ Assign multiple bylines to posts, pages, and custom post types via a search-as-y
 
 Add writers as bylines without creating WordPress user accounts. Simply [create a guest author profile](https://github.com/Automattic/Co-Authors-Plus/wiki/Creating-and-editing-guest-authors) for the writer and assign the byline as you normally would.
 
-On the frontend, use the [Co-Authors Plus template tags](https://github.com/Automattic/Co-Authors-Plus/wiki/Template-tags) to list co-authors anywhere you'd normally list the author.
+On the frontend, use the [Co-Authors Plus template tags](https://github.com/Automattic/Co-Authors-Plus/wiki/Template-tags) or the [block editor blocks](https://github.com/Automattic/Co-Authors-Plus/wiki/Blocks) to list co-authors anywhere you'd normally list the author.
 
-**For more detailed documentation refer to [the GitHub Wiki for this plugin](https://github.com/Automattic/Co-Authors-Plus/wiki).**
+## Documentation
+
+- **Usage** — themer and site-owner guides live on the [GitHub Wiki](https://github.com/Automattic/Co-Authors-Plus/wiki): template tags, blocks, guest author management, and multisite.
+- **Developer reference** — lives in-repo under [`docs/`](./docs/) (not bundled in the distribution ZIP):
+  - [Filters and actions](./docs/filters.md)
+  - [REST API](./docs/rest-api.md)
+  - [Upgrading to 4.0](./docs/upgrading-to-4.0.md)
 
 Co-Authors Plus is an almost complete rewrite of the [Co-Authors](https://wordpress.org/plugins/co-authors/) plugin originally developed by Weston Ruter (2007). The original plugin was inspired by the '[Multiple Authors](https://txfx.net/2005/08/16/new-plugin-multiple-authors/)' plugin by Mark Jaquith (2005).
 
@@ -67,4 +73,4 @@ Yes! You can disable guest authors entirely through a filter. Having the followi
 
 ## Change Log
 
-[View the change log](https://github.com/Automattic/Co-Authors-Plus/blob/master/CHANGELOG.md).
+[View the change log](./CHANGELOG.md).

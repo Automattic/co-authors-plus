@@ -255,7 +255,8 @@ class Endpoints {
 	 * @return array
 	 */
 	public function _format_author_data( $author ): array {
-		$term = $this->coauthors->update_author_term( $author );
+		$term      = $this->coauthors->update_author_term( $author );
+		$user_type = isset( $author->type ) && 'guest-author' === $author->type ? 'guest-user' : 'wp-user';
 
 		return array(
 			'id'           => esc_html( $author->ID ),
@@ -264,7 +265,7 @@ class Endpoints {
 			'login'        => esc_html( $author->user_login ),
 			'email'        => sanitize_email( $author->user_email ),
 			'displayName'  => esc_html( str_replace( '∣', '|', $author->display_name ) ),
-			'avatar'       => esc_url( get_avatar_url( $author->ID ) ),
+			'avatar'       => esc_url( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ),
 			'userType'     => esc_html( $author->type ),
 		);
 	}

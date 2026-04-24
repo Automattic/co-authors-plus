@@ -249,58 +249,9 @@ class CoAuthors_Plus {
 		register_taxonomy( $this->coauthor_taxonomy, $this->supported_post_types(), $args );
 
 		// Bridge REST API saves to add_coauthors() for post_author sync and legacy filter compatibility.
-		// Backfill empty coauthor terms from post_author in REST responses (handles legacy posts).
 		foreach ( $this->supported_post_types() as $post_type ) {
 			add_action( "rest_after_insert_{$post_type}", array( $this, 'sync_coauthors_on_rest_save' ), 10, 2 );
-			add_filter( "rest_prepare_{$post_type}", array( $this, 'backfill_coauthor_terms_in_rest' ), 10, 2 );
 		}
-	}
-
-	/**
-	 * Backfill coauthor taxonomy terms for posts that predate Co-Authors Plus.
-	 *
-	 * When a post has no author taxonomy terms (e.g. created before the plugin
-	 * was activated), assign the term derived from post_author so the editor
-	 * receives valid coauthor data in the REST response.
-	 *
-	 * @param WP_REST_Response $response The response object.
-	 * @param WP_Post          $post     The post object.
-	 * @return WP_REST_Response
-	 */
-	public function backfill_coauthor_terms_in_rest( $response, $post ) {
-		$data = $response->get_data();
-
-		if ( ! empty( $data['coauthors'] ) ) {
-			return $response;
-		}
-
-		// Only backfill when the current user can edit the post to avoid
-		// database writes on unauthenticated GET requests.
-		if ( ! current_user_can( 'edit_post', $post->ID ) ) {
-			return $response;
-		}
-
-		// Post has no coauthor terms — seed from post_author.
-		$user = get_userdata( $post->post_author );
-		if ( ! $user ) {
-			return $response;
-		}
-
-		$this->add_coauthors( $post->ID, array( $user->user_nicename ) );
-
-		// Refresh the coauthors field in the response.
-		$terms = wp_get_object_terms(
-			$post->ID,
-			$this->coauthor_taxonomy,
-			array( 'fields' => 'ids' )
-		);
-
-		if ( ! is_wp_error( $terms ) && ! empty( $terms ) ) {
-			$data['coauthors'] = array_map( 'intval', $terms );
-			$response->set_data( $data );
-		}
-
-		return $response;
 	}
 
 	/**
@@ -572,7 +523,7 @@ class CoAuthors_Plus {
 					$avatar_url = get_avatar_url( $coauthor->ID, array( 'user_type' => $user_type ) );
 					?>
 					<li>
-						<?php echo get_avatar( $coauthor->ID ); ?>
+						<?php echo get_avatar( $coauthor->ID, 96, '', '', array( 'user_type' => $user_type ) ); ?>
 						<span id="<?php echo esc_attr( 'coauthor-readonly-' . $count ); ?>" class="coauthor-tag">
 							<input type="text" name="coauthorsinput[]" readonly="readonly" value="<?php echo esc_attr( $coauthor->display_name ); ?>" />
 							<input type="text" name="coauthors[]" value="<?php echo esc_attr( $coauthor->user_login ); ?>" />
@@ -675,13 +626,14 @@ class CoAuthors_Plus {
 					$args['post_type'] = $post->post_type;
 				}
 				$author_filter_url = add_query_arg( array_map( 'rawurlencode', $args ), admin_url( 'edit.php' ) );
+				$user_type         = $author instanceof WP_User ? 'wp-user' : 'guest-user';
 				?>
 				<a href="<?php echo esc_url( $author_filter_url ); ?>"
 				data-user_nicename="<?php echo esc_attr( $author->user_nicename ); ?>"
 				data-user_email="<?php echo esc_attr( $author->user_email ); ?>"
 				data-display_name="<?php echo esc_attr( $author->display_name ); ?>"
 				data-user_login="<?php echo esc_attr( $author->user_login ); ?>"
-				data-avatar="<?php echo esc_attr( get_avatar_url( $author->ID ) ); ?>"
+				data-avatar="<?php echo esc_attr( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ); ?>"
 				><?php echo esc_html( $author->display_name ); ?></a><?php echo ( $count < count( $authors ) ) ? ',' : ''; ?>
 				<?php
 				$count++;
@@ -1016,10 +968,15 @@ class CoAuthors_Plus {
 		}
 
 		// This action happens when a post is saved while editing a post
-		if ( isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'] ) && is_array( $_POST['coauthors'] ) ) { // phpcs:ignore
+		if (
+			isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'] )
+			&& is_array( $_POST['coauthors'] )
+			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
+			&& $this->current_user_can_set_authors()
+		) {
 
 			// rawurlencode() is for encoding co-author name with special characters to compare names when getting co-author.
-			$author = rawurlencode( sanitize_text_field( $_POST['coauthors'][0] ) ); // phpcs:ignore
+			$author = rawurlencode( sanitize_text_field( wp_unslash( $_POST['coauthors'][0] ) ) );
 
 			if ( $author ) {
 				$author_data = $this->get_coauthor_by( 'user_nicename', $author );
@@ -2156,25 +2113,24 @@ class CoAuthors_Plus {
 			return $args;
 		}
 
-		// Do not filter when we have a WordPress user sent from CAP meta box
+		// Do not filter when the caller has flagged the lookup as a WP user.
 		if ( isset( $args['user_type'] ) && 'wp-user' === $args['user_type'] ) {
 			return $args;
 		}
 
-		// Do not filter when on the user screen
+		// Do not filter when on the Users admin screens (core handles those).
 		$current_screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
 		if ( ! is_null( $current_screen ) && isset( $current_screen->parent_base ) && 'users' === $current_screen->parent_base ) {
 			return $args;
 		}
 
-		// Do not filter on the post list screen, profile screen, and post takeover pop-up.
-		if ( isset( $current_screen->base ) && ( 'post' === $current_screen->base || 'profile' === $current_screen->base || 'edit' === $current_screen->base ) ) {
-			return $args;
-		}
-
-		// Do not filter the avatar if this is doing a heartbeat request on WP refresh lock.
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Only checking action name, not processing data.
-		if ( wp_doing_ajax() && isset( $_POST['action'] ) && 'heartbeat' === sanitize_key( $_POST['action'] ) ) {
+		// A numeric ID is ambiguous: a WP user ID can collide with a guest-author
+		// post ID. Unless the caller has explicitly flagged the lookup as a
+		// guest author, defer to WordPress when a matching user exists so core
+		// contexts like post locks, the profile screen and heartbeat refreshes
+		// keep rendering the correct user's avatar.
+		$explicit_guest = isset( $args['user_type'] ) && 'guest-user' === $args['user_type'];
+		if ( ! $explicit_guest && get_user_by( 'id', $id ) ) {
 			return $args;
 		}
 

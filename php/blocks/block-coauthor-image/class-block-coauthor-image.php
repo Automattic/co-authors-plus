@@ -114,7 +114,7 @@ class Block_CoAuthor_Image {
 		if ( '' !== $link && true === $attributes['isLink'] ) {
 			$link_attributes = Templating::render_attributes(
 				array(
-					'href'  => $author['link'],
+					'href'  => $link,
 					'rel'   => $attributes['rel'],
 					'title' => sprintf( __( 'Posts by %s', 'co-authors-plus' ), $display_name ),
 				)
