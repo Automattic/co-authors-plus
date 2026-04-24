@@ -1,6 +1,6 @@
 ﻿# Co-Authors Plus
 
-Stable tag: 4.0.0  
+Stable tag: 4.0.1  
 Requires at least: 6.4  
 Tested up to: 6.9  
 Requires PHP: 7.4  
