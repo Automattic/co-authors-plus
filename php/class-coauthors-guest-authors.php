@@ -783,7 +783,10 @@ class CoAuthors_Guest_Authors {
 			return $post_data;
 		}
 
-		// @todo caps check
+		if ( empty( $original_args['ID'] ) || ! current_user_can( 'edit_post', $original_args['ID'] ) ) {
+			return $post_data;
+		}
+
 		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( $_POST['guest-author-nonce'], 'guest-author-nonce' ) ) {
 			return $post_data;
 		}
@@ -839,7 +842,10 @@ class CoAuthors_Guest_Authors {
 			return;
 		}
 
-		// @todo caps check
+		if ( ! current_user_can( 'edit_post', $post_id ) ) {
+			return;
+		}
+
 		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( $_POST['guest-author-nonce'], 'guest-author-nonce' ) ) {
 			return;
 		}
