@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.1] - 2026-04-24
+
+### Fixed
+
+* Remove dynamic term backfill on the REST API read path, which could clear co-author assignments on posts whose author terms had not yet been materialised by @claudiulodro in https://github.com/Automattic/Co-Authors-Plus/pull/1242
+* Restore guest-author avatars on admin screens, threading `user_type` through the `/coauthors` REST endpoint so the correct avatar is resolved by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1240
+
+### Security
+
+* Verify nonce and capability before overriding `post_author` in `coauthors_set_post_author_field`, closing an authorship-falsification path usable by Author-level users by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1243
+* Require the `edit_post` capability when saving guest author post data and meta fields by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1243
+* Escape the Co-Author Image block `href` with `esc_url` to strip unsafe URL schemes that could otherwise be surfaced via the `rest_prepare_coauthor` filter by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1243
+
+### Maintenance
+
+* Exclude `/docs/` from the distribution ZIP by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1238
+* Silence a WPVIP users-table sniff in the avatar-collision test helper by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1240
+
+### Documentation
+
+* Split the developer reference from user guides into `/docs/` by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1238
+
 ## [4.0.0] - 2026-04-22
 
 **Breaking changes:**
@@ -634,6 +656,7 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
+[4.0.1]: https://github.com/automattic/co-authors-plus/compare/4.0.0...4.0.1
 [4.0.0]: https://github.com/automattic/co-authors-plus/compare/3.7.0...4.0.0
 [3.7.0]: https://github.com/automattic/co-authors-plus/compare/3.6.6...3.7.0
 [3.6.6]: https://github.com/automattic/co-authors-plus/compare/3.6.5...3.6.6
