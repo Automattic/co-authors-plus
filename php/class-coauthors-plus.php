@@ -1017,10 +1017,15 @@ class CoAuthors_Plus {
 		}
 
 		// This action happens when a post is saved while editing a post
-		if ( isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'] ) && is_array( $_POST['coauthors'] ) ) { // phpcs:ignore
+		if (
+			isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'] )
+			&& is_array( $_POST['coauthors'] )
+			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
+			&& $this->current_user_can_set_authors()
+		) {
 
 			// rawurlencode() is for encoding co-author name with special characters to compare names when getting co-author.
-			$author = rawurlencode( sanitize_text_field( $_POST['coauthors'][0] ) ); // phpcs:ignore
+			$author = rawurlencode( sanitize_text_field( wp_unslash( $_POST['coauthors'][0] ) ) );
 
 			if ( $author ) {
 				$author_data = $this->get_coauthor_by( 'user_nicename', $author );
