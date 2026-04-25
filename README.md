@@ -1,4 +1,4 @@
-﻿# Co-Authors Plus
+# Co-Authors Plus
 
 Stable tag: 4.0.0  
 Requires at least: 6.4  
@@ -73,4 +73,4 @@ Yes! You can disable guest authors entirely through a filter. Having the followi
 
 ## Change Log
 
-[View the change log](./CHANGELOG.md).
+[View the change log](https://github.com/Automattic/co-authors-plus/blob/develop/CHANGELOG.md).
