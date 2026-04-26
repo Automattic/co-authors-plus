@@ -1439,6 +1439,23 @@ class CoAuthors_Plus {
 		if ( is_object( $authordata ) || ! empty( $term ) ) {
 			$wp_query->queried_object    = $authordata;
 			$wp_query->queried_object_id = (int) $authordata->ID;
+
+			// Ensure conflicting query flags are cleared. When unexpected query vars
+			// (e.g. ?cat=1) arrive alongside an author URL, WordPress may simultaneously
+			// set is_category (or other flags) that conflict with is_author. This causes
+			// core functions like single_term_title() to read properties that don't exist
+			// on the guest-author stdClass object, triggering PHP warnings.
+			// See https://github.com/Automattic/co-authors-plus/issues/1109.
+			$wp_query->is_category = false;
+			$wp_query->is_tag      = false;
+			$wp_query->is_tax      = false;
+			$wp_query->is_singular = false;
+			$wp_query->is_single   = false;
+			$wp_query->is_page     = false;
+			$wp_query->is_home     = false;
+			$wp_query->is_search   = false;
+			$wp_query->is_feed     = false;
+
 			if ( ! is_paged() ) {
 				add_filter( 'pre_handle_404', '__return_true' );
 			}

@@ -116,4 +116,45 @@ class AuthorQueriedObjectTest extends TestCase {
 		$this->go_to( get_author_posts_url( $author ) );
 		$this->assertQueryTrue( 'is_archive', 'is_author' );
 	}
+
+	/**
+	 * On guest-author pages, conflicting query flags such as is_category must be
+	 * cleared even when unexpected query vars arrive alongside the author URL.
+	 *
+	 * Visiting /author/guest/?cat=1 (e.g. from a vulnerability scanner) causes
+	 * WordPress to set is_category=true simultaneously with is_author=true.
+	 * fix_author_page() must reset these flags to prevent PHP warnings from core
+	 * functions like single_term_title() that read queried_object->name / ->term_id.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1109
+	 */
+	public function test__guest_author_page_with_cat_query_var_does_not_set_is_category(): void {
+		global $coauthors_plus;
+
+		// Create a guest author.
+		$guest_author_id = $coauthors_plus->guest_authors->create(
+			array(
+				'user_login'   => 'test-guest-1109',
+				'display_name' => 'Test Guest 1109',
+			)
+		);
+		$guest_author    = $coauthors_plus->guest_authors->get_guest_author_by( 'id', $guest_author_id );
+
+		$this->assertNotFalse( $guest_author, 'Guest author should exist.' );
+
+		// Simulate the URL: /author/test-guest-1109/?cat=1
+		$url = get_author_posts_url( 0, $guest_author->user_nicename );
+		$url = add_query_arg( 'cat', '1', $url );
+
+		$this->go_to( $url );
+
+		// The page must still be resolved as an author archive.
+		$this->assertTrue( is_author(), 'Page should be recognized as an author archive.' );
+		$this->assertTrue( is_archive(), 'Page should be recognized as an archive.' );
+
+		// is_category must NOT be true — this was the source of the PHP warnings.
+		$this->assertFalse( is_category(), 'is_category() must be false on an author page.' );
+		$this->assertFalse( is_tag(), 'is_tag() must be false on an author page.' );
+		$this->assertFalse( is_tax(), 'is_tax() must be false on an author page.' );
+	}
 }
