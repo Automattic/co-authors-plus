@@ -113,24 +113,31 @@ class AuthorMultiQueryTest extends TestCase {
 
 	/**
 	 * Using `author` with a comma-separated string of IDs should find posts where
-	 * any of the listed users is a co-author via the author taxonomy.
+	 * any of the listed users is a co-author via the author taxonomy — even when
+	 * the actual `post_author` is NOT one of the queried IDs.
 	 *
-	 * This is the second variant from issue #1102 — comma-separated author IDs.
+	 * This is the second variant from issue #1102. The post_author ($other) is
+	 * intentionally excluded from the query so the only way the post can be found
+	 * is via the CAP taxonomy rewrite — WordPress's default post_author IN(...)
+	 * clause alone would not match.
 	 */
 	public function test_author_comma_string_finds_post_where_user_is_coauthor_not_post_author(): void {
-		$author1 = $this->create_author( 'comma_a1' );
-		$author2 = $this->create_author( 'comma_a2' );
-		$post    = $this->create_post( $author1 ); // post_author = author1
-		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+		$other     = $this->create_author( 'comma_other' );     // owns the post; NOT in query
+		$author2   = $this->create_author( 'comma_a2' );         // co-author via taxonomy
+		$unrelated = $this->create_author( 'comma_unrelated' );  // neither author nor co-author
 
-		// Query using comma-separated author IDs — author2 is a co-author but not post_author.
+		$post = $this->create_post( $other ); // post_author = $other (absent from comma list)
+		$this->_cap->add_coauthors( $post->ID, array( $other->user_login, $author2->user_login ) );
+
+		// Query for author2 and unrelated — post_author ($other) is NOT in this list.
+		// The post can only be found if CAP rewrites the WHERE via the taxonomy term for author2.
 		$query = new \WP_Query(
 			array(
-				'author' => $author1->ID . ',' . $author2->ID,
+				'author' => $author2->ID . ',' . $unrelated->ID,
 			)
 		);
 
-		$this->assertCount( 1, $query->posts, 'Comma-separated author IDs should find co-authored posts.' );
+		$this->assertCount( 1, $query->posts, 'Comma-separated author IDs must find the post via taxonomy when post_author is not in the query list.' );
 		$this->assertEquals( $post->ID, $query->posts[0]->ID );
 	}
 
