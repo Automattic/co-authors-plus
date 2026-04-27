@@ -903,13 +903,19 @@ class CoAuthors_Plus {
 		global $wpdb;
 
 		if ( $this->is_author_query( $query ) ) {
-			// For multi-author queries (author__in with multiple IDs, or a comma-separated
-			// `author` string that WordPress expands into author__in before filters run),
-			// resolve each ID to its co-author taxonomy term and rewrite the WHERE clause.
-			// We dispatch on ID count rather than is_author() because WordPress sets
-			// is_author = true for any non-empty `author` value, including comma strings.
+			// Route to the multi-author path when author IDs are explicitly provided:
+			//
+			// • author__in (any count): WordPress does NOT set is_author for author__in,
+			//   so ! is_author() reliably identifies these programmatic queries.
+			// • comma-separated `author` string: WordPress sets is_author = true and
+			//   expands the comma string into author__in before filters run, so count > 1
+			//   catches the resulting multi-ID case.
+			//
+			// Single-author URL archives (is_author = true, author_ids empty because only
+			// `author` or `author_name` is set without a comma) fall through to the
+			// existing single-author path below.
 			$author_ids = $this->get_author_ids_from_query( $query );
-			if ( count( $author_ids ) > 1 ) {
+			if ( ! empty( $author_ids ) && ( ! $query->is_author() || count( $author_ids ) > 1 ) ) {
 				return $this->posts_where_filter_multi_author( $where, $query );
 			}
 			$post_type = $query->query_vars['post_type'];
