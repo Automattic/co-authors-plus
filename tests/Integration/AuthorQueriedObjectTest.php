@@ -177,7 +177,7 @@ class AuthorQueriedObjectTest extends TestCase {
 		$this->assertFalse( is_post_type_archive(), 'is_post_type_archive() must be false on a guest author page.' );
 
 		// single_term_title() reading queried_object->name was the original source of PHP
-		// warnings in #1109. It must return '' cleanly with no warning on a guest author page.
-		$this->assertSame( '', single_term_title( '', false ), 'single_term_title() must return empty string on a guest author page without PHP warnings.' );
+		// warnings in #1109. With flags cleared, it exits early and returns null — no warning.
+		$this->assertNull( single_term_title( '', false ), 'single_term_title() must return null on a guest author page without PHP warnings.' );
 	}
 }
