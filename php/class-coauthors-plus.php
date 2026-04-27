@@ -1443,13 +1443,14 @@ class CoAuthors_Plus {
 			// Once fix_author_page() takes ownership of queried_object, this request
 			// is definitively an author archive. Reset all query flags to a clean
 			// state — mirroring how core handles flag transitions internally — then
-			// re-assert only the two flags that are true. This prevents downstream
-			// consumers from acting on contradictory state left over from unexpected
-			// query vars (e.g. ?cat=1 setting is_category=true alongside is_author=true).
+			// re-assert only the flags that should remain true. Preserve is_paged so
+			// that paginated author archives can still trigger 404 when out of range.
 			// See https://github.com/Automattic/co-authors-plus/issues/1109.
+			$is_paged = $wp_query->is_paged;
 			$wp_query->init_query_flags();
 			$wp_query->is_author  = true;
 			$wp_query->is_archive = true;
+			$wp_query->is_paged   = $is_paged;
 
 			if ( ! is_paged() ) {
 				add_filter( 'pre_handle_404', '__return_true' );
