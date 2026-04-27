@@ -1440,21 +1440,16 @@ class CoAuthors_Plus {
 			$wp_query->queried_object    = $authordata;
 			$wp_query->queried_object_id = (int) $authordata->ID;
 
-			// Ensure conflicting query flags are cleared. When unexpected query vars
-			// (e.g. ?cat=1) arrive alongside an author URL, WordPress may simultaneously
-			// set is_category (or other flags) that conflict with is_author. This causes
-			// core functions like single_term_title() to read properties that don't exist
-			// on the guest-author stdClass object, triggering PHP warnings.
+			// Once fix_author_page() takes ownership of queried_object, this request
+			// is definitively an author archive. Reset all query flags to a clean
+			// state — mirroring how core handles flag transitions internally — then
+			// re-assert only the two flags that are true. This prevents downstream
+			// consumers from acting on contradictory state left over from unexpected
+			// query vars (e.g. ?cat=1 setting is_category=true alongside is_author=true).
 			// See https://github.com/Automattic/co-authors-plus/issues/1109.
-			$wp_query->is_category = false;
-			$wp_query->is_tag      = false;
-			$wp_query->is_tax      = false;
-			$wp_query->is_singular = false;
-			$wp_query->is_single   = false;
-			$wp_query->is_page     = false;
-			$wp_query->is_home     = false;
-			$wp_query->is_search   = false;
-			$wp_query->is_feed     = false;
+			$wp_query->init_query_flags();
+			$wp_query->is_author  = true;
+			$wp_query->is_archive = true;
 
 			if ( ! is_paged() ) {
 				add_filter( 'pre_handle_404', '__return_true' );

@@ -162,9 +162,22 @@ class AuthorQueriedObjectTest extends TestCase {
 		$this->assertTrue( is_author(), 'is_author() must remain true after fix_author_page() runs.' );
 		$this->assertTrue( is_archive(), 'is_archive() must remain true after fix_author_page() runs.' );
 
-		// Conflicting flags must be cleared — this was the source of the PHP warnings.
+		// Conflicting flags must be cleared — these were the source of the PHP warnings.
+		// init_query_flags() resets all 22 WP_Query flags; we verify the full relevant set
+		// so the test catches any regression across all possible conflicting query vars.
 		$this->assertFalse( is_category(), 'is_category() must be false on a guest author page.' );
 		$this->assertFalse( is_tag(), 'is_tag() must be false on a guest author page.' );
 		$this->assertFalse( is_tax(), 'is_tax() must be false on a guest author page.' );
+		$this->assertFalse( is_singular(), 'is_singular() must be false on a guest author page.' );
+		$this->assertFalse( is_single(), 'is_single() must be false on a guest author page.' );
+		$this->assertFalse( is_page(), 'is_page() must be false on a guest author page.' );
+		$this->assertFalse( is_year(), 'is_year() must be false on a guest author page.' );
+		$this->assertFalse( is_date(), 'is_date() must be false on a guest author page.' );
+		$this->assertFalse( is_attachment(), 'is_attachment() must be false on a guest author page.' );
+		$this->assertFalse( is_post_type_archive(), 'is_post_type_archive() must be false on a guest author page.' );
+
+		// single_term_title() reading queried_object->name was the original source of PHP
+		// warnings in #1109. It must return '' cleanly with no warning on a guest author page.
+		$this->assertSame( '', single_term_title( '', false ), 'single_term_title() must return empty string on a guest author page without PHP warnings.' );
 	}
 }
