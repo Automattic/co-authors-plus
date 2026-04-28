@@ -116,4 +116,68 @@ class AuthorQueriedObjectTest extends TestCase {
 		$this->go_to( get_author_posts_url( $author ) );
 		$this->assertQueryTrue( 'is_archive', 'is_author' );
 	}
+
+	/**
+	 * On guest-author pages, conflicting query flags such as is_category must be
+	 * cleared even when unexpected query vars arrive alongside the author URL.
+	 *
+	 * Visiting /author/guest/?cat=1 (e.g. from a vulnerability scanner) causes
+	 * WordPress to set is_category=true simultaneously with is_author=true.
+	 * fix_author_page() must reset these flags to prevent PHP warnings from core
+	 * functions like single_term_title() that read queried_object->name / ->term_id.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1109
+	 */
+	public function test__guest_author_page_with_cat_query_var_does_not_set_is_category(): void {
+		global $coauthors_plus, $wp_query;
+
+		// Create a guest author.
+		$guest_author_id = $coauthors_plus->guest_authors->create(
+			array(
+				'user_login'   => 'test-guest-1109',
+				'display_name' => 'Test Guest 1109',
+			)
+		);
+		$guest_author    = $coauthors_plus->guest_authors->get_guest_author_by( 'id', $guest_author_id );
+
+		$this->assertNotFalse( $guest_author, 'Guest author should exist.' );
+
+		// Directly configure $wp_query to reproduce the conflicting state that
+		// arises when a guest author URL is accessed with ?cat=1. WordPress parses
+		// the pretty-permalink path (/author/slug/) and sets is_author=true, but
+		// also processes the ?cat query var and sets is_category=true. Using go_to()
+		// with ?cat=1 does not reliably reproduce this in all environments (notably
+		// multisite), so we inject the state manually.
+		$wp_query->is_author   = true;
+		$wp_query->is_archive  = true;
+		$wp_query->is_category = true;
+
+		set_query_var( 'author_name', $guest_author->user_nicename );
+
+		// Trigger fix_author_page() — the method hooked to posts_selection that
+		// resolves the queried_object for guest authors.
+		$coauthors_plus->fix_author_page( '' );
+
+		// is_author and is_archive must remain true.
+		$this->assertTrue( is_author(), 'is_author() must remain true after fix_author_page() runs.' );
+		$this->assertTrue( is_archive(), 'is_archive() must remain true after fix_author_page() runs.' );
+
+		// Conflicting flags must be cleared — these were the source of the PHP warnings.
+		// init_query_flags() resets all 22 WP_Query flags; we verify the full relevant set
+		// so the test catches any regression across all possible conflicting query vars.
+		$this->assertFalse( is_category(), 'is_category() must be false on a guest author page.' );
+		$this->assertFalse( is_tag(), 'is_tag() must be false on a guest author page.' );
+		$this->assertFalse( is_tax(), 'is_tax() must be false on a guest author page.' );
+		$this->assertFalse( is_singular(), 'is_singular() must be false on a guest author page.' );
+		$this->assertFalse( is_single(), 'is_single() must be false on a guest author page.' );
+		$this->assertFalse( is_page(), 'is_page() must be false on a guest author page.' );
+		$this->assertFalse( is_year(), 'is_year() must be false on a guest author page.' );
+		$this->assertFalse( is_date(), 'is_date() must be false on a guest author page.' );
+		$this->assertFalse( is_attachment(), 'is_attachment() must be false on a guest author page.' );
+		$this->assertFalse( is_post_type_archive(), 'is_post_type_archive() must be false on a guest author page.' );
+
+		// single_term_title() reading queried_object->name was the original source of PHP
+		// warnings in #1109. With flags cleared, it exits early and returns null — no warning.
+		$this->assertNull( single_term_title( '', false ), 'single_term_title() must return null on a guest author page without PHP warnings.' );
+	}
 }
