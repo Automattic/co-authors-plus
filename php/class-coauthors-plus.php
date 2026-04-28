@@ -1195,6 +1195,13 @@ class CoAuthors_Plus {
 	 * Bridges the REST API save flow to add_coauthors() so that post_author
 	 * stays in sync and legacy filters continue to fire (with deprecation notices).
 	 *
+	 * If the request set `coauthors` to a list that left the post with no
+	 * valid terms (e.g. all term IDs were invalid and silently dropped by
+	 * wp_set_object_terms), fall back to the post_author so the post is
+	 * never termless. Without this guard, get_coauthors() would fall back
+	 * to post_author at read time on every front-end request, masking the
+	 * fact that the editor's save dropped data.
+	 *
 	 * @param WP_Post         $post    Inserted or updated post object.
 	 * @param WP_REST_Request $request Request object.
 	 */
@@ -1215,17 +1222,27 @@ class CoAuthors_Plus {
 			)
 		);
 
-		if ( empty( $terms ) || is_wp_error( $terms ) ) {
+		if ( is_wp_error( $terms ) ) {
 			return;
 		}
 
-		$coauthor_nicenames = array();
-		foreach ( $terms as $term ) {
-			$coauthor_nicenames[] = $term->slug;
+		$this->is_rest_save = true;
+
+		if ( empty( $terms ) ) {
+			// Post ended up with no coauthor terms after handle_terms ran.
+			// Restore from post_author so we never persist a termless post.
+			$user = get_userdata( $post->post_author );
+			if ( $user ) {
+				$this->add_coauthors( $post->ID, array( $user->user_nicename ) );
+			}
+		} else {
+			$coauthor_nicenames = array();
+			foreach ( $terms as $term ) {
+				$coauthor_nicenames[] = $term->slug;
+			}
+			$this->add_coauthors( $post->ID, $coauthor_nicenames );
 		}
 
-		$this->is_rest_save = true;
-		$this->add_coauthors( $post->ID, $coauthor_nicenames );
 		$this->rest_coauthors_processed = true;
 		$this->is_rest_save = false;
 	}
