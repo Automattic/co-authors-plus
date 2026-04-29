@@ -163,6 +163,11 @@ class Yoast {
 			return $data;
 		}
 
+		// Return early if there is no post in the context.
+		if ( empty( $context->post ) || empty( $context->post->ID ) ) {
+			return $data;
+		}
+
 		/**
 		 * Contains the authors from the Co-Authors Plus plugin.
 		 *
