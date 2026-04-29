@@ -294,6 +294,15 @@ class Yoast {
 		if ( ! is_a( $presentation, Indexable_Author_Archive_Presentation::class ) ) {
 			return $robots;
 		}
+		
+		/*
+		 * Check if the `noindex-author-wpseo` option
+		 * 		which is set in Yoast, this setting drops author pages being indexed
+		 * if set to true do not change robots
+		 */
+		if ( get_option( 'noindex-author-wpseo', false ) ) {
+			return $robots;
+		}
 
 		$post_type = get_post_type( get_queried_object_id() );
 		if ( 'guest-author' !== $post_type ) {
