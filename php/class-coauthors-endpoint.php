@@ -156,7 +156,10 @@ class Endpoints {
 
 		if ( ! empty( $authors ) ) {
 			foreach ( $authors as $author ) {
-				$response[] = $this->_format_author_data( $author );
+				$formatted = $this->_format_author_data( $author );
+				if ( null !== $formatted ) {
+					$response[] = $formatted;
+				}
 			}
 		}
 
@@ -220,8 +223,13 @@ class Endpoints {
 
 			$author = $this->coauthors->get_coauthor_by( 'user_nicename', $term->slug );
 
-			if ( $author ) {
-				$response[] = $this->_format_author_data( $author );
+			if ( ! $author ) {
+				continue;
+			}
+
+			$formatted = $this->_format_author_data( $author );
+			if ( null !== $formatted ) {
+				$response[] = $formatted;
 			}
 		}
 
@@ -251,16 +259,27 @@ class Endpoints {
 	 * Helper function to consistently format the author data for
 	 * the response.
 	 *
-	 * @param object  $author The result from co-authors methods.
-	 * @return array
+	 * Returns null if a valid taxonomy term can't be resolved for the author.
+	 * Callers should skip null entries: a coauthor row without a term id can't
+	 * be persisted by the editor (wp_set_object_terms would silently drop it),
+	 * so we exclude it from the response rather than feed the editor data it
+	 * can't round-trip.
+	 *
+	 * @param object $author The result from co-authors methods.
+	 * @return array|null
 	 */
-	public function _format_author_data( $author ): array {
-		$term      = $this->coauthors->update_author_term( $author );
+	public function _format_author_data( $author ): ?array {
+		$term = $this->coauthors->update_author_term( $author );
+
+		if ( ! $term || is_wp_error( $term ) ) {
+			return null;
+		}
+
 		$user_type = isset( $author->type ) && 'guest-author' === $author->type ? 'guest-user' : 'wp-user';
 
 		return array(
 			'id'           => esc_html( $author->ID ),
-			'termId'       => $term ? (int) $term->term_id : null,
+			'termId'       => (int) $term->term_id,
 			'userNicename' => esc_html( rawurldecode( $author->user_nicename ) ),
 			'login'        => esc_html( $author->user_login ),
 			'email'        => sanitize_email( $author->user_email ),
@@ -281,7 +300,10 @@ class Endpoints {
 
 		if ( ! empty( $authors ) ) {
 			foreach ( $authors as $author ) {
-				$response[] = $this->_format_author_data( $author );
+				$formatted = $this->_format_author_data( $author );
+				if ( null !== $formatted ) {
+					$response[] = $formatted;
+				}
 			}
 		}
 	}
