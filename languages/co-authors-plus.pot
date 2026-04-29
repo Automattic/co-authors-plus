@@ -2,14 +2,14 @@
 # This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Co-Authors Plus 4.0.1\n"
+"Project-Id-Version: Co-Authors Plus 4.0.2\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/co-authors-plus\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-04-24T20:54:32+00:00\n"
+"POT-Creation-Date: 2026-04-29T15:40:21+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: co-authors-plus\n"
@@ -229,7 +229,7 @@ msgstr ""
 #: php/blocks/block-coauthor-image/class-block-coauthor-image.php:119
 #: php/blocks/block-coauthor-name/class-block-coauthor-name.php:72
 #: template-tags.php:248
-#: template-tags.php:644
+#: template-tags.php:658
 #, php-format
 msgid "Posts by %s"
 msgstr ""
@@ -612,8 +612,9 @@ msgstr ""
 #: php/class-coauthors-plus.php:470
 #: php/class-coauthors-plus.php:600
 #: php/class-coauthors-plus.php:690
-#: php/class-coauthors-plus.php:1904
-#: php/class-coauthors-plus.php:2200
+#: php/class-coauthors-plus.php:2155
+#: php/class-coauthors-plus.php:2451
+#: build/index.js:1
 #: src/index.js:24
 msgid "Authors"
 msgstr ""
@@ -628,7 +629,7 @@ msgstr ""
 
 #: php/class-coauthors-plus.php:547
 #: php/class-coauthors-plus.php:692
-#: php/class-coauthors-plus.php:1626
+#: php/class-coauthors-plus.php:1877
 msgid "Click on an author to change them. Drag to change their order. Click on <strong>Remove</strong> to remove them."
 msgstr ""
 
@@ -646,43 +647,43 @@ msgstr ""
 msgid "No co-author exists for that term"
 msgstr ""
 
-#: php/class-coauthors-plus.php:1113
-#: php/class-coauthors-plus.php:1141
+#: php/class-coauthors-plus.php:1351
+#: php/class-coauthors-plus.php:1379
 msgid "This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead."
 msgstr ""
 
-#: php/class-coauthors-plus.php:1621
+#: php/class-coauthors-plus.php:1872
 #: php/class-coauthors-wp-list-table.php:239
 msgid "Edit"
 msgstr ""
 
-#: php/class-coauthors-plus.php:1622
+#: php/class-coauthors-plus.php:1873
 msgid "Remove"
 msgstr ""
 
-#: php/class-coauthors-plus.php:1623
+#: php/class-coauthors-plus.php:1874
 msgid "Are you sure you want to remove this author?"
 msgstr ""
 
-#: php/class-coauthors-plus.php:1624
+#: php/class-coauthors-plus.php:1875
 msgid "Click to change this author, or drag to change their position"
 msgstr ""
 
-#: php/class-coauthors-plus.php:1625
+#: php/class-coauthors-plus.php:1876
 msgid "Search for an author"
 msgstr ""
 
-#: php/class-coauthors-plus.php:1667
+#: php/class-coauthors-plus.php:1918
 msgid "Mine"
 msgstr ""
 
 #. translators: Author display name.
-#: php/class-coauthors-plus.php:2065
+#: php/class-coauthors-plus.php:2316
 #, php-format
 msgid "Author: %s"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2203
+#: php/class-coauthors-plus.php:2454
 msgid "Leave the field below blank to keep the Authors unchanged. Any change here will overwrite all previously assigned Authors."
 msgstr ""
 
@@ -777,162 +778,214 @@ msgid "Written by"
 msgstr ""
 
 #. translators: Author display name.
-#: template-tags.php:418
-#: template-tags.php:428
+#: template-tags.php:430
+#: template-tags.php:442
 #, php-format
 msgid "Visit %s&#8217;s website"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:95
 msgid "Avatar Settings"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:97
 msgid "Avatar size"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:107
 msgid "Make avatar a link to author archive."
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
+#: build/blocks/block-coauthor-name/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:117
 #: src/blocks/block-coauthor-image/edit.js:176
 #: src/blocks/block-coauthor-name/edit.js:86
 msgid "Link rel"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
+#: build/blocks/block-coauthors/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:128
 #: src/blocks/block-coauthor-image/edit.js:187
 #: src/blocks/block-coauthors/edit.js:265
 msgid "Co-Authors Layout"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:131
 #: src/blocks/block-coauthor-image/edit.js:190
 msgid "Vertical align"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:136
 #: src/blocks/block-coauthor-image/edit.js:195
 msgid "Default"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:140
 #: src/blocks/block-coauthor-image/edit.js:199
 msgid "Baseline"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:144
 #: src/blocks/block-coauthor-image/edit.js:203
 msgid "Bottom"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:148
 #: src/blocks/block-coauthor-image/edit.js:207
 msgid "Middle"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:152
 #: src/blocks/block-coauthor-image/edit.js:211
 msgid "Sub"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:156
 #: src/blocks/block-coauthor-image/edit.js:215
 msgid "Super"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:160
 #: src/blocks/block-coauthor-image/edit.js:219
 msgid "Text Bottom"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:164
 #: src/blocks/block-coauthor-image/edit.js:223
 msgid "Text Top"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:168
 #: src/blocks/block-coauthor-image/edit.js:227
 msgid "Top"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/index.js:1
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-avatar/edit.js:176
 #: src/blocks/block-coauthor-image/edit.js:235
 msgid "Vertical alignment defaults to bottom in the block layout and middle in the inline layout."
 msgstr ""
 
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-image/edit.js:129
 msgid "Author featured image"
 msgstr ""
 
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-image/edit.js:163
 msgid "Image Settings"
 msgstr ""
 
+#: build/blocks/block-coauthor-image/index.js:1
 #: src/blocks/block-coauthor-image/edit.js:166
 msgid "Make featured image a link to author archive."
 msgstr ""
 
+#: build/blocks/block-coauthor-name/index.js:1
 #: src/blocks/block-coauthor-name/edit.js:72
 msgid "Settings"
 msgstr ""
 
+#: build/blocks/block-coauthor-name/index.js:1
 #: src/blocks/block-coauthor-name/edit.js:75
 msgid "Make co-author name a link"
 msgstr ""
 
+#: build/blocks/block-coauthor-name/index.js:1
 #: src/blocks/block-coauthor-name/edit.js:99
 msgid "HTML element"
 msgstr ""
 
+#: build/blocks/block-coauthors/index.js:1
 #: src/blocks/block-coauthors/edit.js:194
 #: src/blocks/block-coauthors/edit.js:196
 msgid "Prefix"
 msgstr ""
 
+#: build/blocks/block-coauthors/index.js:1
 #: src/blocks/block-coauthors/edit.js:269
 msgid "Separator"
 msgstr ""
 
+#: build/blocks/block-coauthors/index.js:1
 #: src/blocks/block-coauthors/edit.js:274
 msgid "Enter character(s) used to separate authors."
 msgstr ""
 
+#: build/blocks/block-coauthors/index.js:1
 #: src/blocks/block-coauthors/edit.js:281
 msgid "Last Separator"
 msgstr ""
 
+#: build/blocks/block-coauthors/index.js:1
 #: src/blocks/block-coauthors/edit.js:286
 msgid "Enter character(s) used to separate the last author."
 msgstr ""
 
+#: build/index.js:1
 #: src/components/author-selection/index.jsx:74
 msgid "Move Up"
 msgstr ""
 
+#: build/index.js:1
 #: src/components/author-selection/index.jsx:85
 msgid "Move down"
 msgstr ""
 
+#: build/index.js:1
 #: src/components/author-selection/index.jsx:102
 msgid "Remove Author"
 msgstr ""
 
-#: src/components/co-authors/index.jsx:156
+#: build/index.js:1
+#: src/components/co-authors/index.jsx:171
 msgid "Select An Author"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/block.json
 #: src/blocks/block-coauthor-avatar/block.json
 msgctxt "block title"
 msgid "Co-Author Avatar"
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/block.json
 #: src/blocks/block-coauthor-avatar/block.json
 msgctxt "block description"
 msgid "Displays a small scale version of a co-author's avatar. Utilizes fallbacks from Gravatar so everyone has an avatar."
 msgstr ""
 
+#: build/blocks/block-coauthor-avatar/block.json
+#: build/blocks/block-coauthor-description/block.json
+#: build/blocks/block-coauthor-image/block.json
+#: build/blocks/block-coauthor-name/block.json
 #: src/blocks/block-coauthor-avatar/block.json
 #: src/blocks/block-coauthor-description/block.json
 #: src/blocks/block-coauthor-image/block.json
@@ -941,56 +994,67 @@ msgctxt "block keyword"
 msgid "coauthors"
 msgstr ""
 
+#: build/blocks/block-coauthor-description/block.json
 #: src/blocks/block-coauthor-description/block.json
 msgctxt "block title"
 msgid "Co-Author Biography"
 msgstr ""
 
+#: build/blocks/block-coauthor-description/block.json
 #: src/blocks/block-coauthor-description/block.json
 msgctxt "block description"
 msgid "Displays a co-author's biographical description."
 msgstr ""
 
+#: build/blocks/block-coauthor-description/block.json
 #: src/blocks/block-coauthor-description/block.json
 msgctxt "block keyword"
 msgid "description"
 msgstr ""
 
+#: build/blocks/block-coauthor-description/block.json
 #: src/blocks/block-coauthor-description/block.json
 msgctxt "block keyword"
 msgid "bio"
 msgstr ""
 
+#: build/blocks/block-coauthor-description/block.json
 #: src/blocks/block-coauthor-description/block.json
 msgctxt "block keyword"
 msgid "biography"
 msgstr ""
 
+#: build/blocks/block-coauthor-image/block.json
 #: src/blocks/block-coauthor-image/block.json
 msgctxt "block title"
 msgid "Co-Author Featured Image"
 msgstr ""
 
+#: build/blocks/block-coauthor-image/block.json
 #: src/blocks/block-coauthor-image/block.json
 msgctxt "block description"
 msgid "Uses your theme's image sizes to display a scalable avatar for a co-author with a guest author profile. Does not fallback to Gravatar images."
 msgstr ""
 
+#: build/blocks/block-coauthor-name/block.json
 #: src/blocks/block-coauthor-name/block.json
 msgctxt "block title"
 msgid "Co-Author Name"
 msgstr ""
 
+#: build/blocks/block-coauthor-name/block.json
 #: src/blocks/block-coauthor-name/block.json
 msgctxt "block description"
 msgid "Displays a co-author's display name and optionally links to their author archive."
 msgstr ""
 
+#: build/blocks/block-coauthors/block.json
 #: src/blocks/block-coauthors/block.json
 msgctxt "block title"
 msgid "Co-Authors"
 msgstr ""
 
+#: build/blocks/block-coauthors/block.json
 #: src/blocks/block-coauthors/block.json
 msgctxt "block description"
 msgid "Displays the co-authors of a post by using blocks to create a template. Start with co-author name and add any other co-author blocks."

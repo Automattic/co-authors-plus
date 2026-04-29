@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.0.2] - 2026-04-29
+
+### Changed
+
+* `coauthors_links_single()` now reads `display_name`, `website`, and `user_url` directly from the passed `$author` object rather than via `get_the_author()` / `get_the_author_meta()`. This fixes the long-standing bug where every byline rendered as the first author's name and where guest-author websites never linked, but it does mean `the_author`, `the_author_meta`, and `author_meta` filters no longer apply when the function is called. Plugins that previously hooked those filters to amend bylines will need to filter at a different layer by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1255
+
+### Fixed
+
+* Stop the editor dropping the current user when a co-author term can't be resolved, and never persist a termless post on REST save by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1253
+* Render each guest author's own name and website on bylines emitted via `coauthors_links()` / `coauthors_links_single()` (was duplicating the first author and dropping guest-author website links), fixing #1131 by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1255
+* Extend author SQL filters to support `author__in` and comma-separated author IDs by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1249
+* Clear conflicting `WP_Query` flags on guest author pages to prevent PHP warnings and category-query conflicts by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1250
+
+### Maintenance
+
+* Extract shared taxonomy clause helpers in `posts_where_filter()` to deduplicate the multi-author query path by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1251
+* Tear down `CoAuthors_Template_Filters` registrations between test cases to stop them leaking into other suites by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1256
+* Exclude `AGENTS.md` and `CONTRIBUTING.md` from the distribution ZIP by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1246
+
+### Documentation
+
+* Use an absolute GitHub link for the changelog URL in the README by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1247
+* Correct the plugin ZIP filename in the installation guide by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1248
+
 ## [4.0.1] - 2026-04-24
 
 ### Fixed
@@ -656,6 +680,7 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
+[4.0.2]: https://github.com/automattic/co-authors-plus/compare/4.0.1...4.0.2
 [4.0.1]: https://github.com/automattic/co-authors-plus/compare/4.0.0...4.0.1
 [4.0.0]: https://github.com/automattic/co-authors-plus/compare/3.7.0...4.0.0
 [3.7.0]: https://github.com/automattic/co-authors-plus/compare/3.6.6...3.7.0
