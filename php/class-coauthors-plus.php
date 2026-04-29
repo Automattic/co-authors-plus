@@ -1226,25 +1226,33 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		$this->is_rest_save = true;
-
-		if ( empty( $terms ) ) {
-			// Post ended up with no coauthor terms after handle_terms ran.
-			// Restore from post_author so we never persist a termless post.
-			$user = get_userdata( $post->post_author );
-			if ( $user ) {
-				$this->add_coauthors( $post->ID, array( $user->user_nicename ) );
-			}
-		} else {
-			$coauthor_nicenames = array();
-			foreach ( $terms as $term ) {
-				$coauthor_nicenames[] = $term->slug;
-			}
-			$this->add_coauthors( $post->ID, $coauthor_nicenames );
-		}
-
+		$this->is_rest_save             = true;
 		$this->rest_coauthors_processed = true;
-		$this->is_rest_save = false;
+
+		try {
+			if ( empty( $terms ) ) {
+				// Post ended up with no coauthor terms after handle_terms ran.
+				// Restore from post_author so we never persist a termless post.
+				$user = get_userdata( $post->post_author );
+				if ( $user ) {
+					$this->add_coauthors( $post->ID, array( $user->user_nicename ) );
+				}
+			} else {
+				$coauthor_nicenames = array();
+				foreach ( $terms as $term ) {
+					$coauthor_nicenames[] = $term->slug;
+				}
+				$this->add_coauthors( $post->ID, $coauthor_nicenames );
+			}
+		} finally {
+			// Always reset the flags. rest_coauthors_processed in particular
+			// must not leak across REST requests (or, in the test suite, across
+			// tests that share the global $coauthors_plus instance) — otherwise
+			// the next coauthors_update_post() call short-circuits and posts
+			// created via wp_insert_post() never receive their author term.
+			$this->is_rest_save             = false;
+			$this->rest_coauthors_processed = false;
+		}
 	}
 
 	/**
