@@ -406,31 +406,45 @@ function coauthors_emails( $between = null, $betweenLast = null, $before = null,
 /**
  * Outputs a single co-author, linked to their website if they've provided one.
  *
- * @param object $author
- * @return string
+ * Uses the passed $author object directly for display name, website, and URL to
+ * avoid relying on the global $authordata, which may be stale or overridden by
+ * the 'the_author' filter when CoAuthors_Template_Filters is active.
+ *
+ * @since 3.0
+ *
+ * @param object $author Co-author object (guest author or WP_User-like).
+ * @return string HTML link to the co-author's website, or their plain display name.
  */
 function coauthors_links_single( $author ) {
-	if ( 'guest-author' === $author->type && get_the_author_meta( 'website' ) ) {
+	$display_name = isset( $author->display_name ) ? $author->display_name : '';
+
+	// Guest authors store their personal site URL in the 'website' property, which
+	// is sourced from post meta and is not present on the global $authordata object.
+	// We therefore read it directly from the passed $author rather than via
+	// get_the_author_meta(), which would silently return empty for guest authors.
+	if ( 'guest-author' === $author->type && ! empty( $author->website ) ) {
 		return sprintf(
 			'<a href="%s" title="%s" rel="author external">%s</a>',
-			esc_url( get_the_author_meta( 'website' ) ),
+			esc_url( $author->website ),
 			/* translators: Author display name. */
-			esc_attr( sprintf( __( 'Visit %s&#8217;s website', 'co-authors-plus' ), esc_html( get_the_author() ) ) ),
-			esc_html( get_the_author() )
+			esc_attr( sprintf( __( 'Visit %s&#8217;s website', 'co-authors-plus' ), esc_html( $display_name ) ) ),
+			esc_html( $display_name )
 		);
 	}
 
-	if ( get_the_author_meta( 'url' ) ) {
+	// For regular WP users, the website URL lives in the user_url property.
+	$user_url = isset( $author->user_url ) ? $author->user_url : '';
+	if ( $user_url ) {
 		return sprintf(
 			'<a href="%s" title="%s" rel="author external">%s</a>',
-			esc_url( get_the_author_meta( 'url' ) ),
+			esc_url( $user_url ),
 			/* translators: Author display name. */
-			esc_attr( sprintf( __( 'Visit %s&#8217;s website', 'co-authors-plus' ), esc_html( get_the_author() ) ) ),
-			esc_html( get_the_author() )
+			esc_attr( sprintf( __( 'Visit %s&#8217;s website', 'co-authors-plus' ), esc_html( $display_name ) ) ),
+			esc_html( $display_name )
 		);
 	}
 
-	return esc_html( get_the_author() );
+	return esc_html( $display_name );
 }
 
 /**

@@ -356,48 +356,59 @@ class TemplateTagsTest extends TestCase {
 	/**
 	 * Checks single co-author if he/she is a guest author.
 	 *
+	 * The function must use the $author object's own display_name and user_url
+	 * rather than the global $authordata, so it remains correct regardless of
+	 * which author object the loop currently has in the global state.
+	 *
 	 * @covers ::coauthors_links_single()
 	 */
 	public function test_coauthors_links_single_when_guest_author(): void {
 
-		global $post, $authordata;
+		global $post;
 
 		// Backing up global post.
 		$post_backup = $post;
+		$post        = $this->post;
 
-		$post = $this->post;
-
-		// Backing up global author data.
-		$authordata_backup = $authordata;
-		$authordata        = $this->author1;
-
-		// Shows that it's necessary to set $authordata to $this->author1
-		$this->assertEquals( $authordata, $this->author1, 'Global $authordata not matching expected $this->author1.' );
-
+		// Without a URL set, the function should return the display name as plain text.
 		$this->author1->type = 'guest-author';
+		$author_link         = coauthors_links_single( $this->author1 );
 
-		$this->assertEquals( get_the_author_link(), coauthors_links_single( $this->author1 ), 'Co-Author link generation differs from Core author link one (without user_url)' );
+		$this->assertEquals(
+			esc_html( $this->author1->display_name ),
+			$author_link,
+			'Co-author link should be plain display name when no URL is set.'
+		);
 
+		// Update the user_url and re-fetch to simulate the $author object having a URL.
 		wp_update_user(
 			array(
 				'ID'       => $this->author1->ID,
-				'user_url' => 'example.org',
+				'user_url' => 'https://example.org',
 			)
 		);
-		$authordata = get_userdata( $this->author1->ID ); // Because wp_update_user flushes cache, but does not update global var
+		$author_with_url       = get_userdata( $this->author1->ID );
+		$author_with_url->type = 'guest-author';
 
-		$this->assertEquals( get_the_author_link(), coauthors_links_single( $this->author1 ), 'Co-Author link generation differs from Core author link one (with user_url)' );
+		$author_link = coauthors_links_single( $author_with_url );
 
-		$author_link = coauthors_links_single( $this->author1 );
-		$this->assertStringContainsString( get_the_author_meta( 'url' ), $author_link, 'Author url not found in link.' );
-		$this->assertStringContainsString( get_the_author(), $author_link, 'Author name not found in link.' );
+		$this->assertStringContainsString(
+			$author_with_url->user_url,
+			$author_link,
+			'Author URL must appear in the link href.'
+		);
+		$this->assertStringContainsString(
+			$author_with_url->display_name,
+			$author_link,
+			'Author display name must appear in the link text.'
+		);
 
-		// Here we are checking author name should not be more than one time.
-		// Asserting ">get_the_author()<" because "get_the_author()" can be multiple times like in href, title, etc.
-		$this->assertEquals( 1, substr_count( $author_link, '>' . get_the_author() . '<' ) );
-
-		// Restore global author data from backup.
-		$authordata = $authordata_backup;
+		// The display name should appear exactly once as the visible link text.
+		$this->assertEquals(
+			1,
+			substr_count( $author_link, '>' . $author_with_url->display_name . '<' ),
+			'Author display name must appear exactly once as visible link text.'
+		);
 
 		// Restore global post from backup.
 		$post = $post_backup;
@@ -406,83 +417,76 @@ class TemplateTagsTest extends TestCase {
 	/**
 	 * Checks single co-author when user's url is set and not a guest author.
 	 *
+	 * The function must use the $author object's own user_url property directly.
+	 *
 	 * @covers ::coauthors_links_single()
 	 */
 	public function test_coauthors_links_single_author_url_is_set(): void {
 
-		global $post, $authordata;
+		global $post;
 
 		// Backing up global post.
 		$post_backup = $post;
-
-		$post = $this->post;
-
-		// Backing up global author data.
-		$authordata_backup = $authordata;
+		$post        = $this->post;
 
 		$user_id = $this->factory()->user->create(
 			array(
-				'user_url' => 'example.org',
+				'user_url' => 'https://example.org',
 			)
 		);
-		$user    = get_user_by( 'id', $user_id );
+		$user = get_user_by( 'id', $user_id );
 
-		$authordata  = $user;
 		$author_link = coauthors_links_single( $user );
 
-		$this->assertStringContainsString( get_the_author_meta( 'url' ), $author_link, 'Author link not found.' );
-		$this->assertStringContainsString( get_the_author(), $author_link, 'Author name not found.' );
+		$this->assertStringContainsString( $user->user_url, $author_link, 'Author URL not found in link.' );
+		$this->assertStringContainsString( $user->display_name, $author_link, 'Author display name not found in link.' );
 
-		// Here we are checking author name should not be more than one time.
-		// Asserting ">get_the_author()<" because "get_the_author()" can be multiple times like in href, title, etc.
-		$this->assertEquals( 1, substr_count( $author_link, '>' . get_the_author() . '<' ) );
-
-		// Restore global author data from backup.
-		$authordata = $authordata_backup;
+		// The display name should appear exactly once as the visible link text.
+		$this->assertEquals(
+			1,
+			substr_count( $author_link, '>' . $user->display_name . '<' ),
+			'Author display name must appear exactly once as visible link text.'
+		);
 
 		// Restore global post from backup.
 		$post = $post_backup;
 	}
 
 	/**
-	 * Checks single co-author when user's website/url not exist.
+	 * Checks single co-author when user's website/url do not exist.
+	 *
+	 * The function must return just the display name from the $author object,
+	 * not from the global $authordata.
 	 *
 	 * @covers ::coauthors_links_single()
 	 */
 	public function test_coauthors_links_single_when_url_not_exist(): void {
-		global $wp_version;
-		if ( PHP_VERSION_ID >= 80100 && version_compare( $wp_version, '6.3.0', '<' ) ) {
-			/*
-			 * Ignoring PHP 8.1 "null to non-nullable" deprecation that is fixed in WP 6.3.
-			 *
-			 * @see https://core.trac.wordpress.org/ticket/58157
-			*/
-			$this->markTestSkipped( 'PHP 8.1 gives a deprecation notice that is fixed in WP 6.3' );
-		}
 
-		global $post, $authordata;
+		global $post;
 
 		// Backing up global post.
 		$post_backup = $post;
+		$post        = $this->post;
 
-		$post = $this->post;
-
-		// Backing up global author data.
-		$authordata_backup = $authordata;
-
+		// Guest author without a website: should return the display name as plain (escaped) text.
 		$this->editor1->type = 'guest-author';
 
 		$author_link = coauthors_links_single( $this->editor1 );
 
-		$this->assertEquals( get_the_author(), $author_link );
+		$this->assertEquals(
+			esc_html( $this->editor1->display_name ),
+			$author_link,
+			'Guest author without URL should return plain escaped display name.'
+		);
 
-		$authordata  = $this->author1;
+		// Regular WP user without a URL: same expectation.
 		$author_link = coauthors_links_single( $this->author1 );
 
-		$this->assertEquals( get_the_author(), $author_link );
-
-		// Restore global author data from backup.
-		$authordata = $authordata_backup;
+		$this->assertEquals(
+			esc_html( $this->author1->display_name ),
+			$author_link,
+			'WP user without URL should return plain escaped display name.'
+		);
 
 		// Restore global post from backup.
 		$post = $post_backup;
