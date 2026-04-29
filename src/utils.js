@@ -65,6 +65,43 @@ export const addItemByValue = (
 };
 
 /**
+ * Build the term ID list to persist after an edit.
+ *
+ * The editor can only display authors whose details the REST endpoint
+ * resolved (`selectedAuthors`). When some IDs in `currentTermIds` couldn't be
+ * resolved, they aren't represented in the UI, so a naive
+ * `newAuthors.map( a => a.termId )` would silently drop them on the next
+ * edit. This helper preserves those unresolved IDs at the front of the
+ * returned list and appends the user's edited authors in order.
+ *
+ * @param {Array} newAuthors      Resolved authors after the user's edit.
+ * @param {Array} selectedAuthors Resolved authors before the edit.
+ * @param {Array} currentTermIds  All term IDs in the entity store (resolved + unresolved).
+ * @return {Array} Term IDs to persist, with unresolved IDs preserved.
+ */
+export const buildCoauthorTermIds = (
+	newAuthors,
+	selectedAuthors,
+	currentTermIds
+) => {
+	const isValidId = ( id ) => Number.isInteger( id );
+
+	const newTermIds = newAuthors
+		.map( ( author ) => author?.termId )
+		.filter( isValidId );
+
+	const resolvedTermIds = new Set(
+		selectedAuthors.map( ( author ) => author?.termId ).filter( isValidId )
+	);
+
+	const unresolvedTermIds = ( currentTermIds || [] ).filter(
+		( id ) => isValidId( id ) && ! resolvedTermIds.has( id )
+	);
+
+	return [ ...unresolvedTermIds, ...newTermIds ];
+};
+
+/**
  * Format the author option object.
  *
  * @param {Object} root0              An author object from the API endpoint.

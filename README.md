@@ -1,6 +1,6 @@
-﻿# Co-Authors Plus
+# Co-Authors Plus
 
-Stable tag: 4.0.1  
+Stable tag: 4.0.2  
 Requires at least: 6.4  
 Tested up to: 6.9  
 Requires PHP: 7.4  
@@ -32,7 +32,7 @@ Co-Authors Plus is an almost complete rewrite of the [Co-Authors](https://wordpr
 ## Installation
 
 1. IMPORTANT: If you are using the original Co-Authors plugin, disable it before installing Co-Authors Plus.
-2. Extract the coauthors-plus.zip file and upload its contents to the `/wp-content/plugins/` directory. Alternately, you can install directly from the Plugin directory within your WordPress Install.
+2. Extract the co-authors-plus.zip file and upload its contents to the `/wp-content/plugins/` directory. Alternately, you can install directly from the Plugin directory within your WordPress Install.
 3. Activate the plugin through the "Plugins" menu in WordPress.
 4. Place [co-authors template tags](https://github.com/Automattic/Co-Authors-Plus/wiki/Template-tags) in your template.
 5. Add co-authors to your posts and pages.
@@ -73,4 +73,4 @@ Yes! You can disable guest authors entirely through a filter. Having the followi
 
 ## Change Log
 
-[View the change log](./CHANGELOG.md).
+[View the change log](https://github.com/Automattic/co-authors-plus/blob/develop/CHANGELOG.md).

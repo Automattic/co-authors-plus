@@ -36,7 +36,9 @@
 /package-lock.json
 
 # Documentation (not needed in plugin distribution)
+/AGENTS.md
 /CHANGELOG.md
+/CONTRIBUTING.md
 /docs/
 
 # Test configuration

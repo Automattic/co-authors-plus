@@ -778,12 +778,86 @@ class CoAuthors_Plus {
 	}
 
 	/**
+	 * Determines whether the given WP_Query is an author-related query that
+	 * Co-Authors Plus should modify.
+	 *
+	 * Returns true for:
+	 * - Standard single-author archive queries ($query->is_author()).
+	 * - Programmatic queries using `author__in` (array of IDs).
+	 *
+	 * Note: WordPress sets is_author = true for any non-empty `author` value,
+	 * including comma-separated strings, so the comma-separated case is already
+	 * covered by the is_author() check. Multi-author dispatch is handled in
+	 * posts_where_filter() by counting the resolved IDs from get_author_ids_from_query().
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param WP_Query $query The query to inspect.
+	 * @return bool
+	 */
+	protected function is_author_query( WP_Query $query ): bool {
+		if ( $query->is_author() ) {
+			return true;
+		}
+
+		// `author__in` with a non-empty array of IDs.
+		$author_in = $query->get( 'author__in' );
+		if ( is_array( $author_in ) && ! empty( $author_in ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Extracts a flat array of integer author IDs from a multi-author WP_Query.
+	 *
+	 * Handles both the `author` (comma-separated string or single int) and
+	 * `author__in` (array) query vars.
+	 *
+	 * Note: by the time SQL filters run, WordPress has already expanded a comma
+	 * string like '1,2,3' into author__in = [1,2,3], so both vars are checked.
+	 * Returns an empty array for a single-author archive (handled by the
+	 * existing author_name / single-ID code path).
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param WP_Query $query The WP_Query instance to read author vars from.
+	 * @return int[] Array of unique positive integer author IDs.
+	 */
+	protected function get_author_ids_from_query( WP_Query $query ): array {
+		$ids = array();
+
+		$author_var = $query->get( 'author' );
+		if ( is_string( $author_var ) && str_contains( $author_var, ',' ) ) {
+			foreach ( explode( ',', $author_var ) as $id ) {
+				$int_id = absint( trim( $id ) );
+				if ( $int_id > 0 ) {
+					$ids[] = $int_id;
+				}
+			}
+		}
+
+		$author_in = $query->get( 'author__in' );
+		if ( is_array( $author_in ) ) {
+			foreach ( $author_in as $id ) {
+				$int_id = absint( $id );
+				if ( $int_id > 0 ) {
+					$ids[] = $int_id;
+				}
+			}
+		}
+
+		return array_unique( $ids );
+	}
+
+	/**
 	 * Modify the author query posts SQL to include posts co-authored
 	 */
 	public function posts_join_filter( $join, $query ) {
 		global $wpdb;
 
-		if ( $query->is_author() ) {
+		if ( $this->is_author_query( $query ) ) {
 			$post_type = $query->query_vars['post_type'];
 			if ( 'any' === $post_type ) {
 				$post_type = get_post_types( array( 'exclude_from_search' => false ) );
@@ -797,7 +871,7 @@ class CoAuthors_Plus {
 				return $join;
 			}
 
-			// Check to see that JOIN hasn't already been added. Props michaelingp and nbaxley
+			// Check to see that JOIN hasn't already been added. Props michaelingp and nbaxley.
 			$term_relationship_inner_join = " INNER JOIN {$wpdb->term_relationships} ON ({$wpdb->posts}.ID = {$wpdb->term_relationships}.object_id)";
 			$term_relationship_left_join  = " LEFT JOIN {$wpdb->term_relationships} AS tr1 ON ({$wpdb->posts}.ID = tr1.object_id)";
 
@@ -828,7 +902,22 @@ class CoAuthors_Plus {
 	public function posts_where_filter( $where, $query ): string {
 		global $wpdb;
 
-		if ( $query->is_author() ) {
+		if ( $this->is_author_query( $query ) ) {
+			// Route to the multi-author path when author IDs are explicitly provided:
+			//
+			// • author__in (any count): WordPress does NOT set is_author for author__in,
+			//   so ! is_author() reliably identifies these programmatic queries.
+			// • comma-separated `author` string: WordPress sets is_author = true and
+			//   expands the comma string into author__in before filters run, so count > 1
+			//   catches the resulting multi-ID case.
+			//
+			// Single-author URL archives (is_author = true, author_ids empty because only
+			// `author` or `author_name` is set without a comma) fall through to the
+			// existing single-author path below.
+			$author_ids = $this->get_author_ids_from_query( $query );
+			if ( ! empty( $author_ids ) && ( ! $query->is_author() || count( $author_ids ) > 1 ) ) {
+				return $this->posts_where_filter_multi_author( $where, $query );
+			}
 			$post_type = $query->query_vars['post_type'];
 			if ( 'any' === $post_type ) {
 				$post_type = get_post_types( array( 'exclude_from_search' => false ) );
@@ -850,18 +939,8 @@ class CoAuthors_Plus {
 				}
 			}
 
-			$terms    = array();
 			$coauthor = $this->get_coauthor_by( 'user_nicename', $author_name );
-			if ( $author_term = $this->get_author_term( $coauthor ) ) {
-				$terms[] = $author_term;
-			}
-			// If this co-author has a linked account, we also need to get posts with those terms
-			if ( ! empty( $coauthor->linked_account ) ) {
-				$linked_account = get_user_by( 'login', $coauthor->linked_account );
-				if ( $guest_author_term = $this->get_author_term( $linked_account ) ) {
-					$terms[] = $guest_author_term;
-				}
-			}
+			$terms    = $this->collect_coauthor_terms( $coauthor );
 
 			// Whether to include the original 'post_author' value in the query.
 			// Don't include it if we're forcing guest authors, or it's obvious our query is for a guest author's posts
@@ -874,13 +953,7 @@ class CoAuthors_Plus {
 			$maybe_both_query = $maybe_both ? '$1 OR' : '';
 
 			if ( ! empty( $terms ) ) {
-				$terms_implode      = '';
-				$this->having_terms = '';
-				foreach ( $terms as $term ) {
-					$terms_implode      .= '(' . $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\') OR ';
-					$this->having_terms .= ' ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\' OR ';
-				}
-				$terms_implode = rtrim( $terms_implode, ' OR' );
+				$terms_implode = $this->build_terms_clauses( $terms );
 
 				// We need to check the query is the main query as a new query object would result in the wrong ID
 				$id = is_author() && $query->is_main_query() ? get_queried_object_id() : '\d+';
@@ -930,12 +1003,152 @@ class CoAuthors_Plus {
 	}
 
 	/**
+	 * Collect all taxonomy terms for a coauthor, including linked account terms.
+	 *
+	 * Resolves the primary author term and, if the coauthor has a linked WordPress
+	 * account, also resolves the linked account's term. Used by both the single-author
+	 * archive path and the multi-author programmatic path to avoid duplicating the
+	 * term resolution logic.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param object $coauthor The coauthor object (WP_User or guest author).
+	 * @return WP_Term[] Array of taxonomy term objects.
+	 */
+	protected function collect_coauthor_terms( $coauthor ): array {
+		$terms = array();
+
+		$author_term = $this->get_author_term( $coauthor );
+		if ( $author_term ) {
+			$terms[] = $author_term;
+		}
+
+		if ( ! empty( $coauthor->linked_account ) ) {
+			$linked_account = get_user_by( 'login', $coauthor->linked_account );
+			if ( $linked_account ) {
+				$linked_term = $this->get_author_term( $linked_account );
+				if ( $linked_term ) {
+					$terms[] = $linked_term;
+				}
+			}
+		}
+
+		return $terms;
+	}
+
+	/**
+	 * Build SQL WHERE and HAVING clause fragments from taxonomy terms.
+	 *
+	 * Constructs the OR-chain of taxonomy conditions for the WHERE clause and
+	 * populates $this->having_terms for use by posts_groupby_filter().
+	 *
+	 * The returned terms_implode string is trimmed of the trailing ' OR'. The
+	 * having_terms property is left untrimmed so callers can append additional
+	 * terms (e.g. for private post visibility) before doing the final rtrim.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param WP_Term[] $terms Array of taxonomy term objects.
+	 * @return string The WHERE clause fragment. Empty string if $terms is empty.
+	 */
+	protected function build_terms_clauses( array $terms ): string {
+		global $wpdb;
+
+		$terms_implode      = '';
+		$this->having_terms = '';
+
+		foreach ( $terms as $term ) {
+			$terms_implode      .= '(' . $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\') OR ';
+			$this->having_terms .= ' ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\' OR ';
+		}
+
+		return rtrim( $terms_implode, ' OR' );
+	}
+
+	/**
+	 * Handles rewriting the WHERE clause for programmatic multi-author queries
+	 * using `author__in` or comma-separated `author` IDs.
+	 *
+	 * For each requested author ID, this method resolves the corresponding
+	 * co-author taxonomy term(s) and rewrites the `post_author IN (...)` clause
+	 * generated by WordPress so that posts co-authored via the taxonomy are
+	 * also included in the results.
+	 *
+	 * Note: each author ID incurs a get_userdata(), get_coauthor_by(), and
+	 * get_author_term() lookup (plus one more set for linked accounts). This is
+	 * acceptable because author__in arrays are typically small (single-digit),
+	 * and the results are served from WP's object cache after the first call.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param string   $where The current WHERE clause.
+	 * @param WP_Query $query The current WP_Query.
+	 * @return string Modified WHERE clause.
+	 */
+	protected function posts_where_filter_multi_author( string $where, WP_Query $query ): string {
+		global $wpdb;
+
+		$post_type = $query->query_vars['post_type'];
+		if ( 'any' === $post_type ) {
+			$post_type = get_post_types( array( 'exclude_from_search' => false ) );
+		}
+
+		if ( ! empty( $post_type ) && ! is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy ) ) {
+			return $where;
+		}
+
+		$author_ids = $this->get_author_ids_from_query( $query );
+		if ( empty( $author_ids ) ) {
+			return $where;
+		}
+
+		$all_terms = array();
+		foreach ( $author_ids as $author_id ) {
+			$author_data = get_userdata( $author_id );
+			if ( ! $author_data ) {
+				continue;
+			}
+
+			$coauthor = $this->get_coauthor_by( 'user_nicename', $author_data->user_nicename );
+			if ( ! $coauthor ) {
+				continue;
+			}
+
+			$all_terms = array_merge( $all_terms, $this->collect_coauthor_terms( $coauthor ) );
+		}
+
+		if ( empty( $all_terms ) ) {
+			return $where;
+		}
+
+		$terms_implode = $this->build_terms_clauses( $all_terms );
+		$this->having_terms = rtrim( $this->having_terms, ' OR' );
+
+		$maybe_both = $this->force_guest_authors
+			? false
+			: apply_filters( 'coauthors_plus_should_query_post_author', true );
+
+		$maybe_both_query = $maybe_both ? '$0 OR' : '';
+
+		// Replace the WordPress-generated `post_author IN (id,id,...)` or `post_author = id`
+		// clause with our taxonomy-aware condition.
+		$where = preg_replace(
+			'/\(?\b(?:' . $wpdb->posts . '\.)?post_author\s*(?:=\s*\d+|IN\s*\(\d+(?:\s*,\s*\d+)*\))\)?/',
+			' (' . $maybe_both_query . ' ' . $terms_implode . ')',
+			$where,
+			1
+		);
+
+		return $where;
+	}
+
+	/**
 	 * Modify the author query posts SQL to include posts co-authored
 	 */
 	public function posts_groupby_filter( $groupby, $query ) {
 		global $wpdb;
 
-		if ( $query->is_author() ) {
+		if ( $this->is_author_query( $query ) ) {
 			$post_type = $query->query_vars['post_type'];
 			if ( 'any' === $post_type ) {
 				$post_type = get_post_types( array( 'exclude_from_search' => false ) );
@@ -1011,6 +1224,13 @@ class CoAuthors_Plus {
 	 * Bridges the REST API save flow to add_coauthors() so that post_author
 	 * stays in sync and legacy filters continue to fire (with deprecation notices).
 	 *
+	 * If the request set `coauthors` to a list that left the post with no
+	 * valid terms (e.g. all term IDs were invalid and silently dropped by
+	 * wp_set_object_terms), fall back to the post_author so the post is
+	 * never termless. Without this guard, get_coauthors() would fall back
+	 * to post_author at read time on every front-end request, masking the
+	 * fact that the editor's save dropped data.
+	 *
 	 * @param WP_Post         $post    Inserted or updated post object.
 	 * @param WP_REST_Request $request Request object.
 	 */
@@ -1031,19 +1251,37 @@ class CoAuthors_Plus {
 			)
 		);
 
-		if ( empty( $terms ) || is_wp_error( $terms ) ) {
+		if ( is_wp_error( $terms ) ) {
 			return;
 		}
 
-		$coauthor_nicenames = array();
-		foreach ( $terms as $term ) {
-			$coauthor_nicenames[] = $term->slug;
-		}
-
-		$this->is_rest_save = true;
-		$this->add_coauthors( $post->ID, $coauthor_nicenames );
+		$this->is_rest_save             = true;
 		$this->rest_coauthors_processed = true;
-		$this->is_rest_save = false;
+
+		try {
+			if ( empty( $terms ) ) {
+				// Post ended up with no coauthor terms after handle_terms ran.
+				// Restore from post_author so we never persist a termless post.
+				$user = get_userdata( $post->post_author );
+				if ( $user ) {
+					$this->add_coauthors( $post->ID, array( $user->user_nicename ) );
+				}
+			} else {
+				$coauthor_nicenames = array();
+				foreach ( $terms as $term ) {
+					$coauthor_nicenames[] = $term->slug;
+				}
+				$this->add_coauthors( $post->ID, $coauthor_nicenames );
+			}
+		} finally {
+			// Always reset the flags. rest_coauthors_processed in particular
+			// must not leak across REST requests (or, in the test suite, across
+			// tests that share the global $coauthors_plus instance) — otherwise
+			// the next coauthors_update_post() call short-circuits and posts
+			// created via wp_insert_post() never receive their author term.
+			$this->is_rest_save             = false;
+			$this->rest_coauthors_processed = false;
+		}
 	}
 
 	/**
@@ -1439,6 +1677,19 @@ class CoAuthors_Plus {
 		if ( is_object( $authordata ) || ! empty( $term ) ) {
 			$wp_query->queried_object    = $authordata;
 			$wp_query->queried_object_id = (int) $authordata->ID;
+
+			// Once fix_author_page() takes ownership of queried_object, this request
+			// is definitively an author archive. Reset all query flags to a clean
+			// state — mirroring how core handles flag transitions internally — then
+			// re-assert only the flags that should remain true. Preserve is_paged so
+			// that paginated author archives can still trigger 404 when out of range.
+			// See https://github.com/Automattic/co-authors-plus/issues/1109.
+			$is_paged = $wp_query->is_paged;
+			$wp_query->init_query_flags();
+			$wp_query->is_author  = true;
+			$wp_query->is_archive = true;
+			$wp_query->is_paged   = $is_paged;
+
 			if ( ! is_paged() ) {
 				add_filter( 'pre_handle_404', '__return_true' );
 			}

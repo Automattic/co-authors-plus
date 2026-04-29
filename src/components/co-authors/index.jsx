@@ -17,7 +17,11 @@ import AuthorsSelection from '../author-selection';
 /**
  * Utilities
  */
-import { addItemByValue, formatAuthorData } from '../../utils';
+import {
+	addItemByValue,
+	buildCoauthorTermIds,
+	formatAuthorData,
+} from '../../utils';
 
 /**
  * Hooks
@@ -74,11 +78,21 @@ const CoAuthors = () => {
 	/**
 	 * Setter for updating authors via the core entity store.
 	 *
+	 * Builds the new term ID list via buildCoauthorTermIds() so that any
+	 * unresolved term IDs (whose details the REST endpoint couldn't load)
+	 * survive an add / remove / reorder action by the user. Without this
+	 * guard those IDs would be silently dropped when the user makes any edit.
+	 *
 	 * @param {Array} newAuthors array of rich author objects (with termId).
 	 */
 	const updateAuthors = ( newAuthors ) => {
-		const termIds = newAuthors.map( ( author ) => author.termId );
-		editPost( { coauthors: termIds } );
+		editPost( {
+			coauthors: buildCoauthorTermIds(
+				newAuthors,
+				selectedAuthors,
+				coauthorTermIds
+			),
+		} );
 	};
 
 	/**
@@ -135,20 +149,21 @@ const CoAuthors = () => {
 		}
 	}, 500 );
 
-	// Show spinner while the post entity is loading or authors are being resolved.
-	const showSpinner = ! hasResolvedPost || isLoading || ( hasResolvedPost && coauthorTermIds?.length && ! selectedAuthors.length );
+	// Show spinner while the post entity or author details are still loading.
+	// Once loading completes, render the resolved authors (which may be an
+	// empty list) so the panel never sits on a perpetual spinner if the
+	// REST endpoint can't resolve a term ID.
+	const showSpinner = ! hasResolvedPost || isLoading;
 
 	return (
 		<>
-			{ ! showSpinner && Boolean( selectedAuthors.length ) ? (
-				<>
-					<AuthorsSelection
-						selectedAuthors={ selectedAuthors }
-						updateAuthors={ updateAuthors }
-					/>
-				</>
-			) : (
+			{ showSpinner ? (
 				<Spinner />
+			) : (
+				<AuthorsSelection
+					selectedAuthors={ selectedAuthors }
+					updateAuthors={ updateAuthors }
+				/>
 			) }
 
 			<ComboboxControl
