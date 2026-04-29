@@ -55,25 +55,28 @@ class CoauthorsLinksSingleTest extends TestCase {
 
 		$output = coauthors_links( null, null, null, null, false );
 
-		// Each guest author name must appear exactly once in the visible link text.
+		// Each guest author's name must appear in the output exactly once.
+		// These guest authors have no website so coauthors_links_single() returns
+		// plain text (no anchor tag). We therefore check for the display name
+		// string directly rather than for ">Name<" markup.
 		$this->assertStringContainsString(
-			'>' . $guest_author_1->display_name . '<',
+			$guest_author_1->display_name,
 			$output,
 			'First guest author display name not found in output.'
 		);
 		$this->assertStringContainsString(
-			'>' . $guest_author_2->display_name . '<',
+			$guest_author_2->display_name,
 			$output,
 			'Second guest author display name not found in output.'
 		);
 		$this->assertEquals(
 			1,
-			substr_count( $output, '>' . $guest_author_1->display_name . '<' ),
+			substr_count( $output, $guest_author_1->display_name ),
 			'First guest author display name must appear exactly once.'
 		);
 		$this->assertEquals(
 			1,
-			substr_count( $output, '>' . $guest_author_2->display_name . '<' ),
+			substr_count( $output, $guest_author_2->display_name ),
 			'Second guest author display name must appear exactly once.'
 		);
 	}
