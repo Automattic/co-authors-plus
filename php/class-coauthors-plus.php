@@ -113,7 +113,7 @@ class CoAuthors_Plus {
 		add_action( 'set_object_terms', array( $this, 'clear_cache_on_terms_set' ), 10, 6 );
 
 		// Filter to correct author on author archive page
-		add_filter( 'get_the_archive_title', array( $this, 'filter_author_archive_title' ) );
+		add_filter( 'get_the_archive_title', array( $this, 'filter_author_archive_title' ), 10, 3 );
 
 		// Filter to display author image if exists instead of avatar
 		add_filter( 'pre_get_avatar_data', array( $this, 'filter_pre_get_avatar_data_url' ), 10, 2 );
@@ -2291,29 +2291,44 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Filter of the header of author archive pages to correctly display author.
+	 * Filter the author archive title so the displayed name reflects the co-author
+	 * (including guest authors), while preserving whatever prefix core resolved.
 	 *
-	 * @param $title string Archive Page Title
+	 * The third filter argument carries the prefix that core actually used after
+	 * `get_the_archive_title_prefix` filters ran, so the core/query-title block's
+	 * `showPrefix` toggle is honoured.
 	 *
-	 * @return string Archive Page Title
+	 * @param string $title          Archive title.
+	 * @param string $original_title Archive title without prefix. Unused.
+	 * @param string $prefix         Archive title prefix as resolved by core.
+	 * @return string Archive title.
 	 */
-	public function filter_author_archive_title( $title ): string {
+	public function filter_author_archive_title( $title, $original_title = '', $prefix = '' ): string {
 
-		// Bail if not an author archive template
+		// Bail if not an author archive template.
 		if ( ! is_author() ) {
 			return $title;
 		}
 
 		$author_name_var = get_query_var( 'author_name' );
-		if ( ! is_string( $author_name_var ) ) {
+		if ( ! is_string( $author_name_var ) || '' === $author_name_var ) {
 			return $title;
 		}
 
 		$author_slug = sanitize_user( $author_name_var );
 		$author      = $this->get_coauthor_by( 'user_nicename', $author_slug );
 
-		/* translators: Author display name. */
-		return sprintf( __( 'Author: %s', 'co-authors-plus' ), $author->display_name );
+		if ( ! is_object( $author ) || empty( $author->display_name ) ) {
+			return $title;
+		}
+
+		if ( '' === $prefix ) {
+			return $author->display_name;
+		}
+
+		// Match core's `%1$s %2$s` archive-title format. The translatable part
+		// is the prefix, which core has already resolved before reaching here.
+		return sprintf( '%1$s %2$s', $prefix, $author->display_name );
 	}
 
 	/**
