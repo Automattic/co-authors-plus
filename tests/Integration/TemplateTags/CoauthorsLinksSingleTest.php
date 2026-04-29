@@ -16,6 +16,28 @@ class CoauthorsLinksSingleTest extends TestCase {
 	use \Yoast\PHPUnitPolyfills\Polyfills\AssertStringContains;
 
 	/**
+	 * Tear down test state.
+	 *
+	 * `CoAuthors_Template_Filters::__construct()` registers `the_author` and
+	 * `the_author_posts_link` filters globally. Tests in this class instantiate
+	 * it, so we must unhook those filters and unset the global instance to
+	 * prevent state from leaking into later tests in the suite.
+	 */
+	public function tear_down() {
+		global $coauthors_plus_template_filters;
+
+		if ( $coauthors_plus_template_filters instanceof \CoAuthors_Template_Filters ) {
+			remove_filter( 'the_author', array( $coauthors_plus_template_filters, 'filter_the_author' ) );
+			remove_filter( 'the_author_posts_link', array( $coauthors_plus_template_filters, 'filter_the_author_posts_link' ) );
+			remove_filter( 'the_author', array( $coauthors_plus_template_filters, 'filter_the_author_rss' ), 15 );
+		}
+
+		$coauthors_plus_template_filters = null;
+
+		parent::tear_down();
+	}
+
+	/**
 	 * Test that coauthors_links() outputs each guest author's display name
 	 * exactly once when a post has multiple guest authors.
 	 *
