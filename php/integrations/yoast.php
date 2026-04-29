@@ -11,6 +11,7 @@ use Yoast\WP\SEO\Context\Meta_Tags_Context;
 use Yoast\WP\SEO\Generators\Schema\Abstract_Schema_Piece;
 use Yoast\WP\SEO\Presentations\Indexable_Author_Archive_Presentation;
 use WP_User;
+use function __;
 
 /**
  * The main Yoast integration class
@@ -256,7 +257,7 @@ class Yoast {
 		}
 
 		$output = self::get_authors_display_names_output( $author_objects );
-		$data[ \__( 'Written by', 'co-authors-plus' ) ] = $output;
+		$data[ __( 'Written by', 'co-authors-plus' ) ] = $output;
 		return $data;
 	}
 
