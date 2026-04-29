@@ -939,18 +939,8 @@ class CoAuthors_Plus {
 				}
 			}
 
-			$terms    = array();
 			$coauthor = $this->get_coauthor_by( 'user_nicename', $author_name );
-			if ( $author_term = $this->get_author_term( $coauthor ) ) {
-				$terms[] = $author_term;
-			}
-			// If this co-author has a linked account, we also need to get posts with those terms
-			if ( ! empty( $coauthor->linked_account ) ) {
-				$linked_account = get_user_by( 'login', $coauthor->linked_account );
-				if ( $guest_author_term = $this->get_author_term( $linked_account ) ) {
-					$terms[] = $guest_author_term;
-				}
-			}
+			$terms    = $this->collect_coauthor_terms( $coauthor );
 
 			// Whether to include the original 'post_author' value in the query.
 			// Don't include it if we're forcing guest authors, or it's obvious our query is for a guest author's posts
@@ -963,13 +953,7 @@ class CoAuthors_Plus {
 			$maybe_both_query = $maybe_both ? '$1 OR' : '';
 
 			if ( ! empty( $terms ) ) {
-				$terms_implode      = '';
-				$this->having_terms = '';
-				foreach ( $terms as $term ) {
-					$terms_implode      .= '(' . $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\') OR ';
-					$this->having_terms .= ' ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\' OR ';
-				}
-				$terms_implode = rtrim( $terms_implode, ' OR' );
+				$terms_implode = $this->build_terms_clauses( $terms );
 
 				// We need to check the query is the main query as a new query object would result in the wrong ID
 				$id = is_author() && $query->is_main_query() ? get_queried_object_id() : '\d+';
@@ -1019,6 +1003,69 @@ class CoAuthors_Plus {
 	}
 
 	/**
+	 * Collect all taxonomy terms for a coauthor, including linked account terms.
+	 *
+	 * Resolves the primary author term and, if the coauthor has a linked WordPress
+	 * account, also resolves the linked account's term. Used by both the single-author
+	 * archive path and the multi-author programmatic path to avoid duplicating the
+	 * term resolution logic.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param object $coauthor The coauthor object (WP_User or guest author).
+	 * @return WP_Term[] Array of taxonomy term objects.
+	 */
+	protected function collect_coauthor_terms( $coauthor ): array {
+		$terms = array();
+
+		$author_term = $this->get_author_term( $coauthor );
+		if ( $author_term ) {
+			$terms[] = $author_term;
+		}
+
+		if ( ! empty( $coauthor->linked_account ) ) {
+			$linked_account = get_user_by( 'login', $coauthor->linked_account );
+			if ( $linked_account ) {
+				$linked_term = $this->get_author_term( $linked_account );
+				if ( $linked_term ) {
+					$terms[] = $linked_term;
+				}
+			}
+		}
+
+		return $terms;
+	}
+
+	/**
+	 * Build SQL WHERE and HAVING clause fragments from taxonomy terms.
+	 *
+	 * Constructs the OR-chain of taxonomy conditions for the WHERE clause and
+	 * populates $this->having_terms for use by posts_groupby_filter().
+	 *
+	 * The returned terms_implode string is trimmed of the trailing ' OR'. The
+	 * having_terms property is left untrimmed so callers can append additional
+	 * terms (e.g. for private post visibility) before doing the final rtrim.
+	 *
+	 * @since 4.0.0
+	 *
+	 * @param WP_Term[] $terms Array of taxonomy term objects.
+	 * @return string The WHERE clause fragment. Empty string if $terms is empty.
+	 */
+	protected function build_terms_clauses( array $terms ): string {
+		global $wpdb;
+
+		$terms_implode      = '';
+		$this->having_terms = '';
+
+		foreach ( $terms as $term ) {
+			$terms_implode      .= '(' . $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\') OR ';
+			$this->having_terms .= ' ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\' OR ';
+		}
+
+		return rtrim( $terms_implode, ' OR' );
+	}
+
+	/**
 	 * Handles rewriting the WHERE clause for programmatic multi-author queries
 	 * using `author__in` or comma-separated `author` IDs.
 	 *
@@ -1055,9 +1102,7 @@ class CoAuthors_Plus {
 			return $where;
 		}
 
-		$terms_implode      = '';
-		$this->having_terms = '';
-
+		$all_terms = array();
 		foreach ( $author_ids as $author_id ) {
 			$author_data = get_userdata( $author_id );
 			if ( ! $author_data ) {
@@ -1069,30 +1114,14 @@ class CoAuthors_Plus {
 				continue;
 			}
 
-			$author_term = $this->get_author_term( $coauthor );
-			if ( $author_term ) {
-				$terms_implode      .= '(' . $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $author_term->term_id . '\') OR ';
-				$this->having_terms .= ' ' . $wpdb->term_taxonomy . '.term_id = \'' . $author_term->term_id . '\' OR ';
-			}
-
-			// If this co-author has a linked account, include that term too.
-			if ( ! empty( $coauthor->linked_account ) ) {
-				$linked_account = get_user_by( 'login', $coauthor->linked_account );
-				if ( $linked_account ) {
-					$linked_term = $this->get_author_term( $linked_account );
-					if ( $linked_term ) {
-						$terms_implode      .= '(' . $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $linked_term->term_id . '\') OR ';
-						$this->having_terms .= ' ' . $wpdb->term_taxonomy . '.term_id = \'' . $linked_term->term_id . '\' OR ';
-					}
-				}
-			}
+			$all_terms = array_merge( $all_terms, $this->collect_coauthor_terms( $coauthor ) );
 		}
 
-		if ( empty( $terms_implode ) ) {
+		if ( empty( $all_terms ) ) {
 			return $where;
 		}
 
-		$terms_implode      = rtrim( $terms_implode, ' OR' );
+		$terms_implode = $this->build_terms_clauses( $all_terms );
 		$this->having_terms = rtrim( $this->having_terms, ' OR' );
 
 		$maybe_both = $this->force_guest_authors
