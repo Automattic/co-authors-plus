@@ -11,7 +11,7 @@ Multiple byline management for WordPress, supporting both WordPress users and gu
 | **Class prefix** | `CoAuthors_` (legacy), `CoAuthors\` / `Automattic\CoAuthorsPlus\` (namespaced) |
 | **Function prefix** | `cap_` (helpers), `coauthors*` (template tags) |
 | **Source directory** | `php/` (PHP classes), `src/` (JS/blocks) |
-| **Version** | 4.0.0 |
+| **Version** | 4.0.1 |
 | **Requires PHP** | 7.4+ |
 | **Requires WP** | 6.4+ |
 
