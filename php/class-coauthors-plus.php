@@ -268,8 +268,8 @@ class CoAuthors_Plus {
 		// Hooks to add additional co-authors to 'authors' column to edit page
 		add_filter( 'manage_posts_columns', array( $this, '_filter_manage_posts_columns' ) );
 		add_filter( 'manage_pages_columns', array( $this, '_filter_manage_posts_columns' ) );
-		add_action( 'manage_posts_custom_column', array( $this, '_filter_manage_posts_custom_column' ) );
-		add_action( 'manage_pages_custom_column', array( $this, '_filter_manage_posts_custom_column' ) );
+		add_action( 'manage_posts_custom_column', array( $this, '_filter_manage_posts_custom_column' ), 10, 2 );
+		add_action( 'manage_pages_custom_column', array( $this, '_filter_manage_posts_custom_column' ), 10, 2 );
 
 		// Add quick-edit co-author select field
 		add_action( 'quick_edit_custom_box', array( $this, '_action_quick_edit_custom_box' ), 10, 2 );
@@ -610,20 +610,21 @@ class CoAuthors_Plus {
 	/**
 	 * Insert co-authors into post rows on Edit Page
 	 *
-	 * @param string $column_name
+	 * @param string $column_name The name of the column in the list table
+     * @param int $post_id The ID of the current post in the list table
 	 */
-	public function _filter_manage_posts_custom_column( $column_name ): void {
+	public function _filter_manage_posts_custom_column( $column_name, $post_id ): void {
 		if ( 'coauthors' === $column_name ) {
-			global $post;
-			$authors = get_coauthors( $post->ID );
+			$authors = get_coauthors( $post_id );
 
 			$count = 1;
 			foreach ( $authors as $author ) :
 				$args = array(
 					'author_name' => $author->user_nicename,
 				);
-				if ( 'post' !== $post->post_type ) {
-					$args['post_type'] = $post->post_type;
+                $post_type = get_post_type($post_id);
+				if ( 'post' !== $post_type ) {
+					$args['post_type'] = $post_type;
 				}
 				$author_filter_url = add_query_arg( array_map( 'rawurlencode', $args ), admin_url( 'edit.php' ) );
 				$user_type         = $author instanceof WP_User ? 'wp-user' : 'guest-user';
