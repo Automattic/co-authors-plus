@@ -165,6 +165,12 @@ class CoAuthors_Plus {
 	 * @return bool
 	 */
 	public function is_block_editor( $post = null ): bool {
+		// get_current_screen() is only available after the screen is set up.
+		// Guard against contexts where it has not been loaded yet (e.g. REST saves).
+		if ( ! function_exists( 'get_current_screen' ) ) {
+			return false;
+		}
+
 		$screen = get_current_screen();
 
 		// Pre-5.0 compatibility
@@ -442,8 +448,13 @@ class CoAuthors_Plus {
 
 		if ( ! $post_type ) {
 			$post_type = get_post_type();
-			if ( ! $post_type && is_admin() ) {
-				$post_type = get_current_screen()->post_type;
+			// get_current_screen() is only available once the admin screen is initialised.
+			// Bail out of the screen look-up when the function does not exist yet — e.g.
+			// when save_post fires during plugins_loaded from a third-party plugin, or
+			// during a REST / WP-CLI request where the admin screen is never set up.
+			if ( ! $post_type && is_admin() && function_exists( 'get_current_screen' ) ) {
+				$screen    = get_current_screen();
+				$post_type = $screen ? $screen->post_type : '';
 			}
 		}
 

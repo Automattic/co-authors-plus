@@ -225,6 +225,57 @@ class CoAuthorsPlusTest extends TestCase {
 	}
 
 	/**
+	 * Ensures is_post_type_enabled() does not fatal when the admin screen is not
+	 * yet initialised — reproduces the error reported in GitHub issue #1094, where
+	 * a third-party plugin triggered save_post during plugins_loaded before the
+	 * admin screen was set up.
+	 *
+	 * @covers CoAuthors_Plus::is_post_type_enabled()
+	 * @ticket 1094
+	 */
+	public function test_is_post_type_enabled_without_screen_does_not_fatal(): void {
+
+		global $coauthors_plus, $post;
+
+		// Clear the global post so get_post_type() returns nothing.
+		$post_backup = $post;
+		$post        = '';
+
+		// Null out the current screen to simulate a context where the screen has
+		// not been initialised (e.g. save_post fired during plugins_loaded).
+		$screen_backup             = $GLOBALS['current_screen'] ?? null;
+		$GLOBALS['current_screen'] = null;
+
+		// Must not throw or fatal; must return false (post type undetermined).
+		$this->assertFalse( $coauthors_plus->is_post_type_enabled() );
+
+		// Restore globals.
+		$GLOBALS['current_screen'] = $screen_backup;
+		$post                      = $post_backup;
+	}
+
+	/**
+	 * Ensures is_block_editor() returns false gracefully when the admin screen has
+	 * not yet been initialised.
+	 *
+	 * @covers CoAuthors_Plus::is_block_editor()
+	 * @ticket 1094
+	 */
+	public function test_is_block_editor_without_screen_returns_false(): void {
+
+		global $coauthors_plus;
+
+		$screen_backup             = $GLOBALS['current_screen'] ?? null;
+		$GLOBALS['current_screen'] = null;
+
+		// Must not throw or fatal; must return false.
+		$this->assertFalse( $coauthors_plus->is_block_editor() );
+
+		// Restore.
+		$GLOBALS['current_screen'] = $screen_backup;
+	}
+
+	/**
 	 * Checks if the current user can set co-authors or not using current screen.
 	 *
 	 * @covers CoAuthors_Plus::current_user_can_set_authors()
