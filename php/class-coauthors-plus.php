@@ -166,12 +166,18 @@ class CoAuthors_Plus {
 	 */
 	public function is_block_editor( $post = null ): bool {
 		// get_current_screen() is only available after the screen is set up.
-		// Guard against contexts where it has not been loaded yet (e.g. REST saves).
+		// Guard against contexts where it has not been loaded yet (e.g. REST saves,
+		// or save_post firing during plugins_loaded). The function may exist but
+		// still return null if called before the screen is initialised.
 		if ( ! function_exists( 'get_current_screen' ) ) {
 			return false;
 		}
 
 		$screen = get_current_screen();
+
+		if ( ! $screen ) {
+			return false;
+		}
 
 		// Pre-5.0 compatibility
 		if ( method_exists( $screen, 'is_block_editor' ) ) {
