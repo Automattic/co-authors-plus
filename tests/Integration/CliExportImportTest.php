@@ -2,6 +2,8 @@
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 
+use WP_CLI\ExitException;
+
 /**
  * Integration tests for the WP-CLI export-coauthors and import-coauthors commands.
  *
@@ -23,12 +25,43 @@ class CliExportImportTest extends TestCase {
 	 */
 	private string $tmp_file;
 
+	/**
+	 * Reflection property for WP_CLI::$capture_exit.
+	 *
+	 * @var \ReflectionProperty
+	 */
+	private static \ReflectionProperty $capture_exit_prop;
+
+	/**
+	 * Original value of WP_CLI::$capture_exit before tests.
+	 *
+	 * @var bool
+	 */
+	private bool $original_capture_exit;
+
+	public static function set_up_before_class(): void {
+		parent::set_up_before_class();
+
+		// WP_CLI::$capture_exit is private. Use reflection so that
+		// WP_CLI::error() throws ExitException instead of calling exit(),
+		// which would kill the entire PHPUnit process.
+		self::$capture_exit_prop = new \ReflectionProperty( 'WP_CLI', 'capture_exit' );
+		self::$capture_exit_prop->setAccessible( true );
+	}
+
 	public function set_up(): void {
 		parent::set_up();
 		$this->tmp_file = tempnam( sys_get_temp_dir(), 'cap-test-' ) . '.json';
+
+		// Enable capture mode so WP_CLI::error() throws instead of exit().
+		$this->original_capture_exit = self::$capture_exit_prop->getValue();
+		self::$capture_exit_prop->setValue( null, true );
 	}
 
 	public function tear_down(): void {
+		// Restore original capture_exit value.
+		self::$capture_exit_prop->setValue( null, $this->original_capture_exit );
+
 		if ( file_exists( $this->tmp_file ) ) {
 			unlink( $this->tmp_file );
 		}
@@ -107,7 +140,6 @@ class CliExportImportTest extends TestCase {
 		}
 
 		// Instantiate the command class directly — avoids needing a real CLI process.
-		// WP_CLI is loaded by wp-env but error/success/log are no-ops in test context.
 		$command = new \CoAuthorsPlus_Command();
 		$command->export_coauthors( array(), $assoc_args );
 
@@ -314,29 +346,19 @@ class CliExportImportTest extends TestCase {
 	}
 
 	/**
-	 * Malformed (non-JSON) input fails with a useful error and doesn't process.
+	 * Malformed (non-JSON) input triggers WP_CLI::error() which throws
+	 * ExitException (capture_exit is enabled in set_up).
 	 */
 	public function test_malformed_json_fails_cleanly(): void {
 		file_put_contents( $this->tmp_file, 'this is not json {{{' );
 
-		// CoAuthorsPlus_Command::import_coauthors() calls WP_CLI::error() which
-		// throws \WP_CLI\ExitException when WP_CLI_NOEXEC is set (wp-env test env).
-		// Without that constant it calls exit(1). We catch \Throwable to handle both.
-		$exception_thrown = false;
-		try {
-			$this->do_import();
-		} catch ( \Throwable $e ) {
-			$exception_thrown = true;
-		}
-
-		// If no exception was thrown, WP_CLI::error() silently returned (mock mode).
-		// In either case the test should not have processed any authors.
-		$this->assertTrue( true, 'Import should handle malformed JSON without a fatal.' );
+		$this->expectException( ExitException::class );
+		$this->do_import();
 	}
 
 	/**
-	 * A file where guest_authors is null (not an array) fails with a clear error
-	 * rather than a PHP TypeError.
+	 * A file where guest_authors is null (not an array) triggers
+	 * WP_CLI::error() → ExitException, not a PHP TypeError.
 	 */
 	public function test_guest_authors_null_fails_cleanly(): void {
 		$export = array(
@@ -348,14 +370,8 @@ class CliExportImportTest extends TestCase {
 
 		file_put_contents( $this->tmp_file, wp_json_encode( $export ) );
 
-		$exception_thrown = false;
-		try {
-			$this->do_import();
-		} catch ( \Throwable $e ) {
-			$exception_thrown = true;
-		}
-
-		$this->assertTrue( true, 'Import should handle null guest_authors without a PHP TypeError.' );
+		$this->expectException( ExitException::class );
+		$this->do_import();
 	}
 
 	/**
