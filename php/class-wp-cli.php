@@ -1209,7 +1209,29 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		WP_CLI::log( sprintf( 'Found %d guest author(s).', $total ) );
 
-		$progress = \WP_CLI\Utils\make_progress_bar( 'Exporting guest authors...', $total );
+		// make_progress_bar is only available when WP-CLI is fully bootstrapped
+		// (not during PHPUnit integration tests). Provide a no-op fallback so
+		// both contexts work without branching the test helpers.
+		if ( function_exists( '\WP_CLI\Utils\make_progress_bar' ) ) {
+			$progress = \WP_CLI\Utils\make_progress_bar( 'Exporting guest authors...', $total );
+		} else {
+			// No-op fallback: tick()/finish() calls become safe no-ops in test context.
+			$progress = new class() {
+				/**
+				 * Advance the progress bar (no-op in test context).
+				 *
+				 * @param int $increment Unused.
+				 * @return void
+				 */
+				public function tick( int $increment = 1 ): void {}
+				/**
+				 * Finish the progress bar (no-op in test context).
+				 *
+				 * @return void
+				 */
+				public function finish(): void {}
+			};
+		}//end if
 
 		foreach ( $guest_author_ids as $ga_id ) {
 			$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $ga_id );
@@ -1263,10 +1285,10 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
 					$post_rows = $wpdb->get_results(
-						// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnquotedComplexPlaceholder
 						$wpdb->prepare(
+							// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnquotedComplexPlaceholder,WordPress.DB.PreparedSQL.NotPrepared
 							'SELECT ID, post_name, post_type FROM ' . $wpdb->posts . ' WHERE ID IN (' . $id_placeholders . ')',
-							$post_ids
+							...$post_ids
 						),
 						OBJECT_K
 					);
@@ -1353,8 +1375,10 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		global $coauthors_plus;
 
 		$input_file  = $assoc_args['file'] ?? '';
-		$dry_run     = \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false );
-		$skip_create = \WP_CLI\Utils\get_flag_value( $assoc_args, 'skip-create', false );
+		// get_flag_value is only available when WP-CLI is fully bootstrapped.
+		// Use direct isset() so the command is callable in integration tests too.
+		$dry_run     = ! empty( $assoc_args['dry-run'] );
+		$skip_create = ! empty( $assoc_args['skip-create'] );
 
 		if ( empty( $input_file ) || ! is_readable( $input_file ) ) {
 			WP_CLI::error( 'Please specify a valid, readable JSON file with --file.' );
