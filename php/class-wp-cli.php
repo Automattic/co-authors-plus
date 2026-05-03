@@ -106,7 +106,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				wp_set_post_terms( $single_post->ID, array( $author_term->slug ), $coauthors_plus->coauthor_taxonomy );
 				WP_CLI::log( "{$count}/{$total_posts}) Added - Post #{$single_post->ID} '{$single_post->post_title}' now has an author term for: " . $author->user_nicename );
 				$affected++;
-			}//end foreach
+			}
 
 			if ( $count && 0 === $count % 500 ) {
 				$this->stop_the_insanity();
@@ -115,13 +115,14 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 			$args['paged']++;
 			$posts = new WP_Query( $args );
-		}//end while
+		}
 		WP_CLI::log( 'Updating author terms with new counts' );
 		foreach ( $authors as $author ) {
 			$coauthors_plus->update_author_term( $author );
 		}
 
 		WP_CLI::success( "Done! Of {$total_posts} posts, {$affected} now have author terms." );
+
 	}
 
 	/**
@@ -143,11 +144,11 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @throws Exception If above-post-id is greater than or equal to below-post-id.
 	 */
 	public function create_author_terms_for_posts( $args, $assoc_args ) {
-		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post' );
-		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
+		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : [ 'post' ];
+		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : [ 'publish' ];
 		$batched           = ! isset( $assoc_args['unbatched'] );
 		$records_per_batch = $assoc_args['records-per-batch'] ?? 250;
-		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : array();
+		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : [];
 		$above_post_id     = $assoc_args['above-post-id'] ?? null;
 		$below_post_id     = $assoc_args['below-post-id'] ?? null;
 
@@ -164,8 +165,8 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		WP_CLI::log( sprintf( 'Found %d posts with missing author terms.', $count_of_posts_with_missing_author_terms ) );
 
-		$authors      = array();
-		$author_terms = array();
+		$authors      = [];
+		$author_terms = [];
 		$count        = 0;
 		$affected     = 0;
 		$page         = 1;
@@ -212,11 +213,11 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
 				$insert_author_term_relationship = $wpdb->insert(
 					$wpdb->term_relationships,
-					array(
+					[
 						'object_id'        => $record->post_id,
 						'term_taxonomy_id' => $author_term->term_taxonomy_id,
 						'term_order'       => 0,
-					)
+					]
 				);
 
 				if ( false === $insert_author_term_relationship ) {
@@ -231,12 +232,11 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				}
 
 				if ( $count && 0 === $count % 500 ) {
-					sleep( 1 ); 
-					// Sleep for a second every 500 posts to avoid overloading the database.
+					sleep( 1 ); // Sleep for a second every 500 posts to avoid overloading the database.
 				}
-			}//end foreach
+			}
 
-			$posts_with_missing_author_terms = array();
+			$posts_with_missing_author_terms = [];
 
 			if ( $batched && $count < $count_of_posts_with_missing_author_terms ) {
 				++$page;
@@ -286,15 +286,15 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @return void
 	 */
 	public function delete_postmeta_skipping_author_term_backfill( $args, $assoc_args ) {
-		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : array();
+		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : [];
 
 		if ( empty( $specific_post_ids ) ) {
 			$query = new WP_Query(
-				array(
+				[
 					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
 					'meta_key' => self::SKIP_POST_FOR_BACKFILL_META_KEY,
 					'fields'   => 'ids',
-				)
+				]
 			);
 
 			$specific_post_ids = $query->get_posts();
@@ -380,12 +380,12 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' has been assigned "' . $original_author . '" as the author' );
 				$posts_associated++;
 				clean_post_cache( $single_post->ID );
-			}//end foreach
+			}
 
 			$this->args['paged']++;
 			$this->stop_the_insanity();
 			$posts = new WP_Query( $this->args );
-		}//end while
+		}
 
 		WP_CLI::log( 'All done! Here are your results:' );
 		if ( $posts_already_associated ) {
@@ -398,6 +398,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		if ( $posts_associated ) {
 			WP_CLI::log( "- {$posts_associated} posts now have the proper co-author" );
 		}
+
 	}
 
 	/**
@@ -454,7 +455,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			if ( $affected && 0 === $affected % 100 ) {
 				sleep( 2 );
 			}
-		}//end foreach
+		}
 
 		$success_message = sprintf(
 			/* translators: Count of posts. */
@@ -467,6 +468,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			number_format_i18n( $affected )
 		);
 		WP_CLI::success( $success_message );
+
 	}
 
 	/**
@@ -556,12 +558,13 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				$results->success++;
 			}
 			clean_term_cache( $old_term->term_id, $coauthors_plus->coauthor_taxonomy );
-		}//end foreach
+		}
 
 		WP_CLI::log( 'Reassignment complete. Here are your results:' );
 		WP_CLI::log( "- $results->success authors were successfully reassigned terms" );
 		WP_CLI::log( "- $results->new_term_exists authors had their old term merged to their new term" );
 		WP_CLI::log( "- $results->old_term_missing authors were missing old terms" );
+
 	}
 
 	/**
@@ -718,8 +721,8 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 					clean_post_cache( $post->ID );
 				} else {
 					WP_CLI::log( $posts_total . ': Post #' . $post->ID . ' will be assigned "' . $to_userlogin . '" as a co-author' );
-				}//end if
-			}//end foreach
+				}
+			}
 
 			// In dry mode, we must manually advance the page
 			if ( $dry ) {
@@ -729,7 +732,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			$this->stop_the_insanity();
 
 			$posts = new WP_Query( $query_args );
-		}//end while
+		}
 
 		WP_CLI::success( 'All done!' );
 	}
@@ -778,7 +781,8 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 			$this->args['paged']++;
 			$posts = new WP_Query( $this->args );
-		}//end while
+		}
+
 	}
 
 	/**
@@ -817,7 +821,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				'slug' => 'cap-' . $author_term->slug,
 			);
 			wp_update_term( $author_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
-		}//end foreach
+		}
 		WP_CLI::success( 'All done! Grab a cold one (Affogatto)' );
 	}
 
@@ -890,8 +894,8 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 				$args['paged']++;
 				$posts = new WP_Query( $args );
-			}//end while
-		}//end if
+			}
+		}
 
 		WP_CLI::success( 'All done' );
 	}
@@ -1063,7 +1067,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			}
 
 			$this->create_guest_author( $guest_author_data );
-		}//end foreach
+		}
 
 		WP_CLI::log( 'All done!' );
 	}
@@ -1125,18 +1129,22 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Export all guest authors and their post associations to a JSON file.
+	 * Export all guest author profiles and their post associations to a JSON file.
 	 *
 	 * Produces a portable JSON file that can be fed into the `import-coauthors`
 	 * command on a different site (e.g. after a multisite-to-single-site migration).
 	 * Post relationships are stored by slug + post type so they survive the ID
 	 * changes that occur during a WordPress export/import cycle.
 	 *
+	 * Note: Only guest-author CPT profiles are exported. WordPress-user coauthor
+	 * relationships are not included. Use this command when migrating guest authors.
+	 *
 	 * ## OPTIONS
 	 *
 	 * [--file=<file>]
-	 * : Path to write the JSON output. Defaults to co-authors-export.json in the
-	 *   current working directory.
+	 * : Absolute path to write the JSON output. Defaults to cap-export.json inside
+	 *   wp-content. Relative paths are resolved from the WP-CLI working directory
+	 *   and are not recommended.
 	 *
 	 * [--post-types=<csv>]
 	 * : Comma-separated list of post types to include when recording post
@@ -1155,9 +1163,9 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @return void
 	 */
 	public function export_coauthors( $args, $assoc_args ): void {
-		global $coauthors_plus;
+		global $coauthors_plus, $wpdb;
 
-		$output_file = $assoc_args['file'] ?? 'co-authors-export.json';
+		$output_file = $assoc_args['file'] ?? WP_CONTENT_DIR . '/cap-export.json';
 
 		$post_types = isset( $assoc_args['post-types'] )
 			? array_map( 'sanitize_key', explode( ',', $assoc_args['post-types'] ) )
@@ -1165,17 +1173,30 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		WP_CLI::log( 'Fetching all guest authors...' );
 
-		// Retrieve every guest-author CPT post.
-		$guest_author_query = new WP_Query(
-			array(
-				'post_type'      => $coauthors_plus->guest_authors->post_type,
-				'posts_per_page' => -1,
-				'post_status'    => 'any',
-				'orderby'        => 'ID',
-				'order'          => 'ASC',
-				'fields'         => 'ids',
-			)
-		);
+		// Retrieve every guest-author CPT post in batches of 500 to avoid OOM.
+		$batch_size       = 500;
+		$paged            = 1;
+		$guest_author_ids = array();
+
+		do {
+			$batch_query = new WP_Query(
+				array(
+					'post_type'      => $coauthors_plus->guest_authors->post_type,
+					'posts_per_page' => $batch_size,
+					'paged'          => $paged,
+					'post_status'    => 'any',
+					'orderby'        => 'ID',
+					'order'          => 'ASC',
+					'fields'         => 'ids',
+					'no_found_rows'  => false,
+				)
+			);
+
+			$guest_author_ids = array_merge( $guest_author_ids, $batch_query->posts );
+			$batch_count      = count( $batch_query->posts );
+			$paged++;
+			$this->stop_the_insanity();
+		} while ( $batch_count === $batch_size );
 
 		$export = array(
 			'version'       => COAUTHORS_PLUS_VERSION,
@@ -1184,8 +1205,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			'guest_authors' => array(),
 		);
 
-		$guest_author_ids = $guest_author_query->posts;
-		$total            = count( $guest_author_ids );
+		$total = count( $guest_author_ids );
 
 		WP_CLI::log( sprintf( 'Found %d guest author(s).', $total ) );
 
@@ -1198,7 +1218,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				WP_CLI::warning( sprintf( 'Could not load guest author with ID %d; skipping.', $ga_id ) );
 				$progress->tick();
 				continue;
-			}
+			}//end if
 
 			// Collect all profile fields.
 			$profile = array(
@@ -1214,44 +1234,51 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 			// Collect every post this guest author is assigned to, keyed by
 			// slug + post_type so the import can match without relying on IDs.
+			// Position is read from term_order in a single query per author
+			// rather than calling get_coauthors() for every post.
 			$author_term = $coauthors_plus->get_author_term( $guest_author );
 			$post_refs   = array();
 
 			if ( $author_term ) {
-				$posts = get_posts(
-					array(
-						'post_type'      => $post_types,
-						'posts_per_page' => -1,
-						'post_status'    => 'any',
-						'orderby'        => 'ID',
-						'order'          => 'ASC',
-						'tax_query'      => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query
-							array(
-								'taxonomy' => $coauthors_plus->coauthor_taxonomy,
-								'field'    => 'term_id',
-								'terms'    => array( $author_term->term_id ),
-							),
-						),
-					)
+				// Build a position map: post_id => term_order (0-indexed position).
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+				$position_map = $wpdb->get_results(
+					$wpdb->prepare(
+						"SELECT tr.object_id, tr.term_order
+						 FROM {$wpdb->term_relationships} AS tr
+						 INNER JOIN {$wpdb->posts} AS p ON p.ID = tr.object_id
+						 WHERE tr.term_taxonomy_id = %d
+						   AND p.post_type IN ( " . implode( ', ', array_fill( 0, count( $post_types ), '%s' ) ) . " )
+						   AND p.post_status != 'auto-draft'
+						 ORDER BY tr.object_id ASC",
+						array_merge( array( $author_term->term_taxonomy_id ), $post_types )
+					),
+					OBJECT_K
 				);
 
-				foreach ( $posts as $post ) {
-					// Record the ordered position of this author within the post's byline.
-					$coauthors = get_coauthors( $post->ID );
-					$position  = 0;
-					foreach ( $coauthors as $index => $coauthor ) {
-						if ( $coauthor->user_login === $guest_author->user_login ) {
-							$position = $index;
-							break;
-						}
-					}
+				if ( $position_map ) {
+					// Batch-fetch the post slugs and types for matched IDs.
+					$post_ids        = array_keys( $position_map );
+					$id_placeholders = implode( ',', array_fill( 0, count( $post_ids ), '%d' ) );
 
-					$post_refs[] = array(
-						'post_slug' => $post->post_name,
-						'post_type' => $post->post_type,
-						'position'  => $position,
+					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+					$post_rows = $wpdb->get_results(
+						// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnquotedComplexPlaceholder
+						$wpdb->prepare(
+							'SELECT ID, post_name, post_type FROM ' . $wpdb->posts . ' WHERE ID IN (' . $id_placeholders . ')',
+							$post_ids
+						),
+						OBJECT_K
 					);
-				}
+
+					foreach ( $post_rows as $post_id => $post_row ) {
+						$post_refs[] = array(
+							'post_slug' => $post_row->post_name,
+							'post_type' => $post_row->post_type,
+							'position'  => (int) $position_map[ $post_id ]->term_order,
+						);
+					}//end foreach
+				}//end if
 			}//end if
 
 			$export['guest_authors'][] = array(
@@ -1269,12 +1296,12 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		if ( false === $json ) {
 			WP_CLI::error( 'Failed to encode export data as JSON.' );
-		}
+		}//end if
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents
 		if ( false === file_put_contents( $output_file, $json ) ) {
 			WP_CLI::error( sprintf( 'Could not write to file: %s', $output_file ) );
-		}
+		}//end if
 
 		WP_CLI::success(
 			sprintf(
@@ -1286,13 +1313,16 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Import guest authors and their post associations from a JSON file.
+	 * Import guest author profiles and their post associations from a JSON file.
 	 *
 	 * Reads the JSON produced by `export-coauthors`, creates any guest-author
 	 * profiles that do not yet exist on this site, then re-assigns the coauthor
 	 * taxonomy terms to each post by matching on slug + post type. Existing
 	 * coauthor assignments on a post are preserved; the imported author is
 	 * appended or inserted at the recorded position.
+	 *
+	 * Note: Only guest-author CPT profiles are imported. WordPress-user coauthor
+	 * relationships are not handled by this command.
 	 *
 	 * ## OPTIONS
 	 *
@@ -1328,30 +1358,46 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		if ( empty( $input_file ) || ! is_readable( $input_file ) ) {
 			WP_CLI::error( 'Please specify a valid, readable JSON file with --file.' );
-		}
+		}//end if
 
 		if ( $dry_run ) {
 			WP_CLI::log( '--- DRY RUN: no changes will be made ---' );
-		}
+		}//end if
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
 		$raw = file_get_contents( $input_file );
 
 		if ( false === $raw ) {
 			WP_CLI::error( sprintf( 'Could not read file: %s', $input_file ) );
-		}
+		}//end if
 
 		$data = json_decode( $raw, true );
 
 		if ( null === $data || ! isset( $data['guest_authors'] ) ) {
 			WP_CLI::error( 'Invalid or corrupt export file. Expected JSON with a "guest_authors" key.' );
-		}
+		}//end if
 
-		$total            = count( $data['guest_authors'] );
-		$authors_created  = 0;
-		$authors_skipped  = 0;
-		$posts_linked     = 0;
-		$posts_not_found  = 0;
+		if ( ! is_array( $data['guest_authors'] ) ) {
+			WP_CLI::error( 'Invalid export file: "guest_authors" must be an array, got ' . gettype( $data['guest_authors'] ) . '.' );
+		}//end if
+
+		// Warn if the export was generated by a different plugin version.
+		$export_version = $data['version'] ?? '';
+		if ( $export_version && COAUTHORS_PLUS_VERSION !== $export_version ) {
+			WP_CLI::warning(
+				sprintf(
+					'Export was created with Co-Authors Plus %s; current version is %s. Proceeding, but verify results carefully.',
+					$export_version,
+					COAUTHORS_PLUS_VERSION
+				)
+			);
+		}//end if
+
+		$total           = count( $data['guest_authors'] );
+		$authors_created = 0;
+		$authors_skipped = 0;
+		$posts_linked    = 0;
+		$posts_not_found = 0;
 
 		WP_CLI::log( sprintf( 'Processing %d guest author(s) from %s', $total, $input_file ) );
 
@@ -1365,7 +1411,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			if ( empty( $user_login ) || empty( $display_name ) ) {
 				WP_CLI::warning( 'Skipping entry with missing user_login or display_name.' );
 				continue;
-			}
+			}//end if
 
 			WP_CLI::log( sprintf( 'Processing: %s (%s)', $display_name, $user_login ) );
 
@@ -1403,7 +1449,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 							)
 						);
 						continue;
-					}
+					}//end if
 
 					// Re-fetch so we have a full object for the linking step below.
 					$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $new_id );
@@ -1419,7 +1465,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			if ( empty( $post_refs ) ) {
 				WP_CLI::log( '  No post associations recorded for this author.' );
 				continue;
-			}
+			}//end if
 
 			foreach ( $post_refs as $ref ) {
 				$post_slug = sanitize_title( $ref['post_slug'] ?? '' );
@@ -1429,7 +1475,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				if ( empty( $post_slug ) ) {
 					WP_CLI::warning( '  Skipping post ref with empty slug.' );
 					continue;
-				}
+				}//end if
 
 				// Resolve the post on this site by slug + post_type.
 				$matched = get_posts(
@@ -1452,7 +1498,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 					);
 					$posts_not_found++;
 					continue;
-				}
+				}//end if
 
 				$post = $matched[0];
 
@@ -1472,7 +1518,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 						)
 					);
 					continue;
-				}
+				}//end if
 
 				if ( ! $dry_run ) {
 					// Retrieve current coauthors and insert at the recorded position.
@@ -1483,7 +1529,9 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 					$position = min( $position, count( $current_logins ) );
 					array_splice( $current_logins, $position, 0, array( $user_login ) );
 
-					$coauthors_plus->add_coauthors( $post->ID, $current_logins );
+					// Replace the full coauthor list (append=false) so the position
+					// is honoured correctly and no duplicates are introduced.
+					$coauthors_plus->add_coauthors( $post->ID, $current_logins, false );
 					clean_post_cache( $post->ID );
 
 					WP_CLI::success(
@@ -1523,7 +1571,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		if ( $dry_run ) {
 			WP_CLI::log( '' );
 			WP_CLI::log( '--- DRY RUN complete: no changes were made ---' );
-		}
+		}//end if
 	}
 
 	/**
@@ -1532,8 +1580,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	private function stop_the_insanity(): void {
 		global $wpdb, $wp_object_cache;
 
-		// Clear queries; alternatively, define( 'WP_IMPORTING', true ).
-		$wpdb->queries = array();
+		$wpdb->queries = array(); // or define( 'WP_IMPORTING', true );
 
 		if ( ! is_object( $wp_object_cache ) ) {
 			return;
@@ -1545,8 +1592,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		$wp_object_cache->cache          = array();
 
 		if ( is_callable( $wp_object_cache, '__remoteset' ) ) {
-			// Synchronise the remote cache store with the in-memory cache.
-			$wp_object_cache->__remoteset();
+			$wp_object_cache->__remoteset(); // important
 		}
 	}
 
@@ -1563,13 +1609,13 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @return array
 	 * @throws Exception If the $above_post_id is greater than or equal to the $below_post_id.
 	 */
-	private function get_sql_for_posts_with_missing_terms( $author_taxonomy, $post_types = array( 'post' ), $post_statuses = array( 'publish' ), $specific_post_ids = array(), $above_post_id = null, $below_post_id = null ) {
+	private function get_sql_for_posts_with_missing_terms( $author_taxonomy, $post_types = [ 'post' ], $post_statuses = [ 'publish' ], $specific_post_ids = [], $above_post_id = null, $below_post_id = null ) {
 		global $wpdb;
 
-		$sql_and_args = array(
+		$sql_and_args = [
 			'sql'  => '',
-			'args' => array( $author_taxonomy, self::SKIP_POST_FOR_BACKFILL_META_KEY ),
-		);
+			'args' => [ $author_taxonomy, self::SKIP_POST_FOR_BACKFILL_META_KEY ],
+		];
 
 		$post_status_placeholder = implode( ',', array_fill( 0, count( $post_statuses ), '%s' ) );
 		$sql_and_args['args']    = array_merge( $post_statuses, $sql_and_args['args'] );
@@ -1589,7 +1635,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				throw new Exception( 'The $above_post_id param must be less than the $below_post_id param.' );
 			}
 
-			$ids_between_constraint = array();
+			$ids_between_constraint = [];
 
 			if ( null !== $above_post_id ) {
 				array_unshift( $ids_between_constraint, 'ID > %d' );
@@ -1602,7 +1648,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			}
 
 			$from = "( SELECT * FROM $wpdb->posts WHERE " . implode( ' AND ', $ids_between_constraint ) . ' ) as sub';
-		}//end if
+		}
 
 		$sql_and_args['sql'] = "SELECT
 				ID as post_id,
@@ -1642,7 +1688,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @return int
 	 * @throws Exception If the $above_post_id is greater than or equal to the $below_post_id.
 	 */
-	private function get_count_of_posts_with_missing_terms( $author_taxonomy, $post_types = array( 'post' ), $post_statuses = array( 'publish' ), $specific_post_ids = array(), $above_post_id = null, $below_post_id = null ) {
+	private function get_count_of_posts_with_missing_terms( $author_taxonomy, $post_types = [ 'post' ], $post_statuses = [ 'publish' ], $specific_post_ids = [], $above_post_id = null, $below_post_id = null ) {
 		global $wpdb;
 
 		[
@@ -1678,7 +1724,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @return array
 	 * @throws Exception If the $above_post_id is greater than or equal to the $below_post_id.
 	 */
-	private function get_posts_with_missing_terms( $author_taxonomy, $post_types = array( 'post' ), $post_statuses = array( 'publish' ), $batched = false, $records_per_batch = 250, $specific_post_ids = array(), $above_post_id = null, $below_post_id = null ) {
+	private function get_posts_with_missing_terms( $author_taxonomy, $post_types = [ 'post' ], $post_statuses = [ 'publish' ], $batched = false, $records_per_batch = 250, $specific_post_ids = [], $above_post_id = null, $below_post_id = null ) {
 		global $wpdb;
 
 		[
