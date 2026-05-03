@@ -1210,35 +1210,19 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		WP_CLI::log( sprintf( 'Found %d guest author(s).', $total ) );
 
 		// make_progress_bar is only available when WP-CLI is fully bootstrapped
-		// (not during PHPUnit integration tests). Provide a no-op fallback so
-		// both contexts work without branching the test helpers.
-		if ( function_exists( '\WP_CLI\Utils\make_progress_bar' ) ) {
-			$progress = \WP_CLI\Utils\make_progress_bar( 'Exporting guest authors...', $total );
-		} else {
-			// No-op fallback: tick()/finish() calls become safe no-ops in test context.
-			$progress = new class() {
-				/**
-				 * Advance the progress bar (no-op in test context).
-				 *
-				 * @param int $increment Unused.
-				 * @return void
-				 */
-				public function tick( int $increment = 1 ): void {}
-				/**
-				 * Finish the progress bar (no-op in test context).
-				 *
-				 * @return void
-				 */
-				public function finish(): void {}
-			};
-		}//end if
+		// (not during PHPUnit integration tests). Use null + guards instead.
+		$progress = function_exists( '\WP_CLI\Utils\make_progress_bar' )
+			? \WP_CLI\Utils\make_progress_bar( 'Exporting guest authors...', $total )
+			: null;
 
 		foreach ( $guest_author_ids as $ga_id ) {
 			$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $ga_id );
 
 			if ( ! $guest_author ) {
 				WP_CLI::warning( sprintf( 'Could not load guest author with ID %d; skipping.', $ga_id ) );
-				$progress->tick();
+				if ( $progress ) {
+					$progress->tick();
+				}
 				continue;
 			}//end if
 
@@ -1288,7 +1272,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 						$wpdb->prepare(
 							// phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.UnquotedComplexPlaceholder,WordPress.DB.PreparedSQL.NotPrepared
 							'SELECT ID, post_name, post_type FROM ' . $wpdb->posts . ' WHERE ID IN (' . $id_placeholders . ')',
-							...$post_ids
+							$post_ids
 						),
 						OBJECT_K
 					);
@@ -1308,10 +1292,14 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				'post_refs' => $post_refs,
 			);
 
-			$progress->tick();
+			if ( $progress ) {
+				$progress->tick();
+			}
 		}//end foreach
 
-		$progress->finish();
+		if ( $progress ) {
+			$progress->finish();
+		}
 
 		// Write JSON to file.
 		$json = wp_json_encode( $export, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
