@@ -1519,7 +1519,13 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				// is_coauthor_for_post() requires an object or numeric ID; we have a
 				// login string, so we check manually — the same pattern used in
 				// assign_coauthors() elsewhere in this class.
-				$existing_logins = wp_list_pluck( get_coauthors( $post->ID ), 'user_login' );
+				$existing_terms  = wp_get_object_terms( $post->ID, $coauthors_plus->coauthor_taxonomy );
+				$existing_logins = array();
+				if ( ! is_wp_error( $existing_terms ) ) {
+					foreach ( $existing_terms as $term ) {
+						$existing_logins[] = preg_replace( '/^cap-/', '', $term->slug );
+					}
+				}
 				if ( in_array( $user_login, $existing_logins, true ) ) {
 					WP_CLI::log(
 						sprintf(
@@ -1533,9 +1539,16 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				}//end if
 
 				if ( ! $dry_run ) {
-					// Retrieve current coauthors and insert at the recorded position.
-					$current_coauthors = get_coauthors( $post->ID );
-					$current_logins    = wp_list_pluck( $current_coauthors, 'user_login' );
+					// Retrieve current coauthors from taxonomy terms directly
+					// (not get_coauthors() which falls back to post_author when
+					// no terms exist, polluting the import-rebuilt list).
+					$existing_terms    = wp_get_object_terms( $post->ID, $coauthors_plus->coauthor_taxonomy, array( 'orderby' => 'term_order' ) );
+					$current_logins    = array();
+					if ( ! is_wp_error( $existing_terms ) ) {
+						foreach ( $existing_terms as $term ) {
+							$current_logins[] = preg_replace( '/^cap-/', '', $term->slug );
+						}
+					}
 
 					// Insert at recorded position, clamped to valid range.
 					$position = min( $position, count( $current_logins ) );
