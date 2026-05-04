@@ -1,4 +1,12 @@
 <?php
+/**
+ * Run upgrade routines based on the previously installed version.
+ *
+ * Dispatches to the relevant `coauthors_plus_upgrade_*()` routine for each
+ * version threshold the stored installation has crossed.
+ *
+ * @param float|string $from The previously installed plugin version.
+ */
 function coauthors_plus_upgrade( $from ) {
 	// TODO: handle upgrade failures
 
