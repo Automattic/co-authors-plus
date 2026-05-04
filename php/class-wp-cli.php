@@ -402,29 +402,50 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Assign posts associated with a WordPress user to a co-author
+	 * Assign posts associated with a WordPress user to a co-author.
+	 *
+	 * Identify the source author by either `--user_login` or `--user_id`.
+	 * `--user_id` is useful when the underlying WordPress user has been
+	 * deleted, so a login lookup is no longer possible but `post_author`
+	 * still references the original ID.
 	 *
 	 * @since 3.0
 	 *
 	 * @subcommand assign-user-to-coauthor
-	 * @synopsis --user_login=<user-login> --coauthor=<co-author> [--append_coauthors]
+	 * @synopsis [--user_login=<user-login>] [--user_id=<user-id>] --coauthor=<co-author> [--append_coauthors]
 	 */
 	public function assign_user_to_coauthor( $args, $assoc_args ): void {
 		global $coauthors_plus, $wpdb;
 
 		$defaults   = array(
 			'user_login'       => '',
+			'user_id'          => '',
 			'coauthor'         => '',
 			'append_coauthors' => false,
 		);
 		$assoc_args = wp_parse_args( $assoc_args, $defaults );
 
-		$user     = get_user_by( 'login', $assoc_args['user_login'] );
-		$coauthor = $coauthors_plus->get_coauthor_by( 'login', $assoc_args['coauthor'] );
+		$has_login = '' !== $assoc_args['user_login'];
+		$has_id    = '' !== $assoc_args['user_id'];
 
-		if ( ! $user ) {
-			WP_CLI::error( __( 'Please specify a valid user_login', 'co-authors-plus' ) );
+		if ( $has_login === $has_id ) {
+			WP_CLI::error( __( 'Please specify exactly one of --user_login or --user_id.', 'co-authors-plus' ) );
 		}
+
+		if ( $has_login ) {
+			$user = get_user_by( 'login', $assoc_args['user_login'] );
+			if ( ! $user ) {
+				WP_CLI::error( __( 'Please specify a valid user_login.', 'co-authors-plus' ) );
+			}
+			$user_id = (int) $user->ID;
+		} else {
+			$user_id = (int) $assoc_args['user_id'];
+			if ( $user_id <= 0 ) {
+				WP_CLI::error( __( 'Please specify a positive integer for user_id.', 'co-authors-plus' ) );
+			}
+		}
+
+		$coauthor = $coauthors_plus->get_coauthor_by( 'login', $assoc_args['coauthor'] );
 
 		if ( ! $coauthor ) {
 			WP_CLI::error( __( 'Please specify a valid co-author login', 'co-authors-plus' ) );
@@ -432,7 +453,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		$post_types = implode( "','", $coauthors_plus->supported_post_types() );
 		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$posts    = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author=%d AND post_type IN ('{$post_types}')", $user->ID ) );
+		$posts    = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author=%d AND post_type IN ('{$post_types}')", $user_id ) );
 		$affected = 0;
 		foreach ( $posts as $post_id ) {
 			$coauthors = cap_get_coauthor_terms_for_post( $post_id );
