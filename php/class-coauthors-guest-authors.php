@@ -653,6 +653,12 @@ class CoAuthors_Guest_Authors {
 					'selected'         => $linked_account_id,
 					// Don't let user accounts to be linked to more than one guest author
 					'exclude'          => $linked_account_user_ids,
+					// Restrict candidates to users who can write posts. The
+					// coauthors_edit_author_cap filter mirrors the same check used
+					// by the AJAX co-author search and validation paths, so a site
+					// that already overrides who can be a co-author keeps its
+					// linked-account dropdown consistent.
+					'capability'       => array( apply_filters( 'coauthors_edit_author_cap', 'edit_posts' ) ),
 				)
 			)
 		);
