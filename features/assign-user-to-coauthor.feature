@@ -58,3 +58,49 @@ Feature: Posts can be assigned from a user to a co-author
 		"""
 		Success: All done!
 		"""
+
+	Scenario: Succeed cleanly when the user has no posts
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And I run `wp co-authors-plus assign-user-to-coauthor --user_login=author1 --coauthor=admin`
+		Then STDOUT should contain:
+		"""
+		Success: All done! 0 posts were affected.
+		"""
+
+	Scenario: Skip a post that already has co-authors when --append_coauthors is not set
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="A post" --post_status=publish --porcelain`
+		And I run `wp co-authors-plus assign-user-to-coauthor --user_login=author1 --coauthor=admin`
+		Then STDOUT should contain:
+		"""
+		Skipping - Post #
+		"""
+		And STDOUT should contain:
+		"""
+		Success: All done! 0 posts were affected.
+		"""
+
+	Scenario: Append a co-author to a post that already has co-authors when --append_coauthors is set
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="A post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp co-authors-plus assign-user-to-coauthor --user_login=author1 --coauthor=admin --append_coauthors`
+		Then STDOUT should contain:
+		"""
+		Updating - Adding admin's byline to post #{POST_ID}
+		"""
+		And STDOUT should contain:
+		"""
+		Success: All done! 1 post was affected.
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should contain:
+		"""
+		author1
+		"""
+		And STDOUT should contain:
+		"""
+		admin
+		"""
