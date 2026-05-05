@@ -15,21 +15,42 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	private $args;
 
 	/**
-	 * Subcommand to create guest authors based on users
+	 * Subcommand to create guest authors based on users.
+	 *
+	 * Users that already have a linked guest author are skipped, so the command
+	 * is safe to re-run. `--offset` and `--number` allow the user list to be
+	 * processed in chunks, which is useful for very large sites where running
+	 * the full import in one invocation is impractical for memory or runtime
+	 * reasons. Because existing guest authors are skipped, an interrupted run
+	 * can also be resumed by simply re-running the command, with or without
+	 * chunking.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--offset=<offset>]
+	 * : Number of users to skip before processing begins. Defaults to 0.
+	 *
+	 * [--number=<number>]
+	 * : Maximum number of users to process in this run. Defaults to all users.
 	 *
 	 * @since 3.0
 	 *
 	 * @subcommand create-guest-authors
+	 * @synopsis [--offset=<offset>] [--number=<number>]
 	 */
 	public function create_guest_authors( $args, $assoc_args ): void {
 		global $coauthors_plus;
 
 		$defaults = array(
-				// There are no arguments at this time
+			'offset' => '',
+			'number' => '',
 		);
 		$this->args = wp_parse_args( $assoc_args, $defaults );
 
-		$users    = get_users();
+		// Chunked runs rely on a stable ordering across invocations. get_users()
+		// orders by user_login ASC by default, which is stable provided users
+		// are not added or removed between chunks.
+		$users    = get_users( $this->args );
 		$count    = count( $users );
 		$created  = 0;
 		$skipped  = 0;
