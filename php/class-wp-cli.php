@@ -20,16 +20,18 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @since 3.0
 	 *
 	 * @subcommand create-guest-authors
+	 * @synopsis [--offset=<offset>] [--number=<number>]
 	 */
 	public function create_guest_authors( $args, $assoc_args ): void {
 		global $coauthors_plus;
 
 		$defaults = array(
-				// There are no arguments at this time
+			'offset' => '',
+			'number' => '',
 		);
 		$this->args = wp_parse_args( $assoc_args, $defaults );
 
-		$users    = get_users();
+		$users    = get_users( $this->args );
 		$count    = count( $users );
 		$created  = 0;
 		$skipped  = 0;
