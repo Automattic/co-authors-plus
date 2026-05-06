@@ -286,7 +286,7 @@ class CoAuthors_Plus {
 		// Add quick-edit co-author select field
 		add_action( 'quick_edit_custom_box', array( $this, '_action_quick_edit_custom_box' ), 10, 2 );
 
-		// Hooks to modify the published post number count on the Users WP List Table
+		// Hooks to modify the published post count and surface the linked guest author on the Users WP List Table.
 		add_filter( 'manage_users_columns', array( $this, '_filter_manage_users_columns' ) );
 		add_filter( 'manage_users_custom_column', array( $this, '_filter_manage_users_custom_column' ), 10, 3 );
 
@@ -659,15 +659,24 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Unset the post count column because it's going to be inaccurate and provide our own
+	 * Create custom columns in the Users table:
+	 *
+	 * - A column listing the linked guest author, when one is set.
+	 * - A custom post count column to replace the inaccurate default.
+	 *
+	 * @since 2.6.1
+	 * @since 4.1.0 Added column to display the linked guest author.
+	 *
+	 * @param array $columns An array of column name => label.
 	 */
 	public function _filter_manage_users_columns( $columns ): array {
 
 		$new_columns = array();
-		// Unset and add our column while retaining the order of the columns
+		// Unset the default post count column and add our own while retaining the order of the columns.
 		foreach ( $columns as $column_name => $column_title ) {
 			if ( 'posts' === $column_name ) {
-				$new_columns['coauthors_post_count'] = __( 'Posts', 'co-authors-plus' );
+				$new_columns['coauthors_linked_author'] = __( 'Linked Guest Author', 'co-authors-plus' );
+				$new_columns['coauthors_post_count']    = __( 'Posts', 'co-authors-plus' );
 			} else {
 				$new_columns[ $column_name ] = $column_title;
 			}
@@ -676,23 +685,69 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Provide an accurate count when looking up the number of published posts for a user
+	 * Render the custom Users table columns:
+	 *
+	 * - `coauthors_post_count` shows an accurate count of published posts for the user.
+	 * - `coauthors_linked_author` shows the linked guest author's name, linking to its edit screen.
+	 *
+	 * @since 2.6.1
+	 * @since 4.1.0 Added column to display the linked guest author.
+	 *
+	 * @param string $value       Custom column output. Default empty.
+	 * @param string $column_name Column name.
+	 * @param int    $user_id     ID of the currently-listed user.
 	 */
 	public function _filter_manage_users_custom_column( $value, $column_name, $user_id ) {
-		if ( 'coauthors_post_count' !== $column_name ) {
-			return $value;
+		if ( 'coauthors_post_count' === $column_name ) {
+			return $value . $this->render_users_post_count_column( $user_id );
 		}
-		// We filter count_user_posts() so it provides an accurate number
-		$numposts = count_user_posts( $user_id ); // phpcs:ignore
-		$user     = get_user_by( 'id', $user_id );
-		if ( $numposts > 0 ) {
-			$value .= "<a href='edit.php?author_name=$user->user_nicename' title='" . esc_attr__( 'View posts by this author', 'co-authors-plus' ) . "' class='edit'>";
-			$value .= $numposts;
-			$value .= '</a>';
-		} else {
-			$value .= 0;
+
+		if ( 'coauthors_linked_author' === $column_name ) {
+			return $value . $this->render_users_linked_author_column( $user_id );
 		}
+
 		return $value;
+	}
+
+	/**
+	 * Render the post count column for a user, linking to their filtered posts view.
+	 *
+	 * @param int $user_id ID of the currently-listed user.
+	 */
+	private function render_users_post_count_column( $user_id ): string {
+		// We filter count_user_posts() so it provides an accurate number.
+		$numposts = count_user_posts( $user_id ); // phpcs:ignore
+		if ( $numposts <= 0 ) {
+			return '0';
+		}
+
+		$user = get_user_by( 'id', $user_id );
+
+		return sprintf(
+			'<a href="edit.php?author_name=%1$s" title="%2$s" class="edit">%3$d</a>',
+			esc_attr( $user->user_nicename ),
+			esc_attr__( 'View posts by this author', 'co-authors-plus' ),
+			absint( $numposts )
+		);
+	}
+
+	/**
+	 * Render the linked guest author column for a user, linking to the guest author's edit screen.
+	 *
+	 * @param int $user_id ID of the currently-listed user.
+	 */
+	private function render_users_linked_author_column( $user_id ): string {
+		$author_info = $this->get_coauthor_by( 'id', $user_id, false );
+		if ( ! $author_info || 'guest-author' !== $author_info->type ) {
+			return '';
+		}
+
+		return sprintf(
+			'<a href="post.php?post=%1$d&action=edit" title="%2$s" class="edit">%3$s</a>',
+			absint( $author_info->ID ),
+			esc_attr__( 'Edit Guest Author', 'co-authors-plus' ),
+			esc_html( $author_info->display_name )
+		);
 	}
 
 	/**
