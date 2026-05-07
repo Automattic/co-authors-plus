@@ -262,6 +262,7 @@ class CoAuthors_Plus {
 
 		// Bridge REST API saves to add_coauthors() for post_author sync and legacy filter compatibility.
 		foreach ( $this->supported_post_types() as $post_type ) {
+			add_filter( "rest_pre_insert_{$post_type}", array( $this, 'set_post_author_for_rest_save' ), 10, 2 );
 			add_action( "rest_after_insert_{$post_type}", array( $this, 'sync_coauthors_on_rest_save' ), 10, 2 );
 		}
 	}
@@ -1233,6 +1234,104 @@ class CoAuthors_Plus {
 		$data['post_author'] = apply_filters( 'coauthors_post_author_value', $data['post_author'], $postarr['ID'] );
 
 		return $data;
+	}
+
+	/**
+	 * Set post_author from coauthors data before a REST API save writes the post.
+	 *
+	 * Without this, the REST flow runs as: wp_update_post writes the post and fires
+	 * wp_insert_post (where Jetpack Sync queues the post for sync) BEFORE
+	 * rest_after_insert_{post_type} fires (where sync_coauthors_on_rest_save would
+	 * otherwise update post_author via add_coauthors). The result is that listeners
+	 * of wp_insert_post see and ship the stale post_author. The Jetpack Newsletter
+	 * preview, which is rendered on WordPress.com from synced post fields, then
+	 * displays the wrong author until a second save lands.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1269
+	 *
+	 * @param stdClass        $prepared_post Post object derived from the REST request.
+	 * @param WP_REST_Request $request       The REST request.
+	 * @return stdClass The (possibly modified) prepared post object.
+	 */
+	public function set_post_author_for_rest_save( $prepared_post, $request ) {
+		if ( ! is_object( $prepared_post ) || empty( $prepared_post->post_type ) ) {
+			return $prepared_post;
+		}
+
+		if ( ! $this->is_post_type_enabled( $prepared_post->post_type ) ) {
+			return $prepared_post;
+		}
+
+		if ( ! $this->current_user_can_set_authors() ) {
+			return $prepared_post;
+		}
+
+		$coauthor_term_ids = $request->get_param( 'coauthors' );
+		if ( ! is_array( $coauthor_term_ids ) || empty( $coauthor_term_ids ) ) {
+			return $prepared_post;
+		}
+
+		$coauthor_objects = array();
+		foreach ( $coauthor_term_ids as $term_id ) {
+			$term = get_term( (int) $term_id, $this->coauthor_taxonomy );
+			if ( ! $term || is_wp_error( $term ) ) {
+				continue;
+			}
+
+			$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+			if ( $coauthor ) {
+				$coauthor_objects[] = $coauthor;
+			}
+		}
+
+		if ( empty( $coauthor_objects ) ) {
+			return $prepared_post;
+		}
+
+		$current_post_author_id = isset( $prepared_post->post_author ) ? (int) $prepared_post->post_author : 0;
+
+		// If the proposed post_author is already among the new coauthors, leave it alone.
+		if ( $current_post_author_id ) {
+			foreach ( $coauthor_objects as $coauthor ) {
+				$coauthor_user_id = $this->extract_wp_user_id( $coauthor );
+				if ( $coauthor_user_id && $coauthor_user_id === $current_post_author_id ) {
+					return $prepared_post;
+				}
+			}
+		}
+
+		// Otherwise, switch post_author to the first WP_User-backed coauthor we can find.
+		foreach ( $coauthor_objects as $coauthor ) {
+			$coauthor_user_id = $this->extract_wp_user_id( $coauthor );
+			if ( $coauthor_user_id ) {
+				$prepared_post->post_author = $coauthor_user_id;
+				return $prepared_post;
+			}
+		}
+
+		return $prepared_post;
+	}
+
+	/**
+	 * Extract the underlying WP_User ID from a coauthor object, if any.
+	 *
+	 * Coauthors can be WP_User instances, guest authors with a linked WP user
+	 * exposed via $coauthor->wp_user, or guest authors with no linked user
+	 * (in which case there is no WP_User ID and we return 0).
+	 *
+	 * @param object $coauthor A coauthor object as returned by get_coauthor_by().
+	 * @return int A WP_User ID, or 0 if the coauthor has no underlying user.
+	 */
+	private function extract_wp_user_id( $coauthor ): int {
+		if ( $coauthor instanceof WP_User ) {
+			return (int) $coauthor->ID;
+		}
+
+		if ( isset( $coauthor->wp_user ) && $coauthor->wp_user instanceof WP_User ) {
+			return (int) $coauthor->wp_user->ID;
+		}
+
+		return 0;
 	}
 
 	/**
