@@ -76,6 +76,9 @@ class CoAuthors_Guest_Authors {
 		// Filters the guest author menu URL in nav menus.
 		add_filter( 'nav_menu_link_attributes', array( $this, 'filter_nav_menu_attributes' ), 10, 2 );
 
+		// Add contextual Screen Help tabs on Guest Author admin screens.
+		add_action( 'current_screen', array( $this, 'add_help_tabs' ) );
+
 		// Allow users to change where this is placed in the WordPress admin
 		$this->parent_page = apply_filters( 'coauthors_guest_author_parent_page', $this->parent_page );
 
@@ -382,6 +385,118 @@ class CoAuthors_Guest_Authors {
 
 		add_submenu_page( $this->parent_page, $this->labels['plural'], $this->labels['plural'], $this->list_guest_authors_cap, 'view-guest-authors', array( $this, 'view_guest_authors_list' ) );
 
+	}
+
+	/**
+	 * Register Screen Help tabs on Guest Author admin screens.
+	 *
+	 * Adds contextual help to the Guest Authors list screen and to the
+	 * Add/Edit Guest Author screens, explaining concepts that aren't
+	 * obvious from the UI alone (linked accounts, slugs, deletion, etc.).
+	 *
+	 * @param WP_Screen $screen Current screen.
+	 */
+	public function add_help_tabs( $screen ): void {
+		if ( ! $screen instanceof WP_Screen ) {
+			return;
+		}
+
+		$parent_hook = str_replace( '.php', '', $this->parent_page );
+		if ( "{$parent_hook}_page_view-guest-authors" === $screen->id ) {
+			$this->add_list_screen_help_tabs( $screen );
+			return;
+		}
+
+		if ( $this->post_type === $screen->post_type && 'post' === $screen->base ) {
+			$this->add_edit_screen_help_tabs( $screen );
+		}
+	}
+
+	/**
+	 * Add help tabs to the Guest Authors list screen.
+	 *
+	 * @param WP_Screen $screen Current screen.
+	 */
+	private function add_list_screen_help_tabs( WP_Screen $screen ): void {
+		$screen->add_help_tab(
+			array(
+				'id'      => 'co-authors-plus-overview',
+				'title'   => __( 'Overview', 'co-authors-plus' ),
+				'content' =>
+					'<p>' . __( 'Guest authors let you assign a byline to a post without giving the person a WordPress user account or dashboard access. They are stored as a custom post type and can be created from scratch or generated from an existing user.', 'co-authors-plus' ) . '</p>' .
+					'<p>' . __( 'Each guest author has a display name, a slug used in the author archive URL, an optional biography, and contact details. Multiple guest authors (and WordPress users) can be assigned as co-authors to the same post.', 'co-authors-plus' ) . '</p>',
+			)
+		);
+
+		$screen->add_help_tab(
+			array(
+				'id'      => 'co-authors-plus-linking',
+				'title'   => __( 'Linking accounts', 'co-authors-plus' ),
+				'content' =>
+					'<p>' . __( 'A guest author can be linked to an existing WordPress user. Linking lets editorial staff manage the byline (display name, biography, avatar) without needing the <code>edit_users</code> capability, and keeps the guest author profile separate from the underlying user account.', 'co-authors-plus' ) . '</p>' .
+					'<p>' . __( 'Posts assigned to a guest author that is linked to a user are also counted toward that user\'s post count, so author archives and post-count displays remain accurate.', 'co-authors-plus' ) . '</p>' .
+					'<p>' . __( 'You can link or unlink a user from the Linked Account field on the Edit Guest Author screen.', 'co-authors-plus' ) . '</p>',
+			)
+		);
+
+		$screen->add_help_tab(
+			array(
+				'id'      => 'co-authors-plus-bylines',
+				'title'   => __( 'Bylines', 'co-authors-plus' ),
+				'content' =>
+					'<p>' . __( 'Guest authors appear wherever bylines are shown: on post bylines on the front end, in the Co-Authors meta box on the post edit screen, and on the author archive page using the guest author\'s slug.', 'co-authors-plus' ) . '</p>' .
+					'<p>' . __( 'On the Users screen, the Posts column reflects published posts authored or co-authored by the user (including via a linked guest author), and the Linked Guest Author column shows whether a user has a guest author linked to them.', 'co-authors-plus' ) . '</p>',
+			)
+		);
+	}
+
+	/**
+	 * Add help tabs to the Add/Edit Guest Author screen.
+	 *
+	 * @param WP_Screen $screen Current screen.
+	 */
+	private function add_edit_screen_help_tabs( WP_Screen $screen ): void {
+		$screen->add_help_tab(
+			array(
+				'id'      => 'co-authors-plus-overview',
+				'title'   => __( 'Overview', 'co-authors-plus' ),
+				'content' =>
+					'<p>' . __( 'This screen edits a single guest author profile. The fields here control how the byline is displayed on the front end and on author archive pages.', 'co-authors-plus' ) . '</p>' .
+					'<ul>' .
+						'<li>' . __( '<strong>Display Name</strong> — the name shown in bylines.', 'co-authors-plus' ) . '</li>' .
+						'<li>' . __( '<strong>Slug</strong> — the <code>user_login</code>-equivalent used in the author archive URL. Changing it changes the archive URL.', 'co-authors-plus' ) . '</li>' .
+						'<li>' . __( '<strong>Email, Website</strong> — contact details surfaced in templates that use them.', 'co-authors-plus' ) . '</li>' .
+						'<li>' . __( '<strong>Biographical Info</strong> — long-form description shown by themes that display author bios.', 'co-authors-plus' ) . '</li>' .
+						'<li>' . __( '<strong>Avatar</strong> — uses the featured image of the guest author profile when set, falling back to Gravatar.', 'co-authors-plus' ) . '</li>' .
+					'</ul>',
+			)
+		);
+
+		$screen->add_help_tab(
+			array(
+				'id'      => 'co-authors-plus-linked-account',
+				'title'   => __( 'Linked Account', 'co-authors-plus' ),
+				'content' =>
+					'<p>' . __( 'The Linked Account field associates this guest author with an existing WordPress user. Linking does <em>not</em> overwrite the guest author\'s display name, biography, or avatar — those remain editable here, independent of the user profile.', 'co-authors-plus' ) . '</p>' .
+					'<p>' . __( 'When linked, posts attributed to this guest author also count toward the linked user\'s published post count, and the user appears in the Linked Guest Author column on the Users screen.', 'co-authors-plus' ) . '</p>' .
+					'<p>' . __( 'Linking is useful when migrating historical bylines, or when you want editorial staff to be able to edit a byline without granting the <code>edit_users</code> capability.', 'co-authors-plus' ) . '</p>',
+			)
+		);
+
+		$screen->add_help_tab(
+			array(
+				'id'      => 'co-authors-plus-deleting',
+				'title'   => __( 'Deleting', 'co-authors-plus' ),
+				'content' =>
+					'<p>' . __( 'When you delete a guest author, you must choose what happens to posts they are bylined on:', 'co-authors-plus' ) . '</p>' .
+					'<ul>' .
+						'<li>' . __( '<strong>Reassign to another co-author</strong> — replace the deleted byline with another guest author or user.', 'co-authors-plus' ) . '</li>' .
+						'<li>' . __( '<strong>Leave bylines assigned</strong> — keep the existing byline term in place; useful when the guest author still represents historical attribution.', 'co-authors-plus' ) . '</li>' .
+						'<li>' . __( '<strong>Remove byline</strong> — strip this guest author from the posts entirely. If they were the only author, the post falls back to its <code>post_author</code> user.', 'co-authors-plus' ) . '</li>' .
+					'</ul>' .
+					'<p>' . __( 'Deleting a guest author does not delete the linked WordPress user (if any).', 'co-authors-plus' ) . '</p>',
+			)
+		);
 	}
 
 	/**
