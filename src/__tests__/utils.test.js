@@ -3,6 +3,7 @@ import {
 	removeItem,
 	addItemByValue,
 	buildCoauthorTermIds,
+	extractTermIds,
 } from '../utils';
 import {
 	selectedAuthors,
@@ -142,5 +143,57 @@ describe( 'Utility - buildCoauthorTermIds', () => {
 			undefined
 		);
 		expect( result ).toStrictEqual( [ 10 ] );
+	} );
+} );
+
+describe( 'Utility - extractTermIds', () => {
+	it( 'returns integer IDs unchanged', () => {
+		const result = extractTermIds( [ 42, 43, 44 ] );
+		expect( result ).toStrictEqual( [ 42, 43, 44 ] );
+	} );
+
+	it( 'extracts term_id from objects', () => {
+		const result = extractTermIds( [ { term_id: 42 }, { term_id: 43 } ] );
+		expect( result ).toStrictEqual( [ 42, 43 ] );
+	} );
+
+	it( 'extracts user_id from objects (co-author objects)', () => {
+		const result = extractTermIds( [ { user_id: 8703 }, { user_id: 16 } ] );
+		expect( result ).toStrictEqual( [ 8703, 16 ] );
+	} );
+
+	it( 'extracts id from objects', () => {
+		const result = extractTermIds( [ { id: 5 } ] );
+		expect( result ).toStrictEqual( [ 5 ] );
+	} );
+
+	it( 'extracts ID from objects', () => {
+		const result = extractTermIds( [ { ID: 99 } ] );
+		expect( result ).toStrictEqual( [ 99 ] );
+	} );
+
+	it( 'handles mixed integer and object entries', () => {
+		const result = extractTermIds( [ 42, { user_id: 43 }, { term_id: 44 } ] );
+		expect( result ).toStrictEqual( [ 42, 43, 44 ] );
+	} );
+
+	it( 'filters out objects with no recognizable ID property', () => {
+		const result = extractTermIds( [
+			{ display_name: 'John Doe', user_nicename: 'john-doe' },
+			42,
+		] );
+		expect( result ).toStrictEqual( [ 42 ] );
+	} );
+
+	it( 'returns empty array for undefined input', () => {
+		expect( extractTermIds( undefined ) ).toStrictEqual( [] );
+	} );
+
+	it( 'returns empty array for empty array input', () => {
+		expect( extractTermIds( [] ) ).toStrictEqual( [] );
+	} );
+
+	it( 'returns empty array for non-array input', () => {
+		expect( extractTermIds( 'not an array' ) ).toStrictEqual( [] );
 	} );
 } );
