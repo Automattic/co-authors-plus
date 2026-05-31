@@ -607,7 +607,7 @@ function coauthors_get_users( $args = array() ) {
 		 */
 		'hide_empty' => (bool) $args['authors_with_posts_only'],
 	);
-	$author_terms = get_terms( $coauthors_plus->coauthor_taxonomy, $term_args );
+	$author_terms = get_terms( array_merge( array( 'taxonomy' => $coauthors_plus->coauthor_taxonomy ), $term_args ) );
 
 	$authors = array();
 	foreach ( $author_terms as $author_term ) {

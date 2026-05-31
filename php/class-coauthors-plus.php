@@ -1824,7 +1824,7 @@ class CoAuthors_Plus {
 		);
 		$args = apply_filters( 'coauthors_search_authors_get_terms_args', $args );
 		add_filter( 'terms_clauses', array( $this, 'filter_terms_clauses' ) );
-		$found_terms = get_terms( $this->coauthor_taxonomy, $args );
+		$found_terms = get_terms( array_merge( array( 'taxonomy' => $this->coauthor_taxonomy ), $args ) );
 		remove_filter( 'terms_clauses', array( $this, 'filter_terms_clauses' ) );
 
 		if ( empty( $found_terms ) ) {
