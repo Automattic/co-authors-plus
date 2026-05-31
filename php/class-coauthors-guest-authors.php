@@ -174,7 +174,7 @@ class CoAuthors_Guest_Authors {
 			3  => __( 'Custom field deleted.', 'co-authors-plus' ),
 			4  => __( 'Guest author updated.', 'co-authors-plus' ),
 			/* translators: %s: date and time of the revision */
-			5  => isset( $_GET['revision'] ) ? sprintf( __( 'Guest author restored to revision from %s', 'co-authors-plus' ), wp_post_revision_title( (int) $_GET['revision'], false ) ) : false,
+			5  => isset( $_GET['revision'] ) ? sprintf( __( 'Guest author restored to revision from %s', 'co-authors-plus' ), wp_post_revision_title( (int) $_GET['revision'], false ) ) : false, // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- WordPress core verifies nonce for post revision pages.
 			/* translators: Guest author URL */
 			6  => sprintf( __( 'Guest author updated. <a href="%s">View profile</a>', 'co-authors-plus' ), esc_url( $guest_author_link ) ),
 			7  => __( 'Guest author saved.', 'co-authors-plus' ),
@@ -317,7 +317,7 @@ class CoAuthors_Guest_Authors {
 		}
 
 		// jQuery UI autocomplete uses 'term' parameter.
-		$search = isset( $_GET['term'] ) ? sanitize_text_field( wp_unslash( $_GET['term'] ) ) : '';
+		$search = isset( $_GET['term'] ) ? sanitize_text_field( wp_unslash( $_GET['term'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- AJAX autocomplete, capability check enforced above.
 		if ( empty( $search ) ) {
 			wp_send_json( array() );
 		}
@@ -559,7 +559,7 @@ class CoAuthors_Guest_Authors {
 			return;
 		}
 
-		$message = $_REQUEST['message'] === 'guest-author-deleted' ? __( 'Guest author deleted.', 'co-authors-plus' ) : false;
+		$message = $_REQUEST['message'] === 'guest-author-deleted' ? __( 'Guest author deleted.', 'co-authors-plus' ) : false; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Admin notice after redirect, nonce verified during form submission.
 
 		if ( $message ) {
 			echo '<div class="updated"><p>' . esc_html( $message ) . '</p></div>';
