@@ -31,8 +31,8 @@ function coauthors_plus_upgrade_20() {
 	);
 
 	foreach ( $all_posts as $single_post ) {
-		// reset execution time limit
-		set_time_limit( 60 );
+		// Reset execution time limit for long-running upgrade routines.
+		set_time_limit( 60 ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_set_time_limit
 
 		// create new array
 		$coauthors = array();
