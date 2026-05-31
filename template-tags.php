@@ -39,7 +39,7 @@ function get_coauthors( $post_id = 0 ) {
 			if ( $post && $post_id == $post->ID ) {
 				$post_author = get_userdata( $post->post_author );
 			} else {
-				$post_author = get_userdata( $wpdb->get_var( $wpdb->prepare( "SELECT post_author FROM $wpdb->posts WHERE ID = %d", $post_id ) ) );
+				$post_author = get_userdata( $wpdb->get_var( $wpdb->prepare( "SELECT post_author FROM $wpdb->posts WHERE ID = %d", $post_id ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fallback when coauthor terms are empty, result is stable per post.
 			}
 			if ( ! empty( $post_author ) ) {
 				$coauthors[] = $post_author;

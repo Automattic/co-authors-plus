@@ -745,7 +745,7 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		$term_id = $wpdb->get_results( $wpdb->prepare( "SELECT term_id FROM $wpdb->term_taxonomy WHERE term_taxonomy_id = %d ", $tt_id ) );
+		$term_id = $wpdb->get_results( $wpdb->prepare( "SELECT term_id FROM $wpdb->term_taxonomy WHERE term_taxonomy_id = %d ", $tt_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Single term lookup for post count update, result changes frequently.
 
 		$term     = get_term_by( 'id', $term_id[0]->term_id, $taxonomy );
 		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
@@ -1465,7 +1465,7 @@ class CoAuthors_Plus {
 			$reassign_user = get_user_by( 'id', $reassign_id );
 			// Set to new guest author
 			if ( is_object( $reassign_user ) ) {
-				$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author = %d", $delete_id ) );
+				$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author = %d", $delete_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk reassignment during user deletion, result changes on each call.
 
 				if ( $post_ids ) {
 					foreach ( $post_ids as $post_id ) {

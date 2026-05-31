@@ -952,7 +952,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	public function remove_terms_from_revisions(): void {
 		global $wpdb;
 
-		$ids = $wpdb->get_col( "SELECT ID FROM $wpdb->posts WHERE post_type='revision' AND post_status='inherit'" );
+		$ids = $wpdb->get_col( "SELECT ID FROM $wpdb->posts WHERE post_type='revision' AND post_status='inherit'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WP-CLI one-time maintenance command.
 
 		WP_CLI::log( 'Found ' . count( $ids ) . ' revisions to look through' );
 		$affected = 0;
