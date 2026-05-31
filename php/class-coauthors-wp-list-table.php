@@ -151,7 +151,7 @@ class CoAuthors_WP_List_Table extends WP_List_Table {
 	public function filter_query_for_search( $where ) {
 		global $wpdb;
 		if ( isset( $_REQUEST['s'] ) ) {
-			$var    = '%' . sanitize_text_field( $_REQUEST['s'] ) . '%';
+			$var    = '%' . sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) . '%';
 			$where .= $wpdb->prepare( ' AND (post_title LIKE %s OR post_name LIKE %s )', $var, $var );
 		}
 		return $where;
