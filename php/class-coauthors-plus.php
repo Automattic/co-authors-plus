@@ -1365,7 +1365,7 @@ class CoAuthors_Plus {
 					'coauthors_post_list_pluck_field',
 					'Co-Authors Plus 4.0',
 					'set_object_terms',
-					__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
+					esc_html__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
 				);
 			}
 			$field              = apply_filters( 'coauthors_post_list_pluck_field', 'user_login' );
@@ -1393,7 +1393,7 @@ class CoAuthors_Plus {
 					'coauthors_post_get_coauthor_by_field',
 					'Co-Authors Plus 4.0',
 					'set_object_terms',
-					__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
+					esc_html__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
 				);
 			}
 			$field = apply_filters( 'coauthors_post_get_coauthor_by_field', $query_type, $author_name );
