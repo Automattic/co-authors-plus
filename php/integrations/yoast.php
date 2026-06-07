@@ -1,9 +1,13 @@
 <?php
+namespace CoAuthors\Integrations;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 /**
  * The main file for the Yoast integration
  */
-
-namespace CoAuthors\Integrations;
 
 use CoAuthors\Integrations\Yoast\CoAuthor;
 use Yoast\WP\SEO\Config\Schema_Types;

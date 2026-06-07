@@ -1,4 +1,8 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 // Our class extends the WP_List_Table class, so we need to make sure that it's there
 
 require_once ABSPATH . 'wp-admin/includes/screen.php';
