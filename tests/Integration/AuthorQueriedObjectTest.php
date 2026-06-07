@@ -180,4 +180,43 @@ class AuthorQueriedObjectTest extends TestCase {
 		// warnings in #1109. With flags cleared, it exits early and returns null — no warning.
 		$this->assertNull( single_term_title( '', false ), 'single_term_title() must return null on a guest author page without PHP warnings.' );
 	}
+
+	/**
+	 * On author archive feed requests, the is_feed flag must be preserved
+	 * even after the query flags initialization runs.
+	 *
+	 * Regression introduced in v4.0.2 (#1250) cleared all query flags using
+	 * init_query_flags(), but inadvertently destroyed the feed state.
+	 *
+	 * @covers CoAuthors_Plus::fix_author_page()
+	 */
+	public function test_fix_author_page_preserves_is_feed_flag_on_feed_requests(): void {
+		global $coauthors_plus, $wp_query;
+
+		// Create a temporary guest author to ensure the archive query is recognized as valid.
+		$guest_author_id = $coauthors_plus->guest_authors->create(
+			array(
+				'user_login'   => 'test-feed-guest',
+				'display_name' => 'Test Feed Guest',
+			)
+		);
+		$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'id', $guest_author_id );
+		$this->assertNotFalse( $guest_author, 'Guest author should exist for the test query.' );
+
+		// Simulate an author archive feed request state using the real guest author's nicename.
+		$wp_query->is_author  = true;
+		$wp_query->is_archive = true;
+		$wp_query->is_feed    = true;
+		set_query_var( 'author_name', $guest_author->user_nicename );
+
+		// Trigger fix_author_page() — the method hooked to posts_selection.
+		$coauthors_plus->fix_author_page( '' );
+
+		// Core author archive flags must remain true.
+		$this->assertTrue( is_author(), 'is_author() must remain true after fix_author_page() runs.' );
+		$this->assertTrue( is_archive(), 'is_archive() must remain true after fix_author_page() runs.' );
+
+		// The is_feed flag must be correctly preserved — this was the source of the HTML rendering bug.
+		$this->assertTrue( is_feed(), 'is_feed() must remain true on an author feed request.' );
+	}
 }
