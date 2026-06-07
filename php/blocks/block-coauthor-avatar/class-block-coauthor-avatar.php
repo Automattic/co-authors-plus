@@ -113,6 +113,7 @@ class Block_CoAuthor_Avatar {
 				array(
 					'href'  => $link,
 					'rel'   => $rel,
+					/* translators: %s: author display name */
 					'title' => sprintf( __( 'Posts by %s', 'co-authors-plus' ), $display_name ),
 				)
 			);

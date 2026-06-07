@@ -116,6 +116,7 @@ class Block_CoAuthor_Image {
 				array(
 					'href'  => $link,
 					'rel'   => $attributes['rel'],
+					/* translators: %s: author display name */
 					'title' => sprintf( __( 'Posts by %s', 'co-authors-plus' ), $display_name ),
 				)
 			);
