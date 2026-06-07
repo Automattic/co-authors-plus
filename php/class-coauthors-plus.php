@@ -1857,10 +1857,12 @@ class CoAuthors_Plus {
 			// that paginated author archives can still trigger 404 when out of range.
 			// See https://github.com/Automattic/co-authors-plus/issues/1109.
 			$is_paged = $wp_query->is_paged;
+			$is_feed = $wp_query->is_feed;
 			$wp_query->init_query_flags();
 			$wp_query->is_author  = true;
 			$wp_query->is_archive = true;
 			$wp_query->is_paged   = $is_paged;
+			$wp_query->is_feed    = $is_feed;
 
 			if ( ! is_paged() ) {
 				add_filter( 'pre_handle_404', '__return_true' );
