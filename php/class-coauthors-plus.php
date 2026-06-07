@@ -1199,7 +1199,7 @@ class CoAuthors_Plus {
 
 		// This action happens when a post is saved while editing a post
 		if (
-			isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'] )
+			isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'][0] )
 			&& is_array( $_POST['coauthors'] )
 			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
 			&& $this->current_user_can_set_authors()

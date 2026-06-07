@@ -25,7 +25,7 @@ class CoAuthorsIterator {
 		}
 
 		if ( ! $postID ) {
-			trigger_error( esc_html( 'No post ID provided for CoAuthorsIterator constructor. Are you not in a loop or is $post not set?' ) ); // return null;
+			wp_trigger_error( __METHOD__, 'No post ID provided for CoAuthorsIterator constructor. Are you not in a loop or is $post not set?' );
 		}
 
 		$this->original_authordata = $authordata;
