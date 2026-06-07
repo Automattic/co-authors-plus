@@ -843,7 +843,10 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	public function migrate_author_terms( $args, $assoc_args ): void {
 		global $coauthors_plus;
 
-		$author_terms = get_terms( $coauthors_plus->coauthor_taxonomy, array( 'hide_empty' => false ) );
+		$author_terms = get_terms( array(
+			'taxonomy'   => $coauthors_plus->coauthor_taxonomy,
+			'hide_empty' => false,
+		) );
 		WP_CLI::log( 'Now migrating up to ' . count( $author_terms ) . ' terms' );
 		foreach ( $author_terms as $author_term ) {
 			// Term is already prefixed. We're good.
@@ -880,7 +883,10 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 */
 	public function update_author_terms(): void {
 		global $coauthors_plus;
-		$author_terms = get_terms( $coauthors_plus->coauthor_taxonomy, array( 'hide_empty' => false ) );
+		$author_terms = get_terms( array(
+			'taxonomy'   => $coauthors_plus->coauthor_taxonomy,
+			'hide_empty' => false,
+		) );
 		WP_CLI::log( 'Now updating ' . count( $author_terms ) . ' terms' );
 		foreach ( $author_terms as $author_term ) {
 			$old_count = $author_term->count;
