@@ -477,7 +477,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		}
 
 		$post_types = implode( "','", $coauthors_plus->supported_post_types() );
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter
 		$posts    = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author=%d AND post_type IN ('{$post_types}')", $user_id ) );
 		$affected = 0;
 		foreach ( $posts as $post_id ) {
@@ -962,7 +962,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	public function remove_terms_from_revisions(): void {
 		global $wpdb;
 
-		$ids = $wpdb->get_col( "SELECT ID FROM $wpdb->posts WHERE post_type='revision' AND post_status='inherit'" );
+		$ids = $wpdb->get_col( "SELECT ID FROM $wpdb->posts WHERE post_type='revision' AND post_status='inherit'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WP-CLI one-time maintenance command.
 
 		WP_CLI::log( 'Found ' . count( $ids ) . ' revisions to look through' );
 		$affected = 0;
@@ -1061,7 +1061,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			WP_CLI::error( 'Please specify a valid CSV file with the --file arg.' );
 		}
 
-		$file = fopen( $this->args['file'], 'rb' );
+		$file = fopen( $this->args['file'], 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- fgetcsv() requires native PHP file handle
 
 		if ( ! $file ) {
 			WP_CLI::error( 'Failed to read file.' );

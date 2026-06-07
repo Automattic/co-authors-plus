@@ -208,7 +208,8 @@ class CoAuthors_Plus {
 				'coauthors-sidebar-js',
 				plugins_url( 'build/index.js', COAUTHORS_PLUS_FILE ),
 				$dependencies,
-				$asset['version']
+				$asset['version'],
+				true
 			);
 
 			wp_register_style(
@@ -744,7 +745,7 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		$term_id = $wpdb->get_results( $wpdb->prepare( "SELECT term_id FROM $wpdb->term_taxonomy WHERE term_taxonomy_id = %d ", $tt_id ) );
+		$term_id = $wpdb->get_results( $wpdb->prepare( "SELECT term_id FROM $wpdb->term_taxonomy WHERE term_taxonomy_id = %d ", $tt_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Single term lookup for post count update, result changes frequently.
 
 		$term     = get_term_by( 'id', $term_id[0]->term_id, $taxonomy );
 		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
@@ -1324,7 +1325,7 @@ class CoAuthors_Plus {
 			// if current_user_can_set_authors and nonce valid
 			check_admin_referer( 'coauthors-edit', 'coauthors-nonce' );
 
-			$coauthors = (array) $_POST['coauthors'];
+			$coauthors = (array) wp_unslash( $_POST['coauthors'] );
 			$coauthors = array_map( 'sanitize_title', $coauthors );
 			$this->add_coauthors( $post_id, $coauthors );
 		} else {
@@ -1464,7 +1465,7 @@ class CoAuthors_Plus {
 			$reassign_user = get_user_by( 'id', $reassign_id );
 			// Set to new guest author
 			if ( is_object( $reassign_user ) ) {
-				$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author = %d", $delete_id ) );
+				$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author = %d", $delete_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk reassignment during user deletion, result changes on each call.
 
 				if ( $post_ids ) {
 					foreach ( $post_ids as $post_id ) {
@@ -1753,14 +1754,14 @@ class CoAuthors_Plus {
 		}
 
 		// jQuery UI autocomplete uses 'term' parameter.
-		$search = isset( $_REQUEST['term'] ) ? sanitize_text_field( strtolower( $_REQUEST['term'] ) ) : '';
+		$search = isset( $_REQUEST['term'] ) ? sanitize_text_field( strtolower( wp_unslash( $_REQUEST['term'] ) ) ) : '';
 		if ( empty( $search ) ) {
 			wp_send_json( array() );
 		}
 
 		$ignore = array();
 		if ( ! empty( $_REQUEST['existing_authors'] ) ) {
-			$ignore = array_map( 'sanitize_text_field', explode( ',', $_REQUEST['existing_authors'] ) );
+			$ignore = array_map( 'sanitize_text_field', explode( ',', wp_unslash( $_REQUEST['existing_authors'] ) ) );
 		}
 
 		$authors = $this->search_authors( $search, $ignore );

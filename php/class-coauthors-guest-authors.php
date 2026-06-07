@@ -174,7 +174,7 @@ class CoAuthors_Guest_Authors {
 			3  => __( 'Custom field deleted.', 'co-authors-plus' ),
 			4  => __( 'Guest author updated.', 'co-authors-plus' ),
 			/* translators: %s: date and time of the revision */
-			5  => isset( $_GET['revision'] ) ? sprintf( __( 'Guest author restored to revision from %s', 'co-authors-plus' ), wp_post_revision_title( (int) $_GET['revision'], false ) ) : false,
+			5  => isset( $_GET['revision'] ) ? sprintf( __( 'Guest author restored to revision from %s', 'co-authors-plus' ), wp_post_revision_title( (int) $_GET['revision'], false ) ) : false, // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- WordPress core verifies nonce for post revision pages.
 			/* translators: Guest author URL */
 			6  => sprintf( __( 'Guest author updated. <a href="%s">View profile</a>', 'co-authors-plus' ), esc_url( $guest_author_link ) ),
 			7  => __( 'Guest author saved.', 'co-authors-plus' ),
@@ -254,14 +254,14 @@ class CoAuthors_Guest_Authors {
 		}
 
 		// Make sure the guest author actually exists
-		$guest_author = $this->get_guest_author_by( 'ID', (int) $_POST['id'] );
+		$guest_author = $this->get_guest_author_by( 'ID', (int) wp_unslash( $_POST['id'] ) );
 		if ( ! $guest_author ) {
 			wp_die( esc_html__( "Guest author can't be deleted because it doesn't exist.", 'co-authors-plus' ) );
 		}
 
 		// Perform the reassignment if needed
 		$guest_author_term = $coauthors_plus->get_author_term( $guest_author );
-		switch ( $_POST['reassign'] ) {
+		switch ( wp_unslash( $_POST['reassign'] ) ) {
 			// Leave assigned to the current linked account
 			case 'leave-assigned':
 				$reassign_to = $guest_author->linked_account;
@@ -269,7 +269,7 @@ class CoAuthors_Guest_Authors {
 			// Reassign to a different user
 			case 'reassign-another':
 				if ( isset( $_POST['leave-assigned-to'] ) ) {
-					$user_nicename = sanitize_title( $_POST['leave-assigned-to'] );
+					$user_nicename = sanitize_title( wp_unslash( $_POST['leave-assigned-to'] ) );
 					$reassign_to   = $coauthors_plus->get_coauthor_by( 'user_nicename', $user_nicename );
 					if ( ! $reassign_to ) {
 						wp_die( esc_html__( 'Co-author does not exists. Try again?', 'co-authors-plus' ) );
@@ -317,7 +317,7 @@ class CoAuthors_Guest_Authors {
 		}
 
 		// jQuery UI autocomplete uses 'term' parameter.
-		$search = isset( $_GET['term'] ) ? sanitize_text_field( $_GET['term'] ) : '';
+		$search = isset( $_GET['term'] ) ? sanitize_text_field( wp_unslash( $_GET['term'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- AJAX autocomplete, capability check enforced above.
 		if ( empty( $search ) ) {
 			wp_send_json( array() );
 		}
@@ -509,7 +509,7 @@ class CoAuthors_Guest_Authors {
 		// Enqueue our guest author CSS on the related pages
 		if ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'view-guest-authors' === $_GET['page'] ) {
 			wp_enqueue_style( 'guest-authors-css', plugins_url( 'css/guest-authors.css', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
-			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), array( 'jquery', 'jquery-ui-autocomplete' ), COAUTHORS_PLUS_VERSION );
+			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), array( 'jquery', 'jquery-ui-autocomplete' ), COAUTHORS_PLUS_VERSION, true );
 
 			// Pass AJAX URL for co-author search.
 			$guest_author_id = isset( $_GET['id'] ) ? (int) $_GET['id'] : 0;
@@ -559,7 +559,7 @@ class CoAuthors_Guest_Authors {
 			return;
 		}
 
-		$message = $_REQUEST['message'] === 'guest-author-deleted' ? __( 'Guest author deleted.', 'co-authors-plus' ) : false;
+		$message = $_REQUEST['message'] === 'guest-author-deleted' ? __( 'Guest author deleted.', 'co-authors-plus' ) : false; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Admin notice after redirect, nonce verified during form submission.
 
 		if ( $message ) {
 			echo '<div class="updated"><p>' . esc_html( $message ) . '</p></div>';
@@ -916,11 +916,11 @@ class CoAuthors_Guest_Authors {
 		if ( empty( $_POST['cap-display_name'] ) ) {
 			wp_die( esc_html__( 'Guest authors cannot be created without display names.', 'co-authors-plus' ) );
 		}
-		$post_data['post_title'] = sanitize_text_field( $_POST['cap-display_name'] );
+		$post_data['post_title'] = sanitize_text_field( wp_unslash( $_POST['cap-display_name'] ) );
 
 		$slug = sanitize_title( get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true ) );
 		if ( ! $slug ) {
-			$slug = sanitize_title( $_POST['cap-display_name'] );
+			$slug = sanitize_title( wp_unslash( $_POST['cap-display_name'] ) );
 		}
 
 		// Uh oh, no guest authors without slugs
@@ -979,14 +979,14 @@ class CoAuthors_Guest_Authors {
 			// 'user_login' should only be saved on post update if it doesn't exist
 			if ( 'user_login' == $author_field['key'] && ! get_post_meta( $post_id, $key, true ) ) {
 				$display_name_key = $this->get_post_meta_key( 'display_name' );
-				$temp_slug        = sanitize_title( $_POST[ $display_name_key ] ); // phpcs:ignore
+				$temp_slug        = sanitize_title( wp_unslash( $_POST[ $display_name_key ] ) ); // phpcs:ignore
 				update_post_meta( $post_id, $key, $temp_slug );
 				continue;
 			}
 			if ( 'linked_account' == $author_field['key'] ) {
 				$linked_account_key = $this->get_post_meta_key( 'linked_account' );
 				if ( ! empty( $_POST[ $linked_account_key ] ) ) {
-					$user_id = (int) $_POST[ $linked_account_key ];
+					$user_id = (int) wp_unslash( $_POST[ $linked_account_key ] );
 				} else {
 					continue;
 				}
@@ -1009,9 +1009,9 @@ class CoAuthors_Guest_Authors {
 			}
 
 			if ( isset( $author_field['sanitize_function'] ) && is_callable( $author_field['sanitize_function'] ) ) {
-				$value = call_user_func( $author_field['sanitize_function'], $_POST[ $key ] );
+				$value = call_user_func( $author_field['sanitize_function'], wp_unslash( $_POST[ $key ] ) );
 			} else {
-				$value = sanitize_text_field( $_POST[ $key ] );
+				$value = sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
 			}
 			update_post_meta( $post_id, $key, $value );
 		}
