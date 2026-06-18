@@ -40,6 +40,20 @@ class CoAuthors_Plus {
 	private $is_rest_save = false;
 
 	/**
+	 * Whether a REST API save is in flight for the current request.
+	 *
+	 * Set at rest_pre_insert_{post_type} (before the post is written) and reset
+	 * at rest_after_insert_{post_type}. While true, coauthors_set_post_author_field()
+	 * must not re-derive post_author from the existing author terms, because the
+	 * REST flow updates those terms only after the post is written — at this point
+	 * they still hold the previous order. The REST path sets post_author itself via
+	 * set_post_author_for_rest_save(), so it needs no help here.
+	 *
+	 * @var bool
+	 */
+	private $processing_rest_save = false;
+
+	/**
 	 * @var CoAuthors_Guest_Authors
 	 */
 	public $guest_authors;
@@ -1254,10 +1268,33 @@ class CoAuthors_Plus {
 			return $data;
 		}
 
+		// Consume the REST in-flight guard for this write. While a REST save is in
+		// flight, the author terms still hold their previous order, so the
+		// re-derivation below would set a stale post_author; the REST path handles
+		// post_author itself in set_post_author_for_rest_save().
+		$processing_rest_save       = $this->processing_rest_save;
+		$this->processing_rest_save = false;
+
+		// Whether this save carries co-author data from the classic meta box form.
+		$has_coauthor_form_data = isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'][0] ) && is_array( $_POST['coauthors'] );
+
+		/*
+		 * Whether to re-derive post_author from the post's first co-author term.
+		 *
+		 * A non-REST save (e.g. Gutenberg's meta-box-loader request, which runs
+		 * after the block editor's REST save) carries no co-author data and would
+		 * otherwise let core overwrite post_author with the editing user or a
+		 * stale page-load value. Re-deriving here keeps post_author consistent
+		 * with the saved author order, whichever request writes last. See #1297.
+		 */
+		$reassert_from_terms = ! $processing_rest_save
+			&& ! $has_coauthor_form_data
+			&& ! empty( $postarr['ID'] )
+			&& $this->has_author_terms( (int) $postarr['ID'] );
+
 		// This action happens when a post is saved while editing a post
 		if (
-			isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'][0] )
-			&& is_array( $_POST['coauthors'] )
+			$has_coauthor_form_data
 			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
 			&& $this->current_user_can_set_authors()
 		) {
@@ -1277,6 +1314,13 @@ class CoAuthors_Plus {
 				} elseif ( 'wpuser' === $author_data->type ) {
 					$data['post_author'] = $author_data->ID;
 				}
+			}
+		}
+
+		if ( $reassert_from_terms ) {
+			$first_author_id = $this->get_first_coauthor_user_id( (int) $postarr['ID'] );
+			if ( $first_author_id ) {
+				$data['post_author'] = $first_author_id;
 			}
 		}
 
@@ -1310,6 +1354,11 @@ class CoAuthors_Plus {
 	 * @return stdClass The (possibly modified) prepared post object.
 	 */
 	public function set_post_author_for_rest_save( $prepared_post, $request ) {
+		// Flag the REST save so coauthors_set_post_author_field() does not later
+		// re-derive post_author from author terms that have not yet been reordered.
+		// Reset in sync_coauthors_on_rest_save() (rest_after_insert_{post_type}).
+		$this->processing_rest_save = true;
+
 		if ( ! is_object( $prepared_post ) || empty( $prepared_post->post_type ) ) {
 			return $prepared_post;
 		}
@@ -1391,6 +1440,43 @@ class CoAuthors_Plus {
 	}
 
 	/**
+	 * Get the WP_User ID of a post's first co-author term.
+	 *
+	 * Walks the author terms in their stored order and returns the underlying
+	 * WP_User ID of the first co-author that has one. Guest authors with no
+	 * linked WP user are skipped, since they cannot be a valid post_author.
+	 *
+	 * @param int $post_id Post to inspect.
+	 * @return int The first co-author's WP_User ID, or 0 if none can be found.
+	 */
+	private function get_first_coauthor_user_id( int $post_id ): int {
+		$terms = wp_get_object_terms(
+			$post_id,
+			$this->coauthor_taxonomy,
+			array(
+				'orderby' => 'term_order',
+				'order'   => 'ASC',
+			)
+		);
+
+		if ( is_wp_error( $terms ) || empty( $terms ) ) {
+			return 0;
+		}
+
+		foreach ( $terms as $term ) {
+			$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+			if ( $coauthor ) {
+				$user_id = $this->extract_wp_user_id( $coauthor );
+				if ( $user_id ) {
+					return $user_id;
+				}
+			}
+		}
+
+		return 0;
+	}
+
+	/**
 	 * Sync co-authors when a post is saved via the REST API.
 	 *
 	 * Bridges the REST API save flow to add_coauthors() so that post_author
@@ -1407,6 +1493,9 @@ class CoAuthors_Plus {
 	 * @param WP_REST_Request $request Request object.
 	 */
 	public function sync_coauthors_on_rest_save( $post, $request ): void {
+		// The REST write has completed, so the in-flight guard can be cleared.
+		$this->processing_rest_save = false;
+
 		$params = $request->get_params();
 
 		// Only process if coauthors taxonomy data was included in the request.
