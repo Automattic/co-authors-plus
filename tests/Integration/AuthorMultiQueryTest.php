@@ -161,4 +161,43 @@ class AuthorMultiQueryTest extends TestCase {
 		$this->assertCount( 1, $query->posts, 'Single author ID query must still work after fix.' );
 		$this->assertEquals( $post->ID, $query->posts[0]->ID );
 	}
+
+	/**
+	 * The `coauthors_plus_is_author_query` filter can opt a query out of the
+	 * CAP taxonomy rewrite so the query behaves as a standard `post_author` query.
+	 *
+	 * When the filter returns false, co-authored posts where the user is only a
+	 * taxonomy term must not be returned. This is the opt-out path requested in
+	 * issue #1296.
+	 */
+	public function test_filter_coauthors_plus_is_author_query_can_opt_out(): void {
+		$author1 = $this->create_author( 'opt_out_a1' );
+		$author2 = $this->create_author( 'opt_out_a2' );
+
+		$post = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+
+		add_filter(
+			'coauthors_plus_is_author_query',
+			function ( $is_author, $query ) {
+				return false;
+			},
+			10,
+			2
+		);
+
+		$query = new \WP_Query(
+			array(
+				'author__in' => array( $author2->ID ),
+			)
+		);
+
+		remove_all_filters( 'coauthors_plus_is_author_query' );
+
+		$this->assertCount(
+			0,
+			$query->posts,
+			'Opting out via coauthors_plus_is_author_query must leave the query as a post_author query and skip co-authored posts.'
+		);
+	}
 }

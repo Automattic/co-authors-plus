@@ -885,16 +885,24 @@ class CoAuthors_Plus {
 	 */
 	protected function is_author_query( WP_Query $query ): bool {
 		if ( $query->is_author() ) {
-			return true;
+			$is_author = true;
+		} else {
+			// `author__in` with a non-empty array of IDs.
+			$author_in = $query->get( 'author__in' );
+			$is_author = is_array( $author_in ) && ! empty( $author_in );
 		}
 
-		// `author__in` with a non-empty array of IDs.
-		$author_in = $query->get( 'author__in' );
-		if ( is_array( $author_in ) && ! empty( $author_in ) ) {
-			return true;
-		}
-
-		return false;
+		/**
+		 * Allow callers to opt a specific query out of Co-Authors Plus' author SQL rewrite.
+		 *
+		 * Returning false leaves the query as a standard `post_author` query, so
+		 * it avoids the taxonomy JOIN, the per-term OR-chain, and the HAVING clause
+		 * that are used to find co-authored posts.
+		 *
+		 * @param bool     $is_author Whether CAP would otherwise rewrite this query.
+		 * @param WP_Query $query     The query being evaluated.
+		 */
+		return (bool) apply_filters( 'coauthors_plus_is_author_query', $is_author, $query );
 	}
 
 	/**
