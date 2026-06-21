@@ -168,16 +168,11 @@ const CoAuthors = () => {
 	 * @param {string} query The text to search.
 	 */
 	const onFilterValueChange = useDebounce( ( query ) => {
-		// Empty input: repopulate the full alphabetical list so clearing the
-		// search restores the initial dropdown instead of leaving stale results.
-		if ( query.length === 0 ) {
-			fetchAuthors( '' );
-			return;
-		}
-
-		// Don't kick off search without having at least the threshold characters.
+		// Short or empty query: show the full alphabetical list. This keeps the
+		// dropdown useful while the user is still typing, and avoids the confusing
+		// "No items found" state for single-character input.
 		if ( query.length < threshold ) {
-			setDropdownOptions( [] );
+			fetchAuthors( '' );
 			return;
 		}
 
