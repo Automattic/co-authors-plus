@@ -47,8 +47,8 @@ const CoAuthors = () => {
 
 	/**
 	 * Tracks whether the initial empty-query author list has been loaded
-	 * for this mount. Gates the dropdown so subsequent empty/short queries
-	 * (e.g. user clearing the input) do not clobber the initial results.
+	 * for this mount. The mount effect uses this to avoid duplicate initial
+	 * fetches; clearing the input now intentionally re-fetches the list.
 	 */
 	const hasInitialLoaded = useRef( false );
 
@@ -168,8 +168,10 @@ const CoAuthors = () => {
 	 * @param {string} query The text to search.
 	 */
 	const onFilterValueChange = useDebounce( ( query ) => {
-		// Leave the initially populated list alone when the input is cleared.
-		if ( query.length === 0 && hasInitialLoaded.current ) {
+		// Empty input: repopulate the full alphabetical list so clearing the
+		// search restores the initial dropdown instead of leaving stale results.
+		if ( query.length === 0 ) {
+			fetchAuthors( '' );
 			return;
 		}
 
