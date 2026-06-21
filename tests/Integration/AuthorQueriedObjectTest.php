@@ -180,4 +180,79 @@ class AuthorQueriedObjectTest extends TestCase {
 		// warnings in #1109. With flags cleared, it exits early and returns null — no warning.
 		$this->assertNull( single_term_title( '', false ), 'single_term_title() must return null on a guest author page without PHP warnings.' );
 	}
+
+	/**
+	 * On author feed URLs, fix_author_page() must preserve is_feed while still
+	 * clearing other conflicting query flags.
+	 *
+	 * WordPress sets is_feed=true for requests such as /author/USERNAME/feed/ or
+	 * ?author=1&feed=rss2. The 4.0.2 query-flag reset in fix_author_page() cleared
+	 * this flag, causing the HTML author archive to be served instead of the feed.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1301
+	 */
+	public function test__author_feed_preserves_is_feed_after_fix_author_page(): void {
+		global $coauthors_plus, $wp_query;
+
+		$guest_author_id = $coauthors_plus->guest_authors->create(
+			array(
+				'user_login'   => 'test-guest-1301',
+				'display_name' => 'Test Guest 1301',
+			)
+		);
+		$guest_author    = $coauthors_plus->guest_authors->get_guest_author_by( 'id', $guest_author_id );
+
+		$this->assertNotFalse( $guest_author, 'Guest author should exist.' );
+
+		$wp_query->is_author        = true;
+		$wp_query->is_archive       = true;
+		$wp_query->is_feed          = true;
+		$wp_query->is_comment_feed  = false;
+		$wp_query->is_trackback     = false;
+		$wp_query->is_category      = true;
+
+		set_query_var( 'author_name', $guest_author->user_nicename );
+		$coauthors_plus->fix_author_page( '' );
+
+		$this->assertTrue( is_author(), 'is_author() must remain true on an author feed.' );
+		$this->assertTrue( is_archive(), 'is_archive() must remain true on an author feed.' );
+		$this->assertTrue( is_feed(), 'is_feed() must remain true on an author feed.' );
+		$this->assertFalse( is_comment_feed(), 'is_comment_feed() must remain false on an author feed.' );
+		$this->assertFalse( is_trackback(), 'is_trackback() must remain false on an author feed.' );
+		$this->assertFalse( is_category(), 'is_category() must be cleared on an author feed.' );
+	}
+
+	/**
+	 * On a plain author archive, fix_author_page() must not force is_feed to true.
+	 */
+	public function test__author_page_does_not_force_is_feed(): void {
+		global $coauthors_plus, $wp_query;
+
+		$guest_author_id = $coauthors_plus->guest_authors->create(
+			array(
+				'user_login'   => 'test-guest-1301-plain',
+				'display_name' => 'Test Guest 1301 Plain',
+			)
+		);
+		$guest_author    = $coauthors_plus->guest_authors->get_guest_author_by( 'id', $guest_author_id );
+
+		$this->assertNotFalse( $guest_author, 'Guest author should exist.' );
+
+		$wp_query->is_author       = true;
+		$wp_query->is_archive      = true;
+		$wp_query->is_feed         = false;
+		$wp_query->is_comment_feed = false;
+		$wp_query->is_trackback    = false;
+		$wp_query->is_category     = true;
+
+		set_query_var( 'author_name', $guest_author->user_nicename );
+		$coauthors_plus->fix_author_page( '' );
+
+		$this->assertTrue( is_author(), 'is_author() must remain true on a plain author page.' );
+		$this->assertTrue( is_archive(), 'is_archive() must remain true on a plain author page.' );
+		$this->assertFalse( is_feed(), 'is_feed() must remain false on a plain author page.' );
+		$this->assertFalse( is_comment_feed(), 'is_comment_feed() must remain false on a plain author page.' );
+		$this->assertFalse( is_trackback(), 'is_trackback() must remain false on a plain author page.' );
+		$this->assertFalse( is_category(), 'is_category() must be cleared on a plain author page.' );
+	}
 }

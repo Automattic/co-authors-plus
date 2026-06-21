@@ -1943,13 +1943,20 @@ class CoAuthors_Plus {
 			// is definitively an author archive. Reset all query flags to a clean
 			// state — mirroring how core handles flag transitions internally — then
 			// re-assert only the flags that should remain true. Preserve is_paged so
-			// that paginated author archives can still trigger 404 when out of range.
+			// that paginated author archives can still trigger 404 when out of range,
+			// and preserve feed flags so author RSS/Atom feeds are still served.
 			// See https://github.com/Automattic/co-authors-plus/issues/1109.
-			$is_paged = $wp_query->is_paged;
+			$is_feed         = $wp_query->is_feed;
+			$is_comment_feed = $wp_query->is_comment_feed;
+			$is_trackback    = $wp_query->is_trackback;
+			$is_paged        = $wp_query->is_paged;
 			$wp_query->init_query_flags();
-			$wp_query->is_author  = true;
-			$wp_query->is_archive = true;
-			$wp_query->is_paged   = $is_paged;
+			$wp_query->is_author        = true;
+			$wp_query->is_archive       = true;
+			$wp_query->is_feed          = $is_feed;
+			$wp_query->is_comment_feed  = $is_comment_feed;
+			$wp_query->is_trackback     = $is_trackback;
+			$wp_query->is_paged         = $is_paged;
 
 			if ( ! is_paged() ) {
 				add_filter( 'pre_handle_404', '__return_true' );
