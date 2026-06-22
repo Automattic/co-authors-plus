@@ -6,7 +6,7 @@ import { ComboboxControl, Spinner } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { applyFilters } from '@wordpress/hooks';
 import { useDispatch, useSelect } from '@wordpress/data';
-import { useState } from '@wordpress/element';
+import { useEffect, useState, useRef } from '@wordpress/element';
 import { useDebounce } from '@wordpress/compose';
 
 /**
@@ -38,12 +38,19 @@ import './style.css';
  * the select and methods from dispatch as composed below.
  *
  * @return {JSX.Element} Document sidebar panel component.
-*/
+ */
 const CoAuthors = () => {
 	/**
 	 * Local state for dropdown options (search results).
 	 */
 	const [ dropdownOptions, setDropdownOptions ] = useState( [] );
+
+	/**
+	 * Tracks whether the initial empty-query author list has been loaded
+	 * for this mount. The mount effect uses this to avoid duplicate initial
+	 * fetches; clearing the input now intentionally re-fetches the list.
+	 */
+	const hasInitialLoaded = useRef( false );
 
 	/**
 	 * Read co-author term IDs from the core entity store.
@@ -61,7 +68,8 @@ const CoAuthors = () => {
 	/**
 	 * Resolve term IDs to rich author data.
 	 */
-	const { authors: selectedAuthors, isLoading } = useCoauthorDetails( coauthorTermIds );
+	const { authors: selectedAuthors, isLoading } =
+		useCoauthorDetails( coauthorTermIds );
 
 	/**
 	 * Get editPost dispatcher to write changes back to the core entity.
@@ -74,6 +82,48 @@ const CoAuthors = () => {
 	 * @param {integer} threshold length threshold. default 2.
 	 */
 	const threshold = applyFilters( 'coAuthors.search.threshold', 2 );
+
+	/**
+	 * Fetch authors matching the supplied query and update the dropdown.
+	 *
+	 * @param {string} query Search text to send to the REST endpoint.
+	 */
+	const fetchAuthors = async ( query ) => {
+		const existingAuthors = selectedAuthors
+			.map( ( item ) => item.value )
+			.join( ',' );
+
+		try {
+			const response = await apiFetch( {
+				path: `/coauthors/v1/search/?q=${ query }&existing_authors=${ existingAuthors }`,
+				method: 'GET',
+			} );
+			const formattedAuthors = ( ( items ) => {
+				if ( items.length > 0 ) {
+					return items.map( ( item ) => formatAuthorData( item ) );
+				}
+				return [];
+			} )( response );
+
+			setDropdownOptions( formattedAuthors );
+		} catch ( error ) {
+			console.log( error ); // eslint-disable-line no-console
+		}
+	};
+
+	/**
+	 * Load the initial alphabetical author list once the post and its
+	 * resolved co-authors are available, so the dropdown is already
+	 * populated when the user first focuses it.
+	 */
+	useEffect( () => {
+		if ( ! hasResolvedPost || isLoading || hasInitialLoaded.current ) {
+			return;
+		}
+
+		hasInitialLoaded.current = true;
+		fetchAuthors( '' );
+	}, [ hasResolvedPost, isLoading ] );
 
 	/**
 	 * Setter for updating authors via the core entity store.
@@ -117,36 +167,16 @@ const CoAuthors = () => {
 	 *
 	 * @param {string} query The text to search.
 	 */
-	const onFilterValueChange = useDebounce( async ( query ) => {
-		let response = 0;
-
-		// Don't kick off search without having at least two characters.
+	const onFilterValueChange = useDebounce( ( query ) => {
+		// Short or empty query: show the full alphabetical list. This keeps the
+		// dropdown useful while the user is still typing, and avoids the confusing
+		// "No items found" state for single-character input.
 		if ( query.length < threshold ) {
-			setDropdownOptions( [] );
+			fetchAuthors( '' );
 			return;
 		}
 
-		const existingAuthors = selectedAuthors
-			.map( ( item ) => item.value )
-			.join( ',' );
-
-		try {
-			response = await apiFetch( {
-				path: `/coauthors/v1/search/?q=${ query }&existing_authors=${ existingAuthors }`,
-				method: 'GET',
-			} );
-			const formattedAuthors = ( ( items ) => {
-				if ( items.length > 0 ) {
-					return items.map( ( item ) => formatAuthorData( item ) );
-				}
-				return [];
-			} )( response );
-
-			setDropdownOptions( formattedAuthors );
-		} catch ( error ) {
-			response = 0;
-			console.log( error ); // eslint-disable-line no-console
-		}
+		fetchAuthors( query );
 	}, 500 );
 
 	// Show spinner while the post entity or author details are still loading.
