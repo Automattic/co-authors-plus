@@ -140,7 +140,11 @@ function coauthors__echo( $tag, $type = 'tag', $separators = array(), $tag_args 
 	if ( ! isset( $separators['before'] ) ) {
 		$separators['before'] = apply_filters( 'coauthors_default_before', $default_before );
 	}
-	if ( ! isset( $separators['between'] ) ) {
+	// Treat a caller-supplied empty string the same as unset, so the default
+	// delimiter is applied. Otherwise `coauthors( '' )` drops the separator
+	// between the middle authors (e.g. "AnnaBenCara and Dan"). An intentional
+	// empty separator can still be set via the coauthors_default_between filter.
+	if ( ! isset( $separators['between'] ) || '' === $separators['between'] ) {
 		$separators['between'] = apply_filters( 'coauthors_default_between', $default_between );
 	}
 	if ( ! isset( $separators['betweenLast'] ) ) {
