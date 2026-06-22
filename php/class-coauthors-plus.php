@@ -1600,7 +1600,7 @@ class CoAuthors_Plus {
 
 			foreach ( $this->supported_post_types() as $single ) {
 				$obj = get_post_type_object( $single );
-				if( $obj ) {
+				if ( $obj ) {
 					$this->to_be_filtered_caps[] = $obj->cap->edit_post;
 					$this->to_be_filtered_caps[] = $obj->cap->edit_others_posts; // This as well: http://core.trac.wordpress.org/ticket/22417
 					$this->to_be_filtered_caps[] = $obj->cap->read_post;
