@@ -22,7 +22,7 @@ export const extractTermIds = ( coauthors ) => {
 				return item;
 			}
 			if ( item && 'object' === typeof item ) {
-				return item.term_id ?? item.id ?? item.user_id ?? item.ID ?? null;
+				return item.term_id ?? null;
 			}
 			return null;
 		} )

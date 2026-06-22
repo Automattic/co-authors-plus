@@ -157,24 +157,24 @@ describe( 'Utility - extractTermIds', () => {
 		expect( result ).toStrictEqual( [ 42, 43 ] );
 	} );
 
-	it( 'extracts user_id from objects (co-author objects)', () => {
-		const result = extractTermIds( [ { user_id: 8703 }, { user_id: 16 } ] );
-		expect( result ).toStrictEqual( [ 8703, 16 ] );
-	} );
-
-	it( 'extracts id from objects', () => {
-		const result = extractTermIds( [ { id: 5 } ] );
-		expect( result ).toStrictEqual( [ 5 ] );
-	} );
-
-	it( 'extracts ID from objects', () => {
-		const result = extractTermIds( [ { ID: 99 } ] );
-		expect( result ).toStrictEqual( [ 99 ] );
+	it( 'filters out objects that only have user_id, id or ID', () => {
+		const result = extractTermIds( [
+			{ user_id: 8703 },
+			{ id: 5 },
+			{ ID: 99 },
+		] );
+		expect( result ).toStrictEqual( [] );
 	} );
 
 	it( 'handles mixed integer and object entries', () => {
-		const result = extractTermIds( [ 42, { user_id: 43 }, { term_id: 44 } ] );
-		expect( result ).toStrictEqual( [ 42, 43, 44 ] );
+		const result = extractTermIds( [
+			42,
+			{ user_id: 43 },
+			{ id: 5 },
+			{ ID: 99 },
+			{ term_id: 44 },
+		] );
+		expect( result ).toStrictEqual( [ 42, 44 ] );
 	} );
 
 	it( 'filters out objects with no recognizable ID property', () => {
