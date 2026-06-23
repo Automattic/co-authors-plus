@@ -20,6 +20,7 @@ import AuthorsSelection from '../author-selection';
 import {
 	addItemByValue,
 	buildCoauthorTermIds,
+	extractTermIds,
 	formatAuthorData,
 } from '../../utils';
 
@@ -55,12 +56,13 @@ const CoAuthors = () => {
 	/**
 	 * Read co-author term IDs from the core entity store.
 	 * Returns undefined until the post entity has loaded, then an array of term IDs.
+	 * Normalizes the value to handle both integer IDs and author objects.
 	 */
 	const { coauthorTermIds, hasResolvedPost } = useSelect( ( select ) => {
 		const { getEditedPostAttribute } = select( 'core/editor' );
 		const coauthors = getEditedPostAttribute( 'coauthors' );
 		return {
-			coauthorTermIds: coauthors,
+			coauthorTermIds: extractTermIds( coauthors ),
 			hasResolvedPost: coauthors !== undefined,
 		};
 	}, [] );

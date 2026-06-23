@@ -1,6 +1,35 @@
 import { applyFilters } from '@wordpress/hooks';
 
 /**
+ * Normalize the raw coauthors value from the core entity store into
+ * an array of integer term IDs.
+ *
+ * The entity store may return plain integers [42, 43] or full objects
+ * with various ID properties depending on the WordPress version and
+ * active plugins. This function handles both formats.
+ *
+ * @param {Array|undefined} coauthors Raw value from getEditedPostAttribute.
+ * @return {Array} Array of integer term IDs.
+ */
+export const extractTermIds = ( coauthors ) => {
+	if ( ! Array.isArray( coauthors ) || 0 === coauthors.length ) {
+		return [];
+	}
+
+	return coauthors
+		.map( ( item ) => {
+			if ( Number.isInteger( item ) ) {
+				return item;
+			}
+			if ( item && 'object' === typeof item ) {
+				return item.term_id ?? null;
+			}
+			return null;
+		} )
+		.filter( ( id ) => Number.isInteger( id ) );
+};
+
+/**
  * Move an item up or down in an array.
  *
  * @param {string} targetItem Item to move.
