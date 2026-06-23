@@ -83,6 +83,9 @@ class CoAuthors_Plus {
 		// Action to reassign posts when a guest author is deleted
 		add_action( 'delete_user', array( $this, 'delete_user_action' ) );
 
+		// Keep an existing co-author's search term (and its cache) in step when the user's profile changes.
+		add_action( 'profile_update', array( $this, 'update_author_term_on_profile_update' ) );
+
 		add_filter( 'get_usernumposts', array( $this, 'filter_count_user_posts' ), 10, 4 );
 
 		// Action to set up co-author auto-suggest
@@ -2414,6 +2417,32 @@ class CoAuthors_Plus {
 		}
 		wp_cache_delete( 'author-term-' . $coauthor->user_nicename, 'co-authors-plus' );
 		return $this->get_author_term( $coauthor );
+	}
+
+	/**
+	 * Refresh a co-author's author term when their user profile is updated.
+	 *
+	 * The author term description stores the user's searchable fields (display
+	 * name, email, login). Without this, editing a user's profile leaves that
+	 * description, and the cached term in the persistent 'co-authors-plus' object
+	 * cache group, stale until a manual cache flush, so the author search keeps
+	 * matching the old details. Only an existing co-author term is refreshed;
+	 * users who are not co-authors do not get a term created here, to avoid
+	 * unbounded term growth on sites with large, low-privilege user bases.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int $user_id The ID of the updated user.
+	 * @return void
+	 */
+	public function update_author_term_on_profile_update( $user_id ): void {
+		$user = get_user_by( 'id', $user_id );
+		if ( ! $user ) {
+			return;
+		}
+		if ( $this->get_author_term( $user ) ) {
+			$this->update_author_term( $user );
+		}
 	}
 
 	/**
