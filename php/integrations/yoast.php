@@ -305,11 +305,14 @@ class Yoast {
 		}
 		
 		/*
-		 * Check if the `noindex-author-wpseo` option
-		 * 		which is set in Yoast, this setting drops author pages being indexed
-		 * if set to true do not change robots
+		 * Respect Yoast's "Show Authors archives in search results?" setting.
+		 *
+		 * This is stored in Yoast's serialized `wpseo_titles` option, not as a
+		 * standalone WordPress option, so it must be read via the Yoast options API.
+		 * When `noindex-author-wpseo` is true, author archives are excluded from
+		 * search results, so we leave the robots directives untouched.
 		 */
-		if ( get_option( 'noindex-author-wpseo', false ) ) {
+		if ( class_exists( '\WPSEO_Options' ) && \WPSEO_Options::get( 'noindex-author-wpseo', false ) ) {
 			return $robots;
 		}
 
