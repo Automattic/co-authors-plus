@@ -49,7 +49,7 @@ export function getMediaDimensions( media, imageDimensions, sizeSlug ) {
  *
  * @param {Object} media
  * @param {string} sizeSlug
- * @return {string}
+ * @return {string} The media source URL for the requested size.
  */
 export function getMediaSrc( media, sizeSlug ) {
 	return media?.media_details?.sizes[ sizeSlug ]?.source_url;
@@ -90,7 +90,7 @@ export function getPlaceholderImageDimensions( imageDimensions, sizeSlug ) {
  *
  * @param {Object} media
  * @param {Object} imageDimensions
- * @return {Array}
+ * @return {Array} The size keys common to the media and the image dimensions.
  */
 export function getSizeKeysIntersection( media, imageDimensions ) {
 	if ( ! media ) {
@@ -113,7 +113,7 @@ export function getSizeKeysIntersection( media, imageDimensions ) {
  * @param {Object} media
  * @param {Object} imageDimensions
  * @param {string} sizeSlug
- * @return {string}
+ * @return {string} The size slug to use for the media.
  */
 export function getAvailableSizeSlug( media, imageDimensions, sizeSlug ) {
 	if ( media && 'full' === sizeSlug ) {
@@ -126,5 +126,5 @@ export function getAvailableSizeSlug( media, imageDimensions, sizeSlug ) {
 		return sizeSlug;
 	}
 
-	return keys[0];
+	return keys[ 0 ];
 }

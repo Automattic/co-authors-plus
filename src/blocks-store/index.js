@@ -7,7 +7,11 @@ register(
 			return state;
 		},
 		selectors: {
-			getAuthorPlaceholder: ( state ) => applyFilters( 'co-authors-plus.author-placeholder', state.authorPlaceholder ),
+			getAuthorPlaceholder: ( state ) =>
+				applyFilters(
+					'co-authors-plus.author-placeholder',
+					state.authorPlaceholder
+				),
 		},
 	} )
 );

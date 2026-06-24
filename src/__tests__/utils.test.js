@@ -12,7 +12,7 @@ import {
 	newAuthorValue,
 	dropdownOptions,
 	rawAuthors,
-} from '../__mocks__/authors';
+} from '../__fixtures__/authors';
 
 describe( 'Utility - moveItem', () => {
 	it( 'should move an option down', () => {
