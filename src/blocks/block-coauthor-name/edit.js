@@ -24,9 +24,14 @@ import classnames from 'classnames';
  * The edit function describes the structure of your block in the context of the
  * editor. This represents what the editor will render when the block is used.
  *
+ * @param {Object}   props               Block props.
+ * @param {Object}   props.context       Block context provided by the parent Co-Authors block.
+ * @param {Object}   props.attributes    Block attributes.
+ * @param {Function} props.setAttributes Function to update block attributes.
+ *
  * @see https://developer.wordpress.org/block-editor/reference-guides/block-api/block-edit-save/#edit
  *
- * @return {WPElement} Element to render.
+ * @return {Element} Element to render.
  */
 export default function Edit( { context, attributes, setAttributes } ) {
 	const { isLink, rel, tagName, textAlign } = attributes;
@@ -35,7 +40,7 @@ export default function Edit( { context, attributes, setAttributes } ) {
 		[]
 	);
 	const author = context[ 'co-authors-plus/author' ] || authorPlaceholder;
-	const { link, display_name } = author;
+	const { link, display_name: displayName } = author;
 
 	const TagName = tagName;
 
@@ -62,10 +67,10 @@ export default function Edit( { context, attributes, setAttributes } ) {
 						rel={ rel }
 						onClick={ ( event ) => event.preventDefault() }
 					>
-						{ display_name }
+						{ displayName }
 					</a>
 				) : (
-					display_name
+					displayName
 				) }
 			</TagName>
 			<InspectorControls>

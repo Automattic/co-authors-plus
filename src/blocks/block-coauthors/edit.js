@@ -12,7 +12,6 @@ import {
 	store as blockEditorStore,
 	InspectorControls,
 	RichText,
-	__experimentalGetGapCSSValue,
 	AlignmentControl,
 } from '@wordpress/block-editor';
 import { TextControl, ToolbarGroup, PanelBody } from '@wordpress/components';
@@ -33,7 +32,10 @@ function CoAuthorTemplateInnerBlocks() {
 		<div
 			{ ...useInnerBlocksProps(
 				{ className: 'wp-block-co-authors-plus-coauthor' },
-				{ template: [ [ 'co-authors-plus/name' ] ], __unstableDisableLayoutClassNames: true }
+				{
+					template: [ [ 'co-authors-plus/name' ] ],
+					__unstableDisableLayoutClassNames: true,
+				}
 			) }
 		/>
 	);
@@ -45,9 +47,17 @@ const ALLOWED_FORMATS = [ 'core/bold', 'core/italic', 'core/text-color' ];
  * The edit function describes the structure of your block in the context of the
  * editor. This represents what the editor will render when the block is used.
  *
+ * @param {Object}   props                            Block props.
+ * @param {Object}   props.attributes                 Block attributes.
+ * @param {Function} props.setAttributes              Function to update block attributes.
+ * @param {string}   props.clientId                   Block client ID.
+ * @param {Object}   props.context                    Block context.
+ * @param {boolean}  props.isSelected                 Whether the block is currently selected.
+ * @param {string}   props.__unstableLayoutClassNames Layout class names provided by the editor.
+ *
  * @see https://developer.wordpress.org/block-editor/reference-guides/block-api/block-edit-save/#edit
  *
- * @return {WPElement} Element to render.
+ * @return {Element} Element to render.
  */
 export default function Edit( {
 	attributes,
@@ -55,9 +65,10 @@ export default function Edit( {
 	clientId,
 	context,
 	isSelected,
-	__unstableLayoutClassNames
+	__unstableLayoutClassNames,
 } ) {
-	const { prefix, separator, lastSeparator, suffix, layout, textAlign } = attributes;
+	const { prefix, separator, lastSeparator, suffix, layout, textAlign } =
+		attributes;
 	const { type: layoutType, orientation: layoutOrientation } = layout || {};
 
 	const { postId } = context;
@@ -76,6 +87,15 @@ export default function Edit( {
 
 		const controller = new AbortController();
 
+		const handleError = ( error ) => {
+			if ( 'AbortError' === error.name ) {
+				return;
+			}
+			noticesDispatch.createErrorNotice( error.message, {
+				isDismissible: true,
+			} );
+		};
+
 		apiFetch( {
 			path: `/coauthors/v1/coauthors?post_id=${ postId }`,
 			signal: controller.signal,
@@ -86,21 +106,7 @@ export default function Edit( {
 		return () => {
 			controller.abort();
 		};
-	}, [ postId ] );
-
-	/**
-	 * Handle Error
-	 *
-	 * @param {Error}
-	 */
-	function handleError( error ) {
-		if ( 'AbortError' === error.name ) {
-			return;
-		}
-		noticesDispatch.createErrorNotice( error.message, {
-			isDismissible: true,
-		} );
-	}
+	}, [ postId, noticesDispatch ] );
 
 	const blocks = useSelect( ( select ) => {
 		return select( blockEditorStore ).getBlocks( clientId );
@@ -116,17 +122,19 @@ export default function Edit( {
 		{
 			icon: lineDashed,
 			title: __( 'Inline view' ),
-			onClick: () => setLayout( {
-				type: 'default'
-			}),
-			isActive: layoutType === 'default'
+			onClick: () =>
+				setLayout( {
+					type: 'default',
+				} ),
+			isActive: layoutType === 'default',
 		},
 		{
 			icon: list,
 			title: __( 'List view' ),
-			onClick: () => setLayout( {
-				type: 'constrained'
-			} ),
+			onClick: () =>
+				setLayout( {
+					type: 'constrained',
+				} ),
 			isActive: layoutType === 'constrained',
 		},
 		{
@@ -134,7 +142,7 @@ export default function Edit( {
 			title: __( 'Grid view' ),
 			onClick: () =>
 				setLayout( {
-					type: 'grid'
+					type: 'grid',
 				} ),
 			isActive: layoutType === 'grid',
 		},
@@ -144,9 +152,10 @@ export default function Edit( {
 			onClick: () =>
 				setLayout( {
 					type: 'flex',
-					orientation: 'horizontal'
+					orientation: 'horizontal',
 				} ),
-			isActive: layoutType === 'flex' && 'horizontal' === layoutOrientation,
+			isActive:
+				layoutType === 'flex' && 'horizontal' === layoutOrientation,
 		},
 		{
 			icon: stack,
@@ -154,7 +163,7 @@ export default function Edit( {
 			onClick: () =>
 				setLayout( {
 					type: 'flex',
-					orientation: 'vertical'
+					orientation: 'vertical',
 				} ),
 			isActive: layoutType === 'flex' && 'vertical' === layoutOrientation,
 		},
@@ -172,17 +181,15 @@ export default function Edit( {
 				/>
 			</BlockControls>
 			<div
-				{ ...useBlockProps(
-					{
-						className: classnames(
-							__unstableLayoutClassNames,
-							{
-								[ `has-text-align-${ textAlign }` ]: textAlign,
-							},
-							'remove-outline'
-						)
-					}
-				) }
+				{ ...useBlockProps( {
+					className: classnames(
+						__unstableLayoutClassNames,
+						{
+							[ `has-text-align-${ textAlign }` ]: textAlign,
+						},
+						'remove-outline'
+					),
+				} ) }
 			>
 				{ coAuthors &&
 					'default' === layoutType &&
@@ -205,13 +212,15 @@ export default function Edit( {
 				{ coAuthors &&
 					coAuthors
 						.map( ( author ) => {
-							const isHidden = author.id === ( activeBlockContextId || coAuthors[ 0 ]?.id );
+							const isHidden =
+								author.id ===
+								( activeBlockContextId || coAuthors[ 0 ]?.id );
 							return (
 								<BlockContextProvider
 									key={ author.id }
 									value={ {
 										'co-authors-plus/author': author,
-										'co-authors-plus/layout': layoutType
+										'co-authors-plus/layout': layoutType,
 									} }
 								>
 									{ isHidden ? (

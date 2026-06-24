@@ -49,8 +49,6 @@ jobs:
 
       - name: Run ESLint on JS files
         run: npm run lint:js
-        continue-on-error: true
 
       - name: Run Stylelint on CSS files
         run: npm run lint:css
-        continue-on-error: true

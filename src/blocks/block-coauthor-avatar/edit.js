@@ -2,6 +2,7 @@ import { __ } from '@wordpress/i18n';
 import {
 	useBlockProps,
 	InspectorControls,
+	// eslint-disable-next-line @wordpress/no-unsafe-wp-apis -- Border support relies on this experimental hook; there is no stable equivalent yet.
 	__experimentalUseBorderProps as useBorderProps,
 	BlockControls,
 	BlockAlignmentToolbar,
@@ -21,9 +22,14 @@ import PlaceholderImage from '../components/placeholder-image';
  * The edit function describes the structure of your block in the context of the
  * editor. This represents what the editor will render when the block is used.
  *
+ * @param {Object}   props               Block props.
+ * @param {Object}   props.context       Block context provided by the parent Co-Authors block.
+ * @param {Object}   props.attributes    Block attributes.
+ * @param {Function} props.setAttributes Function to update block attributes.
+ *
  * @see https://developer.wordpress.org/block-editor/reference-guides/block-api/block-edit-save/#edit
  *
- * @return {WPElement} Element to render.
+ * @return {Element} Element to render.
  */
 export default function Edit( { context, attributes, setAttributes } ) {
 	const { isLink, rel, size, verticalAlign, align } = attributes;
@@ -34,40 +40,46 @@ export default function Edit( { context, attributes, setAttributes } ) {
 	const author = context[ 'co-authors-plus/author' ] || authorPlaceholder;
 	const layout = context[ 'co-authors-plus/layout' ] || '';
 
-	const { avatar_urls } = author;
+	// Hooks must run on every render, so they are called before the early
+	// return below (rules of hooks).
+	const borderProps = useBorderProps( attributes );
+	const blockProps = useBlockProps( {
+		className: classnames( {
+			[ `align${ align }` ]:
+				'default' !== layout && align && 'none' !== align,
+		} ),
+	} );
 
-	if ( ! avatar_urls || 0 === avatar_urls.length ) {
+	const { avatar_urls: avatarUrls } = author;
+
+	if ( ! avatarUrls || 0 === avatarUrls.length ) {
 		return null;
 	}
 
-	const sizes = Object.keys( avatar_urls ).map( ( size ) => {
+	const sizes = Object.keys( avatarUrls ).map( ( sizeKey ) => {
 		return {
-			value: size,
-			label: `${ size } x ${ size }`,
+			value: sizeKey,
+			label: `${ sizeKey } x ${ sizeKey }`,
 		};
 	} );
 
-	const borderProps = useBorderProps( attributes );
-
-	const src = avatar_urls[ size ] ?? '';
+	const src = avatarUrls[ size ] ?? '';
 
 	return (
 		<>
-
 			{ 'default' !== layout ? (
 				<BlockControls>
-					<BlockAlignmentToolbar value={ align } onChange={ ( nextAlign ) => { setAttributes({align: nextAlign}) } } controls={['none', 'left', 'center', 'right']} />
+					<BlockAlignmentToolbar
+						value={ align }
+						onChange={ ( nextAlign ) => {
+							setAttributes( { align: nextAlign } );
+						} }
+						controls={ [ 'none', 'left', 'center', 'right' ] }
+					/>
 				</BlockControls>
-			) : (
-				null
-			) }
-			
-			<div { ...useBlockProps( {
-				className: classnames({
-					[`align${align}`]: 'default' !== layout && align && 'none' !== align
-				})
-			}
-			) }>
+			) : null }
+
+			<div { ...blockProps }>
 				{ '' === src ? (
 					<PlaceholderImage
 						className={ borderProps.className }
@@ -84,10 +96,11 @@ export default function Edit( { context, attributes, setAttributes } ) {
 					/>
 				) : (
 					<img
+						alt={ author.display_name || '' }
 						style={ { ...borderProps.style, verticalAlign } }
 						width={ size }
 						height={ size }
-						src={ `${ avatar_urls[ size ] }` }
+						src={ `${ avatarUrls[ size ] }` }
 					/>
 				) }
 			</div>
@@ -157,7 +170,10 @@ export default function Edit( { context, attributes, setAttributes } ) {
 								},
 								{
 									value: 'text-bottom',
-									label: __( 'Text Bottom', 'co-authors-plus' ),
+									label: __(
+										'Text Bottom',
+										'co-authors-plus'
+									),
 								},
 								{
 									value: 'text-top',
@@ -170,7 +186,8 @@ export default function Edit( { context, attributes, setAttributes } ) {
 							] }
 							onChange={ ( value ) => {
 								setAttributes( {
-									verticalAlign: '' === value ? undefined : value,
+									verticalAlign:
+										'' === value ? undefined : value,
 								} );
 							} }
 							help={ __(
@@ -179,9 +196,7 @@ export default function Edit( { context, attributes, setAttributes } ) {
 							) }
 						/>
 					</PanelBody>
-				) : (
-					null
-			) }
+				) : null }
 			</InspectorControls>
 		</>
 	);

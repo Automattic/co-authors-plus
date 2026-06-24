@@ -133,12 +133,12 @@ export const buildCoauthorTermIds = (
 /**
  * Format the author option object.
  *
- * @param {Object} root0              An author object from the API endpoint.
- * @param {string} root0.id           The author ID.
- * @param {string} root0.displayName  Name to display in the UI.
- * @param {string} root0.userNicename The unique username.
- * @param {string} root0.email        The author's email address.
- * @param {string} root0.userType     The entity type, either 'wpuser' or 'guest-user'.
+ * @param {Object} author              An author object from the API endpoint.
+ * @param {string} author.id           The author ID.
+ * @param {string} author.displayName  Name to display in the UI.
+ * @param {string} author.userNicename The unique username.
+ * @param {string} author.email        The author's email address.
+ * @param {string} author.userType     The entity type, either 'wpuser' or 'guest-user'.
  *
  * @return {Object} The object containing data relevant to the Coauthors component.
  */
@@ -148,7 +148,11 @@ export const formatAuthorData = ( author ) => {
 	return {
 		id,
 		termId,
-		label: applyFilters( 'coAuthors.formatAuthorData.label', `${ displayName } | ${ email }`, author ),
+		label: applyFilters(
+			'coAuthors.formatAuthorData.label',
+			`${ displayName } | ${ email }`,
+			author
+		),
 		display: displayName,
 		value: userNicename,
 		userType,
