@@ -11,7 +11,6 @@ namespace Automattic\CoAuthorsPlus\Tests\Unit\GuestAuthors;
 
 use Automattic\CoAuthorsPlus\Tests\Unit\TestCase;
 use CoAuthors_Guest_Authors;
-use ReflectionClass;
 
 /**
  * @covers \CoAuthors_Guest_Authors::filter_wp_insert_post_empty_content
@@ -19,7 +18,7 @@ use ReflectionClass;
 final class EmptyContentFilterTest extends TestCase {
 
 	/**
-	 * Guest authors instance under test, built without its hook-registering constructor.
+	 * Guest authors instance under test.
 	 *
 	 * @var CoAuthors_Guest_Authors
 	 */
@@ -28,7 +27,8 @@ final class EmptyContentFilterTest extends TestCase {
 	protected function set_up(): void {
 		parent::set_up();
 
-		$this->guest_authors = ( new ReflectionClass( CoAuthors_Guest_Authors::class ) )->newInstanceWithoutConstructor();
+		// Since #1316 the constructor registers no hooks, so it is safe to build directly.
+		$this->guest_authors = new CoAuthors_Guest_Authors();
 	}
 
 	public function test_allows_empty_content_for_guest_author_posts(): void {

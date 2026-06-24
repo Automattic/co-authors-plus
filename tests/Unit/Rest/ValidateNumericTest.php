@@ -11,7 +11,6 @@ namespace Automattic\CoAuthorsPlus\Tests\Unit\Rest;
 
 use Automattic\CoAuthorsPlus\Tests\Unit\TestCase;
 use CoAuthors\API\Endpoints;
-use ReflectionClass;
 
 /**
  * @covers \CoAuthors\API\Endpoints::validate_numeric
@@ -25,9 +24,9 @@ final class ValidateNumericTest extends TestCase {
 	 * @param bool  $expected Expected result.
 	 */
 	public function test_validate_numeric( $value, bool $expected ): void {
-		// validate_numeric() does not use instance state, and the constructor
-		// registers REST routes against WordPress, so build the object without it.
-		$endpoint = ( new ReflectionClass( Endpoints::class ) )->newInstanceWithoutConstructor();
+		// Since #1316 the constructor only stores its dependency (unused by
+		// validate_numeric) and registers no hooks, so it is safe to build directly.
+		$endpoint = new Endpoints( null );
 
 		$this->assertSame( $expected, $endpoint->validate_numeric( $value ) );
 	}

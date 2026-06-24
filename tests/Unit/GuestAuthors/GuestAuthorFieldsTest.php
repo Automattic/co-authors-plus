@@ -12,7 +12,6 @@ namespace Automattic\CoAuthorsPlus\Tests\Unit\GuestAuthors;
 use Automattic\CoAuthorsPlus\Tests\Unit\TestCase;
 use Brain\Monkey\Functions;
 use CoAuthors_Guest_Authors;
-use ReflectionClass;
 
 /**
  * @covers \CoAuthors_Guest_Authors::get_guest_author_fields
@@ -20,7 +19,7 @@ use ReflectionClass;
 final class GuestAuthorFieldsTest extends TestCase {
 
 	/**
-	 * Guest authors instance under test, built without its hook-registering constructor.
+	 * Guest authors instance under test.
 	 *
 	 * @var CoAuthors_Guest_Authors
 	 */
@@ -29,7 +28,8 @@ final class GuestAuthorFieldsTest extends TestCase {
 	protected function set_up(): void {
 		parent::set_up();
 
-		$this->guest_authors = ( new ReflectionClass( CoAuthors_Guest_Authors::class ) )->newInstanceWithoutConstructor();
+		// Since #1316 the constructor registers no hooks, so it is safe to build directly.
+		$this->guest_authors = new CoAuthors_Guest_Authors();
 
 		Functions\when( '__' )->returnArg();
 		// apply_filters( $tag, $fields, $groups ) returns the fields unchanged.
