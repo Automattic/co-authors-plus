@@ -1,11 +1,18 @@
 <?php
+/**
+ * Tests for the CoAuthors REST API endpoints.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 
 use CoAuthors\API\Endpoints;
 use DMS\PHPUnitExtensions\ArraySubset\ArraySubsetAsserts;
 
-/*
+/**
  * @coversDefaultClass \CoAuthors\API\Endpoints
  */
 class EndpointsTest extends TestCase {

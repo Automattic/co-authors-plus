@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the capability checks on the guest-author save hooks.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

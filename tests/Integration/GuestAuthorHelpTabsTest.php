@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the guest-author admin help tabs.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

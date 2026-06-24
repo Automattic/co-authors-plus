@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the CoAuthors_Controller REST endpoint.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 
@@ -206,5 +213,97 @@ class CoAuthorsControllerTest extends TestCase {
 
 		$this->assertInstanceOf( WP_Error::class, $result );
 		$this->assertSame( 'rest_forbidden', $result->get_error_code() );
+	}
+
+	/**
+	 * Dispatch the live route and assert the response body, not just the permission gate.
+	 *
+	 * @covers ::get_items
+	 * @covers ::prepare_item_for_response
+	 */
+	public function test_get_items_dispatch_returns_the_post_coauthors(): void {
+
+		$author = $this->create_author( 'list-author' );
+		$post   = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( $author->user_nicename ) );
+
+		wp_set_current_user( 0 );
+
+		$request = new WP_REST_Request( 'GET', '/coauthors/v1/coauthors' );
+		$request->set_param( 'post_id', $post->ID );
+		$response = rest_do_request( $request );
+
+		$this->assertSame( 200, $response->get_status() );
+
+		$data = $response->get_data();
+		$this->assertIsArray( $data );
+		$this->assertCount( 1, $data );
+		$this->assertSame( $author->ID, $data[0]['id'] );
+		$this->assertSame( $author->user_nicename, $data[0]['user_nicename'] );
+		$this->assertSame( $author->display_name, $data[0]['display_name'] );
+		$this->assertSame( 0, $data[0]['featured_media'], 'A WP user co-author has no featured media.' );
+		$this->assertArrayHasKey( 'link', $data[0] );
+		$this->assertArrayHasKey( 'description', $data[0] );
+	}
+
+	/**
+	 * @covers ::get_item
+	 * @covers ::prepare_item_for_response
+	 */
+	public function test_get_item_dispatch_returns_a_single_coauthor(): void {
+
+		$author = $this->create_author( 'single-author' );
+		$post   = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( $author->user_nicename ) );
+
+		wp_set_current_user( 0 );
+
+		$response = rest_do_request( new WP_REST_Request( 'GET', '/coauthors/v1/coauthors/single-author' ) );
+
+		$this->assertSame( 200, $response->get_status() );
+
+		$data = $response->get_data();
+		$this->assertSame( $author->ID, $data['id'] );
+		$this->assertSame( 'single-author', $data['user_nicename'] );
+		$this->assertSame( $author->display_name, $data['display_name'] );
+	}
+
+	/**
+	 * @covers ::get_item
+	 */
+	public function test_get_item_dispatch_returns_404_for_an_unknown_author(): void {
+
+		wp_set_current_user( $this->create_editor( 'editor-404' )->ID );
+
+		$response = rest_do_request( new WP_REST_Request( 'GET', '/coauthors/v1/coauthors/ghost' ) );
+
+		$this->assertSame( 404, $response->get_status() );
+		$this->assertSame( 'rest_not_found', $response->get_data()['code'] );
+	}
+
+	/**
+	 * @covers ::get_item_schema
+	 */
+	public function test_get_item_schema_omits_avatar_urls_when_avatars_are_disabled(): void {
+
+		update_option( 'show_avatars', '0' );
+
+		$this->assertSame(
+			array( 'id', 'display_name', 'description', 'user_nicename', 'link', 'featured_media' ),
+			array_keys( $this->controller->get_item_schema()['properties'] )
+		);
+	}
+
+	/**
+	 * @covers ::get_item_schema
+	 */
+	public function test_get_item_schema_includes_avatar_urls_when_avatars_are_enabled(): void {
+
+		update_option( 'show_avatars', '1' );
+
+		$this->assertArrayHasKey(
+			'avatar_urls',
+			$this->controller->get_item_schema()['properties']
+		);
 	}
 }

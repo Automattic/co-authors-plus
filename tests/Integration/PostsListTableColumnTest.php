@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the Authors column on the posts list table.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

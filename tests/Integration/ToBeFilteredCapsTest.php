@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for get_to_be_filtered_caps().
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

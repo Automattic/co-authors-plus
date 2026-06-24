@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the author archive title filter.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

@@ -4,11 +4,14 @@ import {
 	addItemByValue,
 	buildCoauthorTermIds,
 	extractTermIds,
+	formatAuthorData,
 } from '../utils';
+import { addFilter, removeFilter } from '@wordpress/hooks';
 import {
 	selectedAuthors,
 	newAuthorValue,
 	dropdownOptions,
+	rawAuthors,
 } from '../__mocks__/authors';
 
 describe( 'Utility - moveItem', () => {
@@ -108,11 +111,7 @@ describe( 'Utility - buildCoauthorTermIds', () => {
 	it( 'preserves term IDs that the REST endpoint failed to resolve', () => {
 		// User's own term (5) couldn't be resolved, selectedAuthors is empty.
 		// User then picks term 20 from the dropdown — term 5 must survive.
-		const result = buildCoauthorTermIds(
-			[ author( 20 ) ],
-			[],
-			[ 5 ]
-		);
+		const result = buildCoauthorTermIds( [ author( 20 ) ], [], [ 5 ] );
 		expect( result ).toStrictEqual( [ 5, 20 ] );
 	} );
 
@@ -129,7 +128,7 @@ describe( 'Utility - buildCoauthorTermIds', () => {
 
 	it( 'drops authors that have no valid termId', () => {
 		const result = buildCoauthorTermIds(
-			[ author( 10 ), author( null ), author( undefined ), { } ],
+			[ author( 10 ), author( null ), author( undefined ), {} ],
 			[ author( 10 ) ],
 			[ 10 ]
 		);
@@ -137,63 +136,93 @@ describe( 'Utility - buildCoauthorTermIds', () => {
 	} );
 
 	it( 'tolerates an undefined currentTermIds list', () => {
-		const result = buildCoauthorTermIds(
-			[ author( 10 ) ],
-			[],
-			undefined
-		);
+		const result = buildCoauthorTermIds( [ author( 10 ) ], [], undefined );
 		expect( result ).toStrictEqual( [ 10 ] );
 	} );
 } );
 
 describe( 'Utility - extractTermIds', () => {
-	it( 'returns integer IDs unchanged', () => {
-		const result = extractTermIds( [ 42, 43, 44 ] );
-		expect( result ).toStrictEqual( [ 42, 43, 44 ] );
+	it.each( [
+		[ 'returns integer IDs unchanged', [ 42, 43, 44 ], [ 42, 43, 44 ] ],
+		[
+			'extracts term_id from objects',
+			[ { term_id: 42 }, { term_id: 43 } ],
+			[ 42, 43 ],
+		],
+		[
+			'filters out objects that only have user_id, id or ID',
+			[ { user_id: 8703 }, { id: 5 }, { ID: 99 } ],
+			[],
+		],
+		[
+			'handles mixed integer and object entries',
+			[ 42, { user_id: 43 }, { id: 5 }, { ID: 99 }, { term_id: 44 } ],
+			[ 42, 44 ],
+		],
+		[
+			'filters out objects with no recognizable ID property',
+			[ { display_name: 'John Doe', user_nicename: 'john-doe' }, 42 ],
+			[ 42 ],
+		],
+		[ 'returns empty array for undefined input', undefined, [] ],
+		[ 'returns empty array for empty array input', [], [] ],
+		[ 'returns empty array for non-array input', 'not an array', [] ],
+	] )( '%s', ( _label, input, expected ) => {
+		expect( extractTermIds( input ) ).toStrictEqual( expected );
+	} );
+} );
+
+describe( 'Utility - formatAuthorData', () => {
+	it( 'maps the raw author fields onto the Coauthors option shape', () => {
+		expect( formatAuthorData( rawAuthors[ 0 ] ) ).toStrictEqual( {
+			id: 5,
+			termId: 42,
+			label: 'Ruby Bridges | ruby@example.com',
+			display: 'Ruby Bridges',
+			value: 'ruby',
+			userType: 'wpuser',
+		} );
 	} );
 
-	it( 'extracts term_id from objects', () => {
-		const result = extractTermIds( [ { term_id: 42 }, { term_id: 43 } ] );
-		expect( result ).toStrictEqual( [ 42, 43 ] );
+	it( 'preserves the guest-user userType and zero id', () => {
+		expect( formatAuthorData( rawAuthors[ 1 ] ) ).toStrictEqual( {
+			id: 0,
+			termId: 43,
+			label: 'Claudette Colvin | claudette@example.com',
+			display: 'Claudette Colvin',
+			value: 'claudette',
+			userType: 'guest-user',
+		} );
 	} );
 
-	it( 'filters out objects that only have user_id, id or ID', () => {
-		const result = extractTermIds( [
-			{ user_id: 8703 },
-			{ id: 5 },
-			{ ID: 99 },
-		] );
-		expect( result ).toStrictEqual( [] );
+	it( 'leaves missing fields undefined rather than throwing', () => {
+		expect( formatAuthorData( {} ) ).toStrictEqual( {
+			id: undefined,
+			termId: undefined,
+			label: 'undefined | undefined',
+			display: undefined,
+			value: undefined,
+			userType: undefined,
+		} );
 	} );
 
-	it( 'handles mixed integer and object entries', () => {
-		const result = extractTermIds( [
-			42,
-			{ user_id: 43 },
-			{ id: 5 },
-			{ ID: 99 },
-			{ term_id: 44 },
-		] );
-		expect( result ).toStrictEqual( [ 42, 44 ] );
-	} );
+	it( 'lets the coAuthors.formatAuthorData.label filter override the label', () => {
+		const filterName = 'coAuthors.formatAuthorData.label';
+		const namespace = 'test/format-author-data';
 
-	it( 'filters out objects with no recognizable ID property', () => {
-		const result = extractTermIds( [
-			{ display_name: 'John Doe', user_nicename: 'john-doe' },
-			42,
-		] );
-		expect( result ).toStrictEqual( [ 42 ] );
-	} );
+		addFilter(
+			filterName,
+			namespace,
+			( label, author ) =>
+				`${ author.displayName } (${ author.userType })`
+		);
 
-	it( 'returns empty array for undefined input', () => {
-		expect( extractTermIds( undefined ) ).toStrictEqual( [] );
-	} );
-
-	it( 'returns empty array for empty array input', () => {
-		expect( extractTermIds( [] ) ).toStrictEqual( [] );
-	} );
-
-	it( 'returns empty array for non-array input', () => {
-		expect( extractTermIds( 'not an array' ) ).toStrictEqual( [] );
+		try {
+			expect( formatAuthorData( rawAuthors[ 0 ] ).label ).toBe(
+				'Ruby Bridges (wpuser)'
+			);
+		} finally {
+			removeFilter( filterName, namespace );
+		}
 	} );
 } );

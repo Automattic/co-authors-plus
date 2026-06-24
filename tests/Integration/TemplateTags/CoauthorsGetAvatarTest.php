@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the coauthors_get_avatar() template tag.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration\TemplateTags;
 
