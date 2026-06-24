@@ -5,7 +5,7 @@ namespace Automattic\CoAuthorsPlus\Tests\Integration;
 use CoAuthors\API\Endpoints;
 use DMS\PHPUnitExtensions\ArraySubset\ArraySubsetAsserts;
 
-/*
+/**
  * @coversDefaultClass \CoAuthors\API\Endpoints
  */
 class EndpointsTest extends TestCase {

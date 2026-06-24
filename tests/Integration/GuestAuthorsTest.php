@@ -594,16 +594,20 @@ class GuestAuthorsTest extends TestCase {
 
 		add_filter( 'wp_redirect', array( $this, 'catch_redirect_destination' ), 99, 2 );
 
+		$exception = null;
 		try {
 
 			$guest_author_obj->handle_delete_guest_author_action();
 
 		} catch ( \Exception $e ) {
 
-			$this->assertStringContainsString( $guest_author_obj->parent_page, $e->getMessage() );
-			$this->assertStringContainsString( 'page=view-guest-authors', $e->getMessage() );
-			$this->assertStringContainsString( 'message=guest-author-deleted', $e->getMessage() );
+			$exception = $e;
 		}
+
+		$this->assertNotNull( $exception, 'Deleting a guest author must redirect via the wp_redirect filter.' );
+		$this->assertStringContainsString( $guest_author_obj->parent_page, $exception->getMessage() );
+		$this->assertStringContainsString( 'page=view-guest-authors', $exception->getMessage() );
+		$this->assertStringContainsString( 'message=guest-author-deleted', $exception->getMessage() );
 
 		remove_filter( 'wp_redirect', array( $this, 'catch_redirect_destination' ), 99 );
 
@@ -657,16 +661,19 @@ class GuestAuthorsTest extends TestCase {
 
 		add_filter( 'wp_redirect', array( $this, 'catch_redirect_destination' ), 99, 2 );
 
+		$exception = null;
 		try {
 
 			$guest_author_obj->handle_delete_guest_author_action();
 
 		} catch ( \Exception $e ) {
 
-			// $this->assertStringContainsString( $guest_author_obj->parent_page, $e->getMessage() );
-			$this->assertStringContainsString( 'page=view-guest-authors', $e->getMessage() );
-			$this->assertStringContainsString( 'message=guest-author-deleted', $e->getMessage() );
+			$exception = $e;
 		}
+
+		$this->assertNotNull( $exception, 'Reassigning to an existing co-author must redirect via the wp_redirect filter.' );
+		$this->assertStringContainsString( 'page=view-guest-authors', $exception->getMessage() );
+		$this->assertStringContainsString( 'message=guest-author-deleted', $exception->getMessage() );
 
 		remove_filter( 'wp_redirect', array( $this, 'catch_redirect_destination' ), 99 );
 
@@ -703,16 +710,20 @@ class GuestAuthorsTest extends TestCase {
 
 		add_filter( 'wp_redirect', array( $this, 'catch_redirect_destination' ), 99, 2 );
 
+		$exception = null;
 		try {
 
 			$guest_author_obj->handle_delete_guest_author_action();
 
 		} catch ( \Exception $e ) {
 
-			$this->assertStringContainsString( $guest_author_obj->parent_page, $e->getMessage() );
-			$this->assertStringContainsString( 'page=view-guest-authors', $e->getMessage() );
-			$this->assertStringContainsString( 'message=guest-author-deleted', $e->getMessage() );
+			$exception = $e;
 		}
+
+		$this->assertNotNull( $exception, 'Deleting a guest author must redirect via the wp_redirect filter.' );
+		$this->assertStringContainsString( $guest_author_obj->parent_page, $exception->getMessage() );
+		$this->assertStringContainsString( 'page=view-guest-authors', $exception->getMessage() );
+		$this->assertStringContainsString( 'message=guest-author-deleted', $exception->getMessage() );
 
 		remove_filter( 'wp_redirect', array( $this, 'catch_redirect_destination' ), 99 );
 

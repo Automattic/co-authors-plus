@@ -12,7 +12,7 @@ use Automattic\CoAuthorsPlus\Integrations\WordPress_Importer;
 /**
  * Tests for the WordPress Importer integration class.
  *
- * @covers \CoAuthors\Integrations\WordPress_Importer
+ * @covers \Automattic\CoAuthorsPlus\Integrations\WordPress_Importer
  */
 class WordPressImporterTest extends TestCase {
 
