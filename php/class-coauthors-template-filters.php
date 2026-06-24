@@ -6,7 +6,13 @@
 
 class CoAuthors_Template_Filters {
 
-	public function __construct() {
+	/**
+	 * Register the template filter hooks.
+	 *
+	 * Called from the composition root after construction so that creating an
+	 * instance has no global side effects.
+	 */
+	public function register_hooks(): void {
 		add_filter( 'the_author', array( $this, 'filter_the_author' ) );
 		add_filter( 'the_author_posts_link', array( $this, 'filter_the_author_posts_link' ) );
 

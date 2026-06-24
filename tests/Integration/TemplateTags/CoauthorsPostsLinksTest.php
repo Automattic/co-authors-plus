@@ -15,6 +15,7 @@ class CoauthorsPostsLinksTest extends TestCase {
 	public function test_the_author_filter_is_retained(): void {
 		global $coauthors_plus_template_filters;
 		$coauthors_plus_template_filters = new \CoAuthors_Template_Filters();
+		$coauthors_plus_template_filters->register_hooks();
 		$this->assertEquals( 10, has_filter( 'the_author', array( $coauthors_plus_template_filters, 'filter_the_author' ) ) );
 	}
 

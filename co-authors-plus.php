@@ -51,7 +51,9 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 
 global $coauthors_plus;
 $coauthors_plus     = new CoAuthors_Plus();
+$coauthors_plus->register_hooks();
 $coauthors_endpoint = new CoAuthors\API\Endpoints( $coauthors_plus );
+$coauthors_endpoint->register_hooks();
 CoAuthors\Blocks::run();
 
 // Initialize integrations.

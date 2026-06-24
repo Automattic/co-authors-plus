@@ -17,9 +17,12 @@ class CoAuthors_Guest_Authors {
 	public static $cache_group = 'coauthors-plus-guest-authors';
 
 	/**
-	 * Initialize our Guest Authors class and establish common hooks
+	 * Register the Guest Authors hooks and the guest author post type.
+	 *
+	 * Called from the composition root after construction so that creating an
+	 * instance has no global side effects.
 	 */
-	public function __construct() {
+	public function register_hooks(): void {
 		global $coauthors_plus;
 
 		// Add the guest author management menu
