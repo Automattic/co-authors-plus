@@ -59,11 +59,11 @@
 		"behat-rerun": "behat --colors --rerun",
 		"coverage": [
 			"@putenv WP_MULTISITE=1",
-			"@php ./vendor/bin/phpunit --exclude=ms-excluded --coverage-html ./.phpunit.cache/coverage-html"
+			"@php ./vendor/bin/phpunit --testsuite integration --exclude=ms-excluded --coverage-html ./.phpunit.cache/coverage-html"
 		],
 		"coverage-ci": [
 			"@putenv WP_MULTISITE=1",
-			"@php ./vendor/bin/phpunit --exclude=ms-excluded"
+			"@php ./vendor/bin/phpunit --testsuite integration --exclude=ms-excluded"
 		],
 		"cs": [
 			"@php ./vendor/bin/phpcs -q"
@@ -81,8 +81,9 @@
 			"@php ./vendor/php-parallel-lint/php-parallel-lint/parallel-lint . -e php --exclude vendor --exclude .git --checkstyle"
 		],
 		"prepare-behat-tests": "wp-env start",
-		"test:integration": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus ./vendor/bin/phpunit --exclude=ms-required --no-coverage",
-		"test:integration-ms": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --exclude=ms-excluded --no-coverage'"
+		"test:integration": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus ./vendor/bin/phpunit --testsuite integration --exclude=ms-required --no-coverage",
+		"test:integration-ms": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --testsuite integration --exclude=ms-excluded --no-coverage'",
+		"test:unit": "@php ./vendor/bin/phpunit --testsuite unit --no-coverage"
 	},
 	"scripts-descriptions": {
 		"behat": "Run Behat tests",
@@ -96,6 +97,7 @@
 		"lint-ci": "Run PHP linting and send results to stdout",
 		"prepare-behat-tests": "Start wp-env environment for Behat tests",
 		"test:integration": "Run integration tests",
-		"test:integration-ms": "Run integration tests in multisite mode"
+		"test:integration-ms": "Run integration tests in multisite mode",
+		"test:unit": "Run unit tests (no WordPress required)"
 	}
 }
