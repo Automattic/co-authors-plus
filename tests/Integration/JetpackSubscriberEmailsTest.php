@@ -5,6 +5,8 @@
  * @package CoAuthors
  */
 
+declare( strict_types=1 );
+
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 
 use Automattic\CoAuthorsPlus\Integrations\Jetpack_Subscriber_Emails;

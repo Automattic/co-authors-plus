@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the nonce and capability checks on coauthors_set_post_author_field().
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

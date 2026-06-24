@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the coauthors_wp_list_authors() template tag.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration\TemplateTags;
 

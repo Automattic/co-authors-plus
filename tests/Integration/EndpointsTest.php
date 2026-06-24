@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the CoAuthors REST API endpoints.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

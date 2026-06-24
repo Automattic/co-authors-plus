@@ -1,4 +1,11 @@
 <?php
+/**
+ * Base integration test case for Co-Authors Plus.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

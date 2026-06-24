@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the coauthors_update_post method.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

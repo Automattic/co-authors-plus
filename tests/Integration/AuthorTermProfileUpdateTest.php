@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for refreshing an author term when a user's profile is updated.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

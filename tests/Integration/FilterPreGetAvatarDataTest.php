@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the pre_get_avatar_data URL filter.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 

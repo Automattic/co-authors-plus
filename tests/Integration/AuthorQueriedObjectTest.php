@@ -1,10 +1,17 @@
 <?php
 /**
  * Test Co-Authors Plus' modifications of author queries
+ *
+ * @package Automattic\CoAuthorsPlus
  */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
 
+/**
+ * @covers \CoAuthors_Plus::fix_author_page()
+ */
 class AuthorQueriedObjectTest extends TestCase {
 
 	/**
