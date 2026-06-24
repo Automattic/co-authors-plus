@@ -12,6 +12,13 @@ use Automattic\CoAuthorsPlus\Integrations\Jetpack_Subscriber_Emails;
 /**
  * Tests for the Jetpack Subscriber Emails integration.
  *
+ * These tests exercise the integration's glue method
+ * (`filter_published_post_flags()`) directly. The activation wiring (the
+ * `is_*_active` / `register_hooks` guards that decide whether the integration
+ * loads at all) is deliberately NOT covered here, because Jetpack itself is not
+ * loaded in the test environment, so those guards cannot be exercised
+ * realistically.
+ *
  * @covers \Automattic\CoAuthorsPlus\Integrations\Jetpack_Subscriber_Emails
  */
 class JetpackSubscriberEmailsTest extends TestCase {

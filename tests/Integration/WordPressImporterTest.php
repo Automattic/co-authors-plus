@@ -12,6 +12,13 @@ use Automattic\CoAuthorsPlus\Integrations\WordPress_Importer;
 /**
  * Tests for the WordPress Importer integration class.
  *
+ * These tests exercise the integration's glue method
+ * (`check_existing_guest_author()`) directly. The activation wiring (the
+ * `is_*_active` / `register_hooks` guards that decide whether the integration
+ * loads at all) is deliberately NOT covered here, because the WordPress Importer
+ * plugin itself is not loaded in the test environment, so those guards cannot be
+ * exercised realistically.
+ *
  * @covers \Automattic\CoAuthorsPlus\Integrations\WordPress_Importer
  */
 class WordPressImporterTest extends TestCase {

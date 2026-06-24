@@ -1,8 +1,42 @@
 <?php
+/**
+ * WordPress-free unit tests for the Yoast integration's public filter callbacks.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
 
-namespace Automattic\CoAuthorsPlus\Tests\Integration;
+declare( strict_types=1 );
 
+namespace Automattic\CoAuthorsPlus\Tests\Unit\Integrations;
+
+use Automattic\CoAuthorsPlus\Tests\Unit\TestCase;
+use Brain\Monkey\Functions;
 use CoAuthors\Integrations\Yoast;
+
+/*
+ * The Yoast integration class lives in php/integrations/yoast.php, which runs
+ * Yoast::init() (and therefore add_action()) at file scope when autoloaded.
+ * Provide a no-op add_action() so the file can load without WordPress; Brain
+ * Monkey is free to patch it again inside individual tests.
+ */
+if ( ! function_exists( 'add_action' ) ) {
+	/**
+	 * No-op stub so php/integrations/yoast.php can be autoloaded under test.
+	 *
+	 * @return bool
+	 */
+	function add_action() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Stub for a WordPress core function.
+		return true;
+	}
+}
+
+/*
+ * filter_graph() returns early unless get_coauthors() exists. Load the real
+ * template-tags.php (it is plain functions, no WordPress required at load time)
+ * so the method advances past its `function_exists()` guard to the context-post
+ * guard under test. The guard returns before get_coauthors() is ever called.
+ */
+require_once dirname( __DIR__, 3 ) . '/template-tags.php';
 
 /**
  * Unit coverage for the Yoast integration's public filter callbacks.
@@ -11,16 +45,13 @@ use CoAuthors\Integrations\Yoast;
  * ships Mockery). Where the integration depends on Yoast types that are absent at
  * test time we use Mockery to generate them: a mock of the author-archive
  * presentation (so the `is_a()` guard is satisfied) and an `alias:` mock of the
- * static `\WPSEO_Options` accessor.
+ * static `\WPSEO_Options` accessor. The WordPress request functions the methods
+ * call (`is_singular()`, `is_author()`, `get_post_type()`,
+ * `get_queried_object_id()`) are replaced with Brain Monkey stubs.
  */
-class YoastFilterGraphTest extends TestCase {
+final class YoastFilterGraphTest extends TestCase {
 
 	const PRESENTATION_CLASS = 'Yoast\\WP\\SEO\\Presentations\\Indexable_Author_Archive_Presentation';
-
-	public function tear_down() {
-		\Mockery::close();
-		parent::tear_down();
-	}
 
 	/**
 	 * Regression coverage for issue #1113.
@@ -34,9 +65,7 @@ class YoastFilterGraphTest extends TestCase {
 	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
 	 */
 	public function test_filter_graph_returns_data_unchanged_when_context_post_is_null(): void {
-		$post_id = $this->factory()->post->create();
-		$this->go_to( get_permalink( $post_id ) );
-		$this->assertTrue( is_singular(), 'The guard is only reached on a singular request.' );
+		Functions\when( 'is_singular' )->justReturn( true );
 
 		$context       = new \stdClass();
 		$context->post = null;
@@ -59,9 +88,7 @@ class YoastFilterGraphTest extends TestCase {
 	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
 	 */
 	public function test_filter_graph_returns_data_unchanged_when_context_post_id_is_empty(): void {
-		$post_id = $this->factory()->post->create();
-		$this->go_to( get_permalink( $post_id ) );
-		$this->assertTrue( is_singular(), 'The guard is only reached on a singular request.' );
+		Functions\when( 'is_singular' )->justReturn( true );
 
 		$context           = new \stdClass();
 		$context->post     = new \stdClass();
@@ -110,27 +137,14 @@ class YoastFilterGraphTest extends TestCase {
 	 * Place the request on a guest-author archive so the method reaches its
 	 * Yoast-option and post-type guards.
 	 *
-	 * @return int The guest author post ID.
+	 * The integration only needs `is_author()` to be true and the queried object's
+	 * post type to be `guest-author`, so we stub those WordPress functions rather
+	 * than building a real query.
 	 */
-	private function go_to_guest_author_archive( string $user_login ): int {
-		global $wp_query, $coauthors_plus;
-
-		$guest_author_id = $coauthors_plus->guest_authors->create(
-			array(
-				'user_login'   => $user_login,
-				'display_name' => $user_login,
-			)
-		);
-
-		$wp_query->is_author         = true;
-		$wp_query->is_archive        = true;
-		$wp_query->queried_object    = get_post( $guest_author_id );
-		$wp_query->queried_object_id = $guest_author_id;
-
-		$this->assertTrue( is_author(), 'The request must be an author archive for the guard to be reached.' );
-		$this->assertSame( 'guest-author', get_post_type( $guest_author_id ) );
-
-		return $guest_author_id;
+	private function go_to_guest_author_archive(): void {
+		Functions\when( 'is_author' )->justReturn( true );
+		Functions\when( 'get_queried_object_id' )->justReturn( 123 );
+		Functions\when( 'get_post_type' )->justReturn( 'guest-author' );
 	}
 
 	/**
@@ -146,7 +160,7 @@ class YoastFilterGraphTest extends TestCase {
 	 * @covers \CoAuthors\Integrations\Yoast::allow_indexing_guest_author_archive
 	 */
 	public function test_allow_indexing_preserves_noindex_when_yoast_author_archives_are_disabled(): void {
-		$this->go_to_guest_author_archive( 'guest-noindex-on' );
+		$this->go_to_guest_author_archive();
 		$this->mock_wpseo_option( true );
 
 		// is_robots_noindex = 0 means that, absent the option guard, the method
@@ -173,7 +187,7 @@ class YoastFilterGraphTest extends TestCase {
 	 * @covers \CoAuthors\Integrations\Yoast::allow_indexing_guest_author_archive
 	 */
 	public function test_allow_indexing_forces_index_when_yoast_allows_author_archives(): void {
-		$this->go_to_guest_author_archive( 'guest-noindex-off' );
+		$this->go_to_guest_author_archive();
 		$this->mock_wpseo_option( false );
 
 		$presentation = $this->mock_presentation( 0 );
@@ -196,7 +210,7 @@ class YoastFilterGraphTest extends TestCase {
 	 * @covers \CoAuthors\Integrations\Yoast::allow_indexing_guest_author_archive
 	 */
 	public function test_allow_indexing_respects_manual_noindex_on_guest_author(): void {
-		$this->go_to_guest_author_archive( 'guest-manual-noindex' );
+		$this->go_to_guest_author_archive();
 		$this->mock_wpseo_option( false );
 
 		$presentation = $this->mock_presentation( 1 );
@@ -219,9 +233,7 @@ class YoastFilterGraphTest extends TestCase {
 	 * @covers \CoAuthors\Integrations\Yoast::allow_indexing_guest_author_archive
 	 */
 	public function test_allow_indexing_is_noop_when_not_an_author_archive(): void {
-		$post_id = $this->factory()->post->create();
-		$this->go_to( get_permalink( $post_id ) );
-		$this->assertFalse( is_author(), 'This request must not be an author archive.' );
+		Functions\when( 'is_author' )->justReturn( false );
 
 		$presentation = $this->mock_presentation( 0 );
 
@@ -241,17 +253,9 @@ class YoastFilterGraphTest extends TestCase {
 	 * @covers \CoAuthors\Integrations\Yoast::allow_indexing_guest_author_archive
 	 */
 	public function test_allow_indexing_is_noop_for_regular_author_archive(): void {
-		global $wp_query;
-
-		$user_id = $this->create_author()->ID;
-
-		$wp_query->is_author         = true;
-		$wp_query->is_archive        = true;
-		$wp_query->queried_object    = get_user_by( 'id', $user_id );
-		$wp_query->queried_object_id = $user_id;
-
-		$this->assertTrue( is_author() );
-		$this->assertNotSame( 'guest-author', get_post_type( $user_id ) );
+		Functions\when( 'is_author' )->justReturn( true );
+		Functions\when( 'get_queried_object_id' )->justReturn( 456 );
+		Functions\when( 'get_post_type' )->justReturn( false );
 
 		$this->mock_wpseo_option( false );
 		$presentation = $this->mock_presentation( 0 );
