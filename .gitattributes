@@ -36,7 +36,6 @@
 /composer.json                   export-ignore
 /composer.lock                   export-ignore
 /CONTRIBUTING.md                 export-ignore
-/Makefile                        export-ignore
 /package.json                    export-ignore
 /package-lock.json               export-ignore
 /phpunit.xml                     export-ignore
