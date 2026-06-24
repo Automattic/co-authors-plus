@@ -909,8 +909,15 @@ class AddCoauthorsTest extends TestCase {
 		// The bug is that the code tries to access $term->term_id when $term is false.
 		$deleted = wp_delete_user( $user->ID );
 
-		// The user must actually be gone, and no PHP warning should have been raised.
+		// No PHP warning should have been raised by the deletion handler (the test
+		// runner enforces that), and the deletion must report success.
 		$this->assertTrue( $deleted, 'wp_delete_user() should report success.' );
-		$this->assertFalse( get_user_by( 'id', $user->ID ), 'The user should no longer exist after deletion.' );
+
+		// On single site the user record is removed entirely. On multisite,
+		// wp_delete_user() only detaches the user from the current site — the network
+		// user record persists — so only assert full removal on single site.
+		if ( ! is_multisite() ) {
+			$this->assertFalse( get_user_by( 'id', $user->ID ), 'The user should no longer exist after deletion.' );
+		}
 	}
 }
