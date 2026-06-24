@@ -27,9 +27,11 @@ class EndpointsTest extends TestCase {
 	}
 
 	/**
-	 * @covers \CoAuthors\API\Endpoints::__construct
+	 * @covers \CoAuthors\API\Endpoints::register_hooks
 	 */
-	public function test_construct(): void {
+	public function test_register_hooks(): void {
+
+		$this->_api->register_hooks();
 
 		$this->assertEquals(
 			10,

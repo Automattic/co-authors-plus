@@ -59,9 +59,12 @@ class CoAuthors_Plus {
 	public $guest_authors;
 
 	/**
-	 * __construct()
+	 * Register the plugin's WordPress hooks.
+	 *
+	 * Called from the composition root after construction so that creating an
+	 * instance has no global side effects.
 	 */
-	public function __construct() {
+	public function register_hooks(): void {
 
 		// Register our models
 		add_action( 'init', array( $this, 'action_init' ) );
@@ -162,6 +165,7 @@ class CoAuthors_Plus {
 		if ( $this->is_guest_authors_enabled() ) {
 			require_once dirname( COAUTHORS_PLUS_FILE ) . '/php/class-coauthors-guest-authors.php';
 			$this->guest_authors = new CoAuthors_Guest_Authors();
+			$this->guest_authors->register_hooks();
 			if ( apply_filters( 'coauthors_guest_authors_force', false ) ) {
 				$this->force_guest_authors = true;
 			}
@@ -171,6 +175,7 @@ class CoAuthors_Plus {
 		if ( apply_filters( 'coauthors_auto_apply_template_tags', false ) ) {
 			global $coauthors_plus_template_filters;
 			$coauthors_plus_template_filters = new CoAuthors_Template_Filters();
+			$coauthors_plus_template_filters->register_hooks();
 		}
 
 	}
