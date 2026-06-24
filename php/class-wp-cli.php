@@ -1,4 +1,8 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 /**
  * Manage co-authors and guest authors.
  *
@@ -15,21 +19,42 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	private $args;
 
 	/**
-	 * Subcommand to create guest authors based on users
+	 * Subcommand to create guest authors based on users.
+	 *
+	 * Users that already have a linked guest author are skipped, so the command
+	 * is safe to re-run. `--offset` and `--number` allow the user list to be
+	 * processed in chunks, which is useful for very large sites where running
+	 * the full import in one invocation is impractical for memory or runtime
+	 * reasons. Because existing guest authors are skipped, an interrupted run
+	 * can also be resumed by simply re-running the command, with or without
+	 * chunking.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--offset=<offset>]
+	 * : Number of users to skip before processing begins. Defaults to 0.
+	 *
+	 * [--number=<number>]
+	 * : Maximum number of users to process in this run. Defaults to all users.
 	 *
 	 * @since 3.0
 	 *
 	 * @subcommand create-guest-authors
+	 * @synopsis [--offset=<offset>] [--number=<number>]
 	 */
 	public function create_guest_authors( $args, $assoc_args ): void {
 		global $coauthors_plus;
 
 		$defaults = array(
-				// There are no arguments at this time
+			'offset' => '',
+			'number' => '',
 		);
 		$this->args = wp_parse_args( $assoc_args, $defaults );
 
-		$users    = get_users();
+		// Chunked runs rely on a stable ordering across invocations. get_users()
+		// orders by user_login ASC by default, which is stable provided users
+		// are not added or removed between chunks.
+		$users    = get_users( $this->args );
 		$count    = count( $users );
 		$created  = 0;
 		$skipped  = 0;
@@ -402,41 +427,62 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Assign posts associated with a WordPress user to a co-author
-	 * Only apply the changes if there aren't yet co-authors associated with the post
+	 * Assign posts associated with a WordPress user to a co-author.
+	 *
+	 * Identify the source author by either `--user_login` or `--user_id`.
+	 * `--user_id` is useful when the underlying WordPress user has been
+	 * deleted, so a login lookup is no longer possible but `post_author`
+	 * still references the original ID.
 	 *
 	 * @since 3.0
 	 *
 	 * @subcommand assign-user-to-coauthor
-	 * @synopsis --user_login=<user-login> --coauthor=<co-author>
+	 * @synopsis [--user_login=<user-login>] [--user_id=<user-id>] --coauthor=<co-author> [--append_coauthors]
 	 */
 	public function assign_user_to_coauthor( $args, $assoc_args ): void {
 		global $coauthors_plus, $wpdb;
 
 		$defaults   = array(
-			'user_login' => '',
-			'coauthor'   => '',
+			'user_login'       => '',
+			'user_id'          => '',
+			'coauthor'         => '',
+			'append_coauthors' => false,
 		);
 		$assoc_args = wp_parse_args( $assoc_args, $defaults );
 
-		$user     = get_user_by( 'login', $assoc_args['user_login'] );
-		$coauthor = $coauthors_plus->get_coauthor_by( 'login', $assoc_args['coauthor'] );
+		$has_login = '' !== $assoc_args['user_login'];
+		$has_id    = '' !== $assoc_args['user_id'];
 
-		if ( ! $user ) {
-			WP_CLI::error( __( 'Please specify a valid user_login', 'co-authors-plus' ) );
+		if ( $has_login === $has_id ) {
+			WP_CLI::error( __( 'Please specify exactly one of --user_login or --user_id.', 'co-authors-plus' ) );
 		}
+
+		if ( $has_login ) {
+			$user = get_user_by( 'login', $assoc_args['user_login'] );
+			if ( ! $user ) {
+				WP_CLI::error( __( 'Please specify a valid user_login.', 'co-authors-plus' ) );
+			}
+			$user_id = (int) $user->ID;
+		} else {
+			$user_id = (int) $assoc_args['user_id'];
+			if ( $user_id <= 0 ) {
+				WP_CLI::error( __( 'Please specify a positive integer for user_id.', 'co-authors-plus' ) );
+			}
+		}
+
+		$coauthor = $coauthors_plus->get_coauthor_by( 'login', $assoc_args['coauthor'] );
 
 		if ( ! $coauthor ) {
 			WP_CLI::error( __( 'Please specify a valid co-author login', 'co-authors-plus' ) );
 		}
 
 		$post_types = implode( "','", $coauthors_plus->supported_post_types() );
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching
-		$posts    = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author=%d AND post_type IN ('{$post_types}')", $user->ID ) );
+		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$posts    = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author=%d AND post_type IN ('{$post_types}')", $user_id ) );
 		$affected = 0;
 		foreach ( $posts as $post_id ) {
 			$coauthors = cap_get_coauthor_terms_for_post( $post_id );
-			if ( ! empty( $coauthors ) ) {
+			if ( ! empty( $coauthors ) && ! $assoc_args['append_coauthors'] ) {
 				WP_CLI::log(
 					sprintf(
 						/* translators: 1: Post ID, 2: Comma-separated list of co-author slugs. */
@@ -448,7 +494,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				continue;
 			}
 
-			$coauthors_plus->add_coauthors( $post_id, array( $coauthor->user_login ) );
+			$coauthors_plus->add_coauthors( $post_id, array( $coauthor->user_login ), $assoc_args['append_coauthors'] );
 			/* translators: 1: Co-author login, 2: Post ID */
 			WP_CLI::log( sprintf( __( "Updating - Adding %1\$s's byline to post #%2\$d", 'co-authors-plus' ), $coauthor->user_login, $post_id ) );
 			$affected++;
@@ -797,7 +843,10 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	public function migrate_author_terms( $args, $assoc_args ): void {
 		global $coauthors_plus;
 
-		$author_terms = get_terms( $coauthors_plus->coauthor_taxonomy, array( 'hide_empty' => false ) );
+		$author_terms = get_terms( array(
+			'taxonomy'   => $coauthors_plus->coauthor_taxonomy,
+			'hide_empty' => false,
+		) );
 		WP_CLI::log( 'Now migrating up to ' . count( $author_terms ) . ' terms' );
 		foreach ( $author_terms as $author_term ) {
 			// Term is already prefixed. We're good.
@@ -834,7 +883,10 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 */
 	public function update_author_terms(): void {
 		global $coauthors_plus;
-		$author_terms = get_terms( $coauthors_plus->coauthor_taxonomy, array( 'hide_empty' => false ) );
+		$author_terms = get_terms( array(
+			'taxonomy'   => $coauthors_plus->coauthor_taxonomy,
+			'hide_empty' => false,
+		) );
 		WP_CLI::log( 'Now updating ' . count( $author_terms ) . ' terms' );
 		foreach ( $author_terms as $author_term ) {
 			$old_count = $author_term->count;
@@ -910,7 +962,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	public function remove_terms_from_revisions(): void {
 		global $wpdb;
 
-		$ids = $wpdb->get_col( "SELECT ID FROM $wpdb->posts WHERE post_type='revision' AND post_status='inherit'" );
+		$ids = $wpdb->get_col( "SELECT ID FROM $wpdb->posts WHERE post_type='revision' AND post_status='inherit'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WP-CLI one-time maintenance command.
 
 		WP_CLI::log( 'Found ' . count( $ids ) . ' revisions to look through' );
 		$affected = 0;
@@ -1009,7 +1061,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			WP_CLI::error( 'Please specify a valid CSV file with the --file arg.' );
 		}
 
-		$file = fopen( $this->args['file'], 'rb' );
+		$file = fopen( $this->args['file'], 'rb' ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fopen -- fgetcsv() requires native PHP file handle
 
 		if ( ! $file ) {
 			WP_CLI::error( 'Failed to read file.' );

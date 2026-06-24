@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the Co-Author Image block rendering.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration\Blocks;
 

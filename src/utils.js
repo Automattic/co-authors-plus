@@ -1,6 +1,35 @@
 import { applyFilters } from '@wordpress/hooks';
 
 /**
+ * Normalize the raw coauthors value from the core entity store into
+ * an array of integer term IDs.
+ *
+ * The entity store may return plain integers [42, 43] or full objects
+ * with various ID properties depending on the WordPress version and
+ * active plugins. This function handles both formats.
+ *
+ * @param {Array|undefined} coauthors Raw value from getEditedPostAttribute.
+ * @return {Array} Array of integer term IDs.
+ */
+export const extractTermIds = ( coauthors ) => {
+	if ( ! Array.isArray( coauthors ) || 0 === coauthors.length ) {
+		return [];
+	}
+
+	return coauthors
+		.map( ( item ) => {
+			if ( Number.isInteger( item ) ) {
+				return item;
+			}
+			if ( item && 'object' === typeof item ) {
+				return item.term_id ?? null;
+			}
+			return null;
+		} )
+		.filter( ( id ) => Number.isInteger( id ) );
+};
+
+/**
  * Move an item up or down in an array.
  *
  * @param {string} targetItem Item to move.
@@ -104,12 +133,12 @@ export const buildCoauthorTermIds = (
 /**
  * Format the author option object.
  *
- * @param {Object} root0              An author object from the API endpoint.
- * @param {string} root0.id           The author ID.
- * @param {string} root0.displayName  Name to display in the UI.
- * @param {string} root0.userNicename The unique username.
- * @param {string} root0.email        The author's email address.
- * @param {string} root0.userType     The entity type, either 'wpuser' or 'guest-user'.
+ * @param {Object} author              An author object from the API endpoint.
+ * @param {string} author.id           The author ID.
+ * @param {string} author.displayName  Name to display in the UI.
+ * @param {string} author.userNicename The unique username.
+ * @param {string} author.email        The author's email address.
+ * @param {string} author.userType     The entity type, either 'wpuser' or 'guest-user'.
  *
  * @return {Object} The object containing data relevant to the Coauthors component.
  */
@@ -119,7 +148,11 @@ export const formatAuthorData = ( author ) => {
 	return {
 		id,
 		termId,
-		label: applyFilters( 'coAuthors.formatAuthorData.label', `${ displayName } | ${ email }`, author ),
+		label: applyFilters(
+			'coAuthors.formatAuthorData.label',
+			`${ displayName } | ${ email }`,
+			author
+		),
 		display: displayName,
 		value: userNicename,
 		userType,

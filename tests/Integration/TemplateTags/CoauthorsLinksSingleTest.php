@@ -1,4 +1,11 @@
 <?php
+/**
+ * Tests for the coauthors_links_single() template tag.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration\TemplateTags;
 
@@ -182,5 +189,145 @@ class CoauthorsLinksSingleTest extends TestCase {
 			$link,
 			'Guest author display name must appear in the link text.'
 		);
+	}
+
+	/**
+	 * Checks a single co-author who is a guest author.
+	 *
+	 * The function must use the $author object's own display_name and user_url
+	 * rather than the global $authordata, so it remains correct regardless of
+	 * which author object the loop currently has in the global state.
+	 */
+	public function test_coauthors_links_single_when_guest_author(): void {
+
+		global $post;
+
+		// Backing up global post.
+		$post_backup = $post;
+
+		$author = $this->create_author( 'author1' );
+		$post   = $this->create_post( $author );
+
+		// Without a URL set, the function should return the display name as plain text.
+		$author->type = 'guest-author';
+		$author_link  = coauthors_links_single( $author );
+
+		$this->assertEquals(
+			esc_html( $author->display_name ),
+			$author_link,
+			'Co-author link should be plain display name when no URL is set.'
+		);
+
+		// Update the user_url and re-fetch to simulate the $author object having a URL.
+		wp_update_user(
+			array(
+				'ID'       => $author->ID,
+				'user_url' => 'https://example.org',
+			)
+		);
+		$author_with_url       = get_userdata( $author->ID );
+		$author_with_url->type = 'guest-author';
+
+		$author_link = coauthors_links_single( $author_with_url );
+
+		$this->assertStringContainsString(
+			$author_with_url->user_url,
+			$author_link,
+			'Author URL must appear in the link href.'
+		);
+		$this->assertStringContainsString(
+			$author_with_url->display_name,
+			$author_link,
+			'Author display name must appear in the link text.'
+		);
+
+		// The display name should appear exactly once as the visible link text.
+		$this->assertEquals(
+			1,
+			substr_count( $author_link, '>' . $author_with_url->display_name . '<' ),
+			'Author display name must appear exactly once as visible link text.'
+		);
+
+		// Restore global post from backup.
+		$post = $post_backup;
+	}
+
+	/**
+	 * Checks a single co-author when the user's url is set and they are not a guest author.
+	 *
+	 * The function must use the $author object's own user_url property directly.
+	 */
+	public function test_coauthors_links_single_author_url_is_set(): void {
+
+		global $post;
+
+		// Backing up global post.
+		$post_backup = $post;
+
+		$author = $this->create_author( 'author1' );
+		$post   = $this->create_post( $author );
+
+		$user_id = $this->factory()->user->create(
+			array(
+				'user_url' => 'https://example.org',
+			)
+		);
+		$user = get_user_by( 'id', $user_id );
+
+		$author_link = coauthors_links_single( $user );
+
+		$this->assertStringContainsString( $user->user_url, $author_link, 'Author URL not found in link.' );
+		$this->assertStringContainsString( $user->display_name, $author_link, 'Author display name not found in link.' );
+
+		// The display name should appear exactly once as the visible link text.
+		$this->assertEquals(
+			1,
+			substr_count( $author_link, '>' . $user->display_name . '<' ),
+			'Author display name must appear exactly once as visible link text.'
+		);
+
+		// Restore global post from backup.
+		$post = $post_backup;
+	}
+
+	/**
+	 * Checks a single co-author when the user's website/url do not exist.
+	 *
+	 * The function must return just the display name from the $author object,
+	 * not from the global $authordata.
+	 */
+	public function test_coauthors_links_single_when_url_not_exist(): void {
+
+		global $post;
+
+		// Backing up global post.
+		$post_backup = $post;
+
+		$author = $this->create_author( 'author1' );
+		$editor = $this->create_editor( 'editor1' );
+		$post   = $this->create_post( $author );
+
+		// Guest author without a website: should return the display name as plain (escaped) text.
+		$editor->type = 'guest-author';
+
+		$author_link = coauthors_links_single( $editor );
+
+		$this->assertEquals(
+			esc_html( $editor->display_name ),
+			$author_link,
+			'Guest author without URL should return plain escaped display name.'
+		);
+
+		// Regular WP user without a URL: same expectation.
+		$author_link = coauthors_links_single( $author );
+
+		$this->assertEquals(
+			esc_html( $author->display_name ),
+			$author_link,
+			'WP user without URL should return plain escaped display name.'
+		);
+
+		// Restore global post from backup.
+		$post = $post_backup;
 	}
 }

@@ -1,9 +1,13 @@
 <?php
+namespace CoAuthors\Integrations;
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 /**
  * The main file for the Yoast integration
  */
-
-namespace CoAuthors\Integrations;
 
 use CoAuthors\Integrations\Yoast\CoAuthor;
 use Yoast\WP\SEO\Config\Schema_Types;
@@ -163,6 +167,11 @@ class Yoast {
 			return $data;
 		}
 
+		// Return early if there is no post in the context.
+		if ( empty( $context->post ) || empty( $context->post->ID ) ) {
+			return $data;
+		}
+
 		/**
 		 * Contains the authors from the Co-Authors Plus plugin.
 		 *
@@ -292,6 +301,18 @@ class Yoast {
 		}
 
 		if ( ! is_a( $presentation, Indexable_Author_Archive_Presentation::class ) ) {
+			return $robots;
+		}
+		
+		/*
+		 * Respect Yoast's "Show Authors archives in search results?" setting.
+		 *
+		 * This is stored in Yoast's serialized `wpseo_titles` option, not as a
+		 * standalone WordPress option, so it must be read via the Yoast options API.
+		 * When `noindex-author-wpseo` is true, author archives are excluded from
+		 * search results, so we leave the robots directives untouched.
+		 */
+		if ( class_exists( '\WPSEO_Options' ) && \WPSEO_Options::get( 'noindex-author-wpseo', false ) ) {
 			return $robots;
 		}
 

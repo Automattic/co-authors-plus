@@ -8,9 +8,7 @@ import {
 	useBlockProps,
 	AlignmentControl,
 	BlockControls,
-	store as blockEditorStore,
 } from '@wordpress/block-editor';
-import { __ } from '@wordpress/i18n';
 import { useSelect } from '@wordpress/data';
 import classnames from 'classnames';
 import './editor.css';
@@ -19,9 +17,14 @@ import './editor.css';
  * The edit function describes the structure of your block in the context of the
  * editor. This represents what the editor will render when the block is used.
  *
+ * @param {Object}   props               Block props.
+ * @param {Object}   props.context       Block context provided by the parent Co-Authors block.
+ * @param {Object}   props.attributes    Block attributes.
+ * @param {Function} props.setAttributes Function to update block attributes.
+ *
  * @see https://developer.wordpress.org/block-editor/reference-guides/block-api/block-edit-save/#edit
  *
- * @return {WPElement} Element to render.
+ * @return {Element} Element to render.
  */
 export default function Edit( { context, attributes, setAttributes } ) {
 	const { textAlign } = attributes;

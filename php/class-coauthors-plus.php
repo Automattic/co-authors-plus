@@ -40,14 +40,31 @@ class CoAuthors_Plus {
 	private $is_rest_save = false;
 
 	/**
+	 * Whether a REST API save is in flight for the current request.
+	 *
+	 * Set at rest_pre_insert_{post_type} (before the post is written) and reset
+	 * at rest_after_insert_{post_type}. While true, coauthors_set_post_author_field()
+	 * must not re-derive post_author from the existing author terms, because the
+	 * REST flow updates those terms only after the post is written — at this point
+	 * they still hold the previous order. The REST path sets post_author itself via
+	 * set_post_author_for_rest_save(), so it needs no help here.
+	 *
+	 * @var bool
+	 */
+	private $processing_rest_save = false;
+
+	/**
 	 * @var CoAuthors_Guest_Authors
 	 */
 	public $guest_authors;
 
 	/**
-	 * __construct()
+	 * Register the plugin's WordPress hooks.
+	 *
+	 * Called from the composition root after construction so that creating an
+	 * instance has no global side effects.
 	 */
-	public function __construct() {
+	public function register_hooks(): void {
 
 		// Register our models
 		add_action( 'init', array( $this, 'action_init' ) );
@@ -68,6 +85,9 @@ class CoAuthors_Plus {
 
 		// Action to reassign posts when a guest author is deleted
 		add_action( 'delete_user', array( $this, 'delete_user_action' ) );
+
+		// Keep an existing co-author's search term (and its cache) in step when the user's profile changes.
+		add_action( 'profile_update', array( $this, 'update_author_term_on_profile_update' ) );
 
 		add_filter( 'get_usernumposts', array( $this, 'filter_count_user_posts' ), 10, 4 );
 
@@ -113,7 +133,7 @@ class CoAuthors_Plus {
 		add_action( 'set_object_terms', array( $this, 'clear_cache_on_terms_set' ), 10, 6 );
 
 		// Filter to correct author on author archive page
-		add_filter( 'get_the_archive_title', array( $this, 'filter_author_archive_title' ) );
+		add_filter( 'get_the_archive_title', array( $this, 'filter_author_archive_title' ), 10, 3 );
 
 		// Filter to display author image if exists instead of avatar
 		add_filter( 'pre_get_avatar_data', array( $this, 'filter_pre_get_avatar_data_url' ), 10, 2 );
@@ -145,6 +165,7 @@ class CoAuthors_Plus {
 		if ( $this->is_guest_authors_enabled() ) {
 			require_once dirname( COAUTHORS_PLUS_FILE ) . '/php/class-coauthors-guest-authors.php';
 			$this->guest_authors = new CoAuthors_Guest_Authors();
+			$this->guest_authors->register_hooks();
 			if ( apply_filters( 'coauthors_guest_authors_force', false ) ) {
 				$this->force_guest_authors = true;
 			}
@@ -154,6 +175,7 @@ class CoAuthors_Plus {
 		if ( apply_filters( 'coauthors_auto_apply_template_tags', false ) ) {
 			global $coauthors_plus_template_filters;
 			$coauthors_plus_template_filters = new CoAuthors_Template_Filters();
+			$coauthors_plus_template_filters->register_hooks();
 		}
 
 	}
@@ -165,7 +187,19 @@ class CoAuthors_Plus {
 	 * @return bool
 	 */
 	public function is_block_editor( $post = null ): bool {
+		// get_current_screen() is only available after the screen is set up.
+		// Guard against contexts where it has not been loaded yet (e.g. REST saves,
+		// or save_post firing during plugins_loaded). The function may exist but
+		// still return null if called before the screen is initialised.
+		if ( ! function_exists( 'get_current_screen' ) ) {
+			return false;
+		}
+
 		$screen = get_current_screen();
+
+		if ( ! $screen ) {
+			return false;
+		}
 
 		// Pre-5.0 compatibility
 		if ( method_exists( $screen, 'is_block_editor' ) ) {
@@ -196,7 +230,8 @@ class CoAuthors_Plus {
 				'coauthors-sidebar-js',
 				plugins_url( 'build/index.js', COAUTHORS_PLUS_FILE ),
 				$dependencies,
-				$asset['version']
+				$asset['version'],
+				true
 			);
 
 			wp_register_style(
@@ -250,6 +285,7 @@ class CoAuthors_Plus {
 
 		// Bridge REST API saves to add_coauthors() for post_author sync and legacy filter compatibility.
 		foreach ( $this->supported_post_types() as $post_type ) {
+			add_filter( "rest_pre_insert_{$post_type}", array( $this, 'set_post_author_for_rest_save' ), 10, 2 );
 			add_action( "rest_after_insert_{$post_type}", array( $this, 'sync_coauthors_on_rest_save' ), 10, 2 );
 		}
 	}
@@ -268,13 +304,13 @@ class CoAuthors_Plus {
 		// Hooks to add additional co-authors to 'authors' column to edit page
 		add_filter( 'manage_posts_columns', array( $this, '_filter_manage_posts_columns' ) );
 		add_filter( 'manage_pages_columns', array( $this, '_filter_manage_posts_columns' ) );
-		add_action( 'manage_posts_custom_column', array( $this, '_filter_manage_posts_custom_column' ) );
-		add_action( 'manage_pages_custom_column', array( $this, '_filter_manage_posts_custom_column' ) );
+		add_action( 'manage_posts_custom_column', array( $this, '_filter_manage_posts_custom_column' ), 10, 2 );
+		add_action( 'manage_pages_custom_column', array( $this, '_filter_manage_posts_custom_column' ), 10, 2 );
 
 		// Add quick-edit co-author select field
 		add_action( 'quick_edit_custom_box', array( $this, '_action_quick_edit_custom_box' ), 10, 2 );
 
-		// Hooks to modify the published post number count on the Users WP List Table
+		// Hooks to modify the published post count and surface the linked guest author on the Users WP List Table.
 		add_filter( 'manage_users_columns', array( $this, '_filter_manage_users_columns' ) );
 		add_filter( 'manage_users_custom_column', array( $this, '_filter_manage_users_custom_column' ), 10, 3 );
 
@@ -293,6 +329,10 @@ class CoAuthors_Plus {
 	 * @return array Supported post types.
 	 */
 	public function supported_post_types(): array {
+		if ( ! empty( $this->supported_post_types ) ) {
+			return $this->supported_post_types;
+		}
+
 		$post_types = array_values( get_post_types() );
 
 		$excluded_built_in = array(
@@ -442,8 +482,13 @@ class CoAuthors_Plus {
 
 		if ( ! $post_type ) {
 			$post_type = get_post_type();
-			if ( ! $post_type && is_admin() ) {
-				$post_type = get_current_screen()->post_type;
+			// get_current_screen() is only available once the admin screen is initialised.
+			// Bail out of the screen look-up when the function does not exist yet — e.g.
+			// when save_post fires during plugins_loaded from a third-party plugin, or
+			// during a REST / WP-CLI request where the admin screen is never set up.
+			if ( ! $post_type && is_admin() && function_exists( 'get_current_screen' ) ) {
+				$screen    = get_current_screen();
+				$post_type = $screen ? $screen->post_type : '';
 			}
 		}
 
@@ -610,20 +655,21 @@ class CoAuthors_Plus {
 	/**
 	 * Insert co-authors into post rows on Edit Page
 	 *
-	 * @param string $column_name
+	 * @param string $column_name The name of the column in the list table.
+	 * @param int    $post_id     The ID of the current post in the list table.
 	 */
-	public function _filter_manage_posts_custom_column( $column_name ): void {
+	public function _filter_manage_posts_custom_column( $column_name, $post_id ): void {
 		if ( 'coauthors' === $column_name ) {
-			global $post;
-			$authors = get_coauthors( $post->ID );
+			$authors = get_coauthors( $post_id );
 
 			$count = 1;
 			foreach ( $authors as $author ) :
 				$args = array(
 					'author_name' => $author->user_nicename,
 				);
-				if ( 'post' !== $post->post_type ) {
-					$args['post_type'] = $post->post_type;
+				$post_type = get_post_type( $post_id );
+				if ( 'post' !== $post_type ) {
+					$args['post_type'] = $post_type;
 				}
 				$author_filter_url = add_query_arg( array_map( 'rawurlencode', $args ), admin_url( 'edit.php' ) );
 				$user_type         = $author instanceof WP_User ? 'wp-user' : 'guest-user';
@@ -642,15 +688,24 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Unset the post count column because it's going to be inaccurate and provide our own
+	 * Create custom columns in the Users table:
+	 *
+	 * - A column listing the linked guest author, when one is set.
+	 * - A custom post count column to replace the inaccurate default.
+	 *
+	 * @since 2.6.1
+	 * @since 4.1.0 Added column to display the linked guest author.
+	 *
+	 * @param array $columns An array of column name => label.
 	 */
 	public function _filter_manage_users_columns( $columns ): array {
 
 		$new_columns = array();
-		// Unset and add our column while retaining the order of the columns
+		// Unset the default post count column and add our own while retaining the order of the columns.
 		foreach ( $columns as $column_name => $column_title ) {
 			if ( 'posts' === $column_name ) {
-				$new_columns['coauthors_post_count'] = __( 'Posts', 'co-authors-plus' );
+				$new_columns['coauthors_linked_author'] = __( 'Linked Guest Author', 'co-authors-plus' );
+				$new_columns['coauthors_post_count']    = __( 'Posts', 'co-authors-plus' );
 			} else {
 				$new_columns[ $column_name ] = $column_title;
 			}
@@ -659,23 +714,69 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Provide an accurate count when looking up the number of published posts for a user
+	 * Render the custom Users table columns:
+	 *
+	 * - `coauthors_post_count` shows an accurate count of published posts for the user.
+	 * - `coauthors_linked_author` shows the linked guest author's name, linking to its edit screen.
+	 *
+	 * @since 2.6.1
+	 * @since 4.1.0 Added column to display the linked guest author.
+	 *
+	 * @param string $value       Custom column output. Default empty.
+	 * @param string $column_name Column name.
+	 * @param int    $user_id     ID of the currently-listed user.
 	 */
 	public function _filter_manage_users_custom_column( $value, $column_name, $user_id ) {
-		if ( 'coauthors_post_count' !== $column_name ) {
-			return $value;
+		if ( 'coauthors_post_count' === $column_name ) {
+			return $value . $this->render_users_post_count_column( $user_id );
 		}
-		// We filter count_user_posts() so it provides an accurate number
-		$numposts = count_user_posts( $user_id ); // phpcs:ignore
-		$user     = get_user_by( 'id', $user_id );
-		if ( $numposts > 0 ) {
-			$value .= "<a href='edit.php?author_name=$user->user_nicename' title='" . esc_attr__( 'View posts by this author', 'co-authors-plus' ) . "' class='edit'>";
-			$value .= $numposts;
-			$value .= '</a>';
-		} else {
-			$value .= 0;
+
+		if ( 'coauthors_linked_author' === $column_name ) {
+			return $value . $this->render_users_linked_author_column( $user_id );
 		}
+
 		return $value;
+	}
+
+	/**
+	 * Render the post count column for a user, linking to their filtered posts view.
+	 *
+	 * @param int $user_id ID of the currently-listed user.
+	 */
+	private function render_users_post_count_column( $user_id ): string {
+		// We filter count_user_posts() so it provides an accurate number.
+		$numposts = count_user_posts( $user_id ); // phpcs:ignore
+		if ( $numposts <= 0 ) {
+			return '0';
+		}
+
+		$user = get_user_by( 'id', $user_id );
+
+		return sprintf(
+			'<a href="edit.php?author_name=%1$s" title="%2$s" class="edit">%3$d</a>',
+			esc_attr( $user->user_nicename ),
+			esc_attr__( 'View posts by this author', 'co-authors-plus' ),
+			absint( $numposts )
+		);
+	}
+
+	/**
+	 * Render the linked guest author column for a user, linking to the guest author's edit screen.
+	 *
+	 * @param int $user_id ID of the currently-listed user.
+	 */
+	private function render_users_linked_author_column( $user_id ): string {
+		$author_info = $this->get_coauthor_by( 'id', $user_id, false );
+		if ( ! $author_info || 'guest-author' !== $author_info->type ) {
+			return '';
+		}
+
+		return sprintf(
+			'<a href="post.php?post=%1$d&action=edit" title="%2$s" class="edit">%3$s</a>',
+			absint( $author_info->ID ),
+			esc_attr__( 'Edit Guest Author', 'co-authors-plus' ),
+			esc_html( $author_info->display_name )
+		);
 	}
 
 	/**
@@ -727,7 +828,7 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		$term_id = $wpdb->get_results( $wpdb->prepare( "SELECT term_id FROM $wpdb->term_taxonomy WHERE term_taxonomy_id = %d ", $tt_id ) );
+		$term_id = $wpdb->get_results( $wpdb->prepare( "SELECT term_id FROM $wpdb->term_taxonomy WHERE term_taxonomy_id = %d ", $tt_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Single term lookup for post count update, result changes frequently.
 
 		$term     = get_term_by( 'id', $term_id[0]->term_id, $taxonomy );
 		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
@@ -797,16 +898,24 @@ class CoAuthors_Plus {
 	 */
 	protected function is_author_query( WP_Query $query ): bool {
 		if ( $query->is_author() ) {
-			return true;
+			$is_author = true;
+		} else {
+			// `author__in` with a non-empty array of IDs.
+			$author_in = $query->get( 'author__in' );
+			$is_author = is_array( $author_in ) && ! empty( $author_in );
 		}
 
-		// `author__in` with a non-empty array of IDs.
-		$author_in = $query->get( 'author__in' );
-		if ( is_array( $author_in ) && ! empty( $author_in ) ) {
-			return true;
-		}
-
-		return false;
+		/**
+		 * Allow callers to opt a specific query out of Co-Authors Plus' author SQL rewrite.
+		 *
+		 * Returning false leaves the query as a standard `post_author` query, so
+		 * it avoids the taxonomy JOIN, the per-term OR-chain, and the HAVING clause
+		 * that are used to find co-authored posts.
+		 *
+		 * @param bool     $is_author Whether CAP would otherwise rewrite this query.
+		 * @param WP_Query $query     The query being evaluated.
+		 */
+		return (bool) apply_filters( 'coauthors_plus_is_author_query', $is_author, $query );
 	}
 
 	/**
@@ -1180,10 +1289,33 @@ class CoAuthors_Plus {
 			return $data;
 		}
 
+		// Consume the REST in-flight guard for this write. While a REST save is in
+		// flight, the author terms still hold their previous order, so the
+		// re-derivation below would set a stale post_author; the REST path handles
+		// post_author itself in set_post_author_for_rest_save().
+		$processing_rest_save       = $this->processing_rest_save;
+		$this->processing_rest_save = false;
+
+		// Whether this save carries co-author data from the classic meta box form.
+		$has_coauthor_form_data = isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'][0] ) && is_array( $_POST['coauthors'] );
+
+		/*
+		 * Whether to re-derive post_author from the post's first co-author term.
+		 *
+		 * A non-REST save (e.g. Gutenberg's meta-box-loader request, which runs
+		 * after the block editor's REST save) carries no co-author data and would
+		 * otherwise let core overwrite post_author with the editing user or a
+		 * stale page-load value. Re-deriving here keeps post_author consistent
+		 * with the saved author order, whichever request writes last. See #1297.
+		 */
+		$reassert_from_terms = ! $processing_rest_save
+			&& ! $has_coauthor_form_data
+			&& ! empty( $postarr['ID'] )
+			&& $this->has_author_terms( (int) $postarr['ID'] );
+
 		// This action happens when a post is saved while editing a post
 		if (
-			isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'] )
-			&& is_array( $_POST['coauthors'] )
+			$has_coauthor_form_data
 			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
 			&& $this->current_user_can_set_authors()
 		) {
@@ -1206,6 +1338,13 @@ class CoAuthors_Plus {
 			}
 		}
 
+		if ( $reassert_from_terms ) {
+			$first_author_id = $this->get_first_coauthor_user_id( (int) $postarr['ID'] );
+			if ( $first_author_id ) {
+				$data['post_author'] = $first_author_id;
+			}
+		}
+
 		// If for some reason we don't have the co-authors fields set
 		if ( ! isset( $data['post_author'] ) ) {
 			$user                = wp_get_current_user();
@@ -1216,6 +1355,146 @@ class CoAuthors_Plus {
 		$data['post_author'] = apply_filters( 'coauthors_post_author_value', $data['post_author'], $postarr['ID'] );
 
 		return $data;
+	}
+
+	/**
+	 * Set post_author from coauthors data before a REST API save writes the post.
+	 *
+	 * Without this, the REST flow runs as: wp_update_post writes the post and fires
+	 * wp_insert_post (where Jetpack Sync queues the post for sync) BEFORE
+	 * rest_after_insert_{post_type} fires (where sync_coauthors_on_rest_save would
+	 * otherwise update post_author via add_coauthors). The result is that listeners
+	 * of wp_insert_post see and ship the stale post_author. The Jetpack Newsletter
+	 * preview, which is rendered on WordPress.com from synced post fields, then
+	 * displays the wrong author until a second save lands.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1269
+	 *
+	 * @param stdClass        $prepared_post Post object derived from the REST request.
+	 * @param WP_REST_Request $request       The REST request.
+	 * @return stdClass The (possibly modified) prepared post object.
+	 */
+	public function set_post_author_for_rest_save( $prepared_post, $request ) {
+		// Flag the REST save so coauthors_set_post_author_field() does not later
+		// re-derive post_author from author terms that have not yet been reordered.
+		// Reset in sync_coauthors_on_rest_save() (rest_after_insert_{post_type}).
+		$this->processing_rest_save = true;
+
+		if ( ! is_object( $prepared_post ) || empty( $prepared_post->post_type ) ) {
+			return $prepared_post;
+		}
+
+		if ( ! $this->is_post_type_enabled( $prepared_post->post_type ) ) {
+			return $prepared_post;
+		}
+
+		if ( ! $this->current_user_can_set_authors() ) {
+			return $prepared_post;
+		}
+
+		$coauthor_term_ids = $request->get_param( 'coauthors' );
+		if ( ! is_array( $coauthor_term_ids ) || empty( $coauthor_term_ids ) ) {
+			return $prepared_post;
+		}
+
+		$coauthor_objects = array();
+		foreach ( $coauthor_term_ids as $term_id ) {
+			$term = get_term( (int) $term_id, $this->coauthor_taxonomy );
+			if ( ! $term || is_wp_error( $term ) ) {
+				continue;
+			}
+
+			$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+			if ( $coauthor ) {
+				$coauthor_objects[] = $coauthor;
+			}
+		}
+
+		if ( empty( $coauthor_objects ) ) {
+			return $prepared_post;
+		}
+
+		$current_post_author_id = isset( $prepared_post->post_author ) ? (int) $prepared_post->post_author : 0;
+
+		// If the proposed post_author is already among the new coauthors, leave it alone.
+		if ( $current_post_author_id ) {
+			foreach ( $coauthor_objects as $coauthor ) {
+				$coauthor_user_id = $this->extract_wp_user_id( $coauthor );
+				if ( $coauthor_user_id && $coauthor_user_id === $current_post_author_id ) {
+					return $prepared_post;
+				}
+			}
+		}
+
+		// Otherwise, switch post_author to the first WP_User-backed coauthor we can find.
+		foreach ( $coauthor_objects as $coauthor ) {
+			$coauthor_user_id = $this->extract_wp_user_id( $coauthor );
+			if ( $coauthor_user_id ) {
+				$prepared_post->post_author = $coauthor_user_id;
+				return $prepared_post;
+			}
+		}
+
+		return $prepared_post;
+	}
+
+	/**
+	 * Extract the underlying WP_User ID from a coauthor object, if any.
+	 *
+	 * Coauthors can be WP_User instances, guest authors with a linked WP user
+	 * exposed via $coauthor->wp_user, or guest authors with no linked user
+	 * (in which case there is no WP_User ID and we return 0).
+	 *
+	 * @param object $coauthor A coauthor object as returned by get_coauthor_by().
+	 * @return int A WP_User ID, or 0 if the coauthor has no underlying user.
+	 */
+	private function extract_wp_user_id( $coauthor ): int {
+		if ( $coauthor instanceof WP_User ) {
+			return (int) $coauthor->ID;
+		}
+
+		if ( isset( $coauthor->wp_user ) && $coauthor->wp_user instanceof WP_User ) {
+			return (int) $coauthor->wp_user->ID;
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Get the WP_User ID of a post's first co-author term.
+	 *
+	 * Walks the author terms in their stored order and returns the underlying
+	 * WP_User ID of the first co-author that has one. Guest authors with no
+	 * linked WP user are skipped, since they cannot be a valid post_author.
+	 *
+	 * @param int $post_id Post to inspect.
+	 * @return int The first co-author's WP_User ID, or 0 if none can be found.
+	 */
+	private function get_first_coauthor_user_id( int $post_id ): int {
+		$terms = wp_get_object_terms(
+			$post_id,
+			$this->coauthor_taxonomy,
+			array(
+				'orderby' => 'term_order',
+				'order'   => 'ASC',
+			)
+		);
+
+		if ( is_wp_error( $terms ) || empty( $terms ) ) {
+			return 0;
+		}
+
+		foreach ( $terms as $term ) {
+			$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+			if ( $coauthor ) {
+				$user_id = $this->extract_wp_user_id( $coauthor );
+				if ( $user_id ) {
+					return $user_id;
+				}
+			}
+		}
+
+		return 0;
 	}
 
 	/**
@@ -1235,6 +1514,9 @@ class CoAuthors_Plus {
 	 * @param WP_REST_Request $request Request object.
 	 */
 	public function sync_coauthors_on_rest_save( $post, $request ): void {
+		// The REST write has completed, so the in-flight guard can be cleared.
+		$this->processing_rest_save = false;
+
 		$params = $request->get_params();
 
 		// Only process if coauthors taxonomy data was included in the request.
@@ -1307,7 +1589,7 @@ class CoAuthors_Plus {
 			// if current_user_can_set_authors and nonce valid
 			check_admin_referer( 'coauthors-edit', 'coauthors-nonce' );
 
-			$coauthors = (array) $_POST['coauthors'];
+			$coauthors = (array) wp_unslash( $_POST['coauthors'] );
 			$coauthors = array_map( 'sanitize_title', $coauthors );
 			$this->add_coauthors( $post_id, $coauthors );
 		} else {
@@ -1348,7 +1630,7 @@ class CoAuthors_Plus {
 					'coauthors_post_list_pluck_field',
 					'Co-Authors Plus 4.0',
 					'set_object_terms',
-					__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
+					esc_html__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
 				);
 			}
 			$field              = apply_filters( 'coauthors_post_list_pluck_field', 'user_login' );
@@ -1376,7 +1658,7 @@ class CoAuthors_Plus {
 					'coauthors_post_get_coauthor_by_field',
 					'Co-Authors Plus 4.0',
 					'set_object_terms',
-					__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
+					esc_html__( 'This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead.', 'co-authors-plus' )
 				);
 			}
 			$field = apply_filters( 'coauthors_post_get_coauthor_by_field', $query_type, $author_name );
@@ -1447,7 +1729,7 @@ class CoAuthors_Plus {
 			$reassign_user = get_user_by( 'id', $reassign_id );
 			// Set to new guest author
 			if ( is_object( $reassign_user ) ) {
-				$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author = %d", $delete_id ) );
+				$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author = %d", $delete_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk reassignment during user deletion, result changes on each call.
 
 				if ( $post_ids ) {
 					foreach ( $post_ids as $post_id ) {
@@ -1682,13 +1964,20 @@ class CoAuthors_Plus {
 			// is definitively an author archive. Reset all query flags to a clean
 			// state — mirroring how core handles flag transitions internally — then
 			// re-assert only the flags that should remain true. Preserve is_paged so
-			// that paginated author archives can still trigger 404 when out of range.
+			// that paginated author archives can still trigger 404 when out of range,
+			// and preserve feed flags so author RSS/Atom feeds are still served.
 			// See https://github.com/Automattic/co-authors-plus/issues/1109.
-			$is_paged = $wp_query->is_paged;
+			$is_feed         = $wp_query->is_feed;
+			$is_comment_feed = $wp_query->is_comment_feed;
+			$is_trackback    = $wp_query->is_trackback;
+			$is_paged        = $wp_query->is_paged;
 			$wp_query->init_query_flags();
-			$wp_query->is_author  = true;
-			$wp_query->is_archive = true;
-			$wp_query->is_paged   = $is_paged;
+			$wp_query->is_author        = true;
+			$wp_query->is_archive       = true;
+			$wp_query->is_feed          = $is_feed;
+			$wp_query->is_comment_feed  = $is_comment_feed;
+			$wp_query->is_trackback     = $is_trackback;
+			$wp_query->is_paged         = $is_paged;
 
 			if ( ! is_paged() ) {
 				add_filter( 'pre_handle_404', '__return_true' );
@@ -1736,14 +2025,14 @@ class CoAuthors_Plus {
 		}
 
 		// jQuery UI autocomplete uses 'term' parameter.
-		$search = isset( $_REQUEST['term'] ) ? sanitize_text_field( strtolower( $_REQUEST['term'] ) ) : '';
+		$search = isset( $_REQUEST['term'] ) ? sanitize_text_field( strtolower( wp_unslash( $_REQUEST['term'] ) ) ) : '';
 		if ( empty( $search ) ) {
 			wp_send_json( array() );
 		}
 
 		$ignore = array();
 		if ( ! empty( $_REQUEST['existing_authors'] ) ) {
-			$ignore = array_map( 'sanitize_text_field', explode( ',', $_REQUEST['existing_authors'] ) );
+			$ignore = array_map( 'sanitize_text_field', explode( ',', wp_unslash( $_REQUEST['existing_authors'] ) ) );
 		}
 
 		$authors = $this->search_authors( $search, $ignore );
@@ -1807,7 +2096,7 @@ class CoAuthors_Plus {
 		);
 		$args = apply_filters( 'coauthors_search_authors_get_terms_args', $args );
 		add_filter( 'terms_clauses', array( $this, 'filter_terms_clauses' ) );
-		$found_terms = get_terms( $this->coauthor_taxonomy, $args );
+		$found_terms = get_terms( array_merge( array( 'taxonomy' => $this->coauthor_taxonomy ), $args ) );
 		remove_filter( 'terms_clauses', array( $this, 'filter_terms_clauses' ) );
 
 		if ( empty( $found_terms ) ) {
@@ -2003,10 +2292,11 @@ class CoAuthors_Plus {
 
 			foreach ( $this->supported_post_types() as $single ) {
 				$obj = get_post_type_object( $single );
-
-				$this->to_be_filtered_caps[] = $obj->cap->edit_post;
-				$this->to_be_filtered_caps[] = $obj->cap->edit_others_posts; // This as well: http://core.trac.wordpress.org/ticket/22417
-				$this->to_be_filtered_caps[] = $obj->cap->read_post;
+				if ( $obj ) {
+					$this->to_be_filtered_caps[] = $obj->cap->edit_post;
+					$this->to_be_filtered_caps[] = $obj->cap->edit_others_posts; // This as well: http://core.trac.wordpress.org/ticket/22417
+					$this->to_be_filtered_caps[] = $obj->cap->read_post;
+				}
 			}
 
 			$this->to_be_filtered_caps = array_unique( $this->to_be_filtered_caps );
@@ -2132,6 +2422,32 @@ class CoAuthors_Plus {
 		}
 		wp_cache_delete( 'author-term-' . $coauthor->user_nicename, 'co-authors-plus' );
 		return $this->get_author_term( $coauthor );
+	}
+
+	/**
+	 * Refresh a co-author's author term when their user profile is updated.
+	 *
+	 * The author term description stores the user's searchable fields (display
+	 * name, email, login). Without this, editing a user's profile leaves that
+	 * description, and the cached term in the persistent 'co-authors-plus' object
+	 * cache group, stale until a manual cache flush, so the author search keeps
+	 * matching the old details. Only an existing co-author term is refreshed;
+	 * users who are not co-authors do not get a term created here, to avoid
+	 * unbounded term growth on sites with large, low-privilege user bases.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int $user_id The ID of the updated user.
+	 * @return void
+	 */
+	public function update_author_term_on_profile_update( $user_id ): void {
+		$user = get_user_by( 'id', $user_id );
+		if ( ! $user ) {
+			return;
+		}
+		if ( $this->get_author_term( $user ) ) {
+			$this->update_author_term( $user );
+		}
 	}
 
 	/**
@@ -2291,29 +2607,44 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Filter of the header of author archive pages to correctly display author.
+	 * Filter the author archive title so the displayed name reflects the co-author
+	 * (including guest authors), while preserving whatever prefix core resolved.
 	 *
-	 * @param $title string Archive Page Title
+	 * The third filter argument carries the prefix that core actually used after
+	 * `get_the_archive_title_prefix` filters ran, so the core/query-title block's
+	 * `showPrefix` toggle is honoured.
 	 *
-	 * @return string Archive Page Title
+	 * @param string $title          Archive title.
+	 * @param string $original_title Archive title without prefix. Unused.
+	 * @param string $prefix         Archive title prefix as resolved by core.
+	 * @return string Archive title.
 	 */
-	public function filter_author_archive_title( $title ): string {
+	public function filter_author_archive_title( $title, $original_title = '', $prefix = '' ): string {
 
-		// Bail if not an author archive template
+		// Bail if not an author archive template.
 		if ( ! is_author() ) {
 			return $title;
 		}
 
 		$author_name_var = get_query_var( 'author_name' );
-		if ( ! is_string( $author_name_var ) ) {
+		if ( ! is_string( $author_name_var ) || '' === $author_name_var ) {
 			return $title;
 		}
 
 		$author_slug = sanitize_user( $author_name_var );
 		$author      = $this->get_coauthor_by( 'user_nicename', $author_slug );
 
-		/* translators: Author display name. */
-		return sprintf( __( 'Author: %s', 'co-authors-plus' ), $author->display_name );
+		if ( ! is_object( $author ) || empty( $author->display_name ) ) {
+			return $title;
+		}
+
+		if ( '' === $prefix ) {
+			return $author->display_name;
+		}
+
+		// Match core's `%1$s %2$s` archive-title format. The translatable part
+		// is the prefix, which core has already resolved before reaching here.
+		return sprintf( '%1$s %2$s', $prefix, $author->display_name );
 	}
 
 	/**

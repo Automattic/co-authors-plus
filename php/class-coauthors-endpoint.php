@@ -44,7 +44,15 @@ class Endpoints {
 	 */
 	public function __construct( $coauthors_instance ) {
 		$this->coauthors = $coauthors_instance;
+	}
 
+	/**
+	 * Register the REST API hooks.
+	 *
+	 * Called from the composition root after construction so that creating an
+	 * instance has no global side effects.
+	 */
+	public function register_hooks(): void {
 		add_action( 'rest_api_init', array( $this, 'add_endpoints' ) );
 		add_action( 'wp_loaded', array( $this, 'modify_responses' ) );
 	}

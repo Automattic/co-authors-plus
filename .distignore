@@ -26,7 +26,6 @@
 
 # Build tooling
 /behat.yml
-/Makefile
 /webpack.config.js
 
 # Package management

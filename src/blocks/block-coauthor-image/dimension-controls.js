@@ -2,6 +2,10 @@
  * WordPress dependencies
  */
 import { __, _x } from '@wordpress/i18n';
+/* eslint-disable @wordpress/no-unsafe-wp-apis --
+ * This panel is built on experimental @wordpress/components controls
+ * (UnitControl, ToggleGroupControl, ToolsPanelItem, useCustomUnits) that have no
+ * stable public equivalents yet. */
 import {
 	SelectControl,
 	__experimentalUnitControl as UnitControl,
@@ -10,6 +14,7 @@ import {
 	__experimentalUseCustomUnits as useCustomUnits,
 	__experimentalToolsPanelItem as ToolsPanelItem,
 } from '@wordpress/components';
+/* eslint-enable @wordpress/no-unsafe-wp-apis */
 import { InspectorControls, useSetting } from '@wordpress/block-editor';
 
 const SCALE_OPTIONS = (
@@ -64,7 +69,9 @@ const DimensionControls = ( {
 		 * we don't want to set the attribute, as it would
 		 * end up having the unit as value without any number.
 		 */
-		if ( isNaN( parsedValue ) && nextValue ) return;
+		if ( isNaN( parsedValue ) && nextValue ) {
+			return;
+		}
 		setAttributes( {
 			[ dimension ]: parsedValue < 0 ? '0' : nextValue,
 		} );

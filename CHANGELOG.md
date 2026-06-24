@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.0] - 2026-06-24
+
+### Added
+
+* Add an `--append_coauthors` flag to the `wp co-authors-plus assign-user-to-coauthor` WP-CLI command, allowing the new co-author to be appended rather than skipping any post that already has co-authors assigned by @RobjS and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1264 and https://github.com/Automattic/Co-Authors-Plus/pull/1267
+* Accept `--user_id` as an alternative to `--user_login` on `wp co-authors-plus assign-user-to-coauthor`, so posts whose `post_author` references a user that no longer exists (orphaned posts) can be reassigned to a co-author by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1266
+* Add `--offset` and `--number` parameters to the `wp co-authors-plus create-guest-authors` WP-CLI command, so guest-author creation can be run in resumable chunks across large user bases by @aaronjorbin in https://github.com/Automattic/Co-Authors-Plus/pull/378
+* Add a column to the Users list table showing each user's linked guest author, clarifying why a linked account's post count differs by @jeherve in https://github.com/Automattic/Co-Authors-Plus/pull/502
+* Add contextual Screen Help tabs to the Guest Author admin screens, explaining linked accounts, slugs, the Posts column, and the delete reassignment options by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1272
+* Honour Yoast SEO's author-archive indexing setting (`noindex-author-wpseo`), so toggling "Show author archives in search results" off is respected on co-author archive pages by @mchanDev in https://github.com/Automattic/Co-Authors-Plus/pull/1062
+* Add a `coauthors_plus_is_author_query` filter so a specific `WP_Query` can opt out of the co-author taxonomy rewrite and run as a standard `post_author` query by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1304
+
+### Changed
+
+* Memoise `supported_post_types()` so the supported-post-type list is computed once per request rather than rebuilt on each of its many calls by @douglas-johnson and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1307
+
+### Fixed
+
+* Honour the Archive Title block's `showPrefix` toggle on author archive pages so the "Author:" prefix can be hidden in block themes by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1259
+* Restrict the guest-author "Linked Account" dropdown to users with the `edit_posts` capability, preventing the dropdown from rendering hundreds of thousands of subscribers and crashing the browser on large sites by @leogermani in https://github.com/Automattic/Co-Authors-Plus/pull/941
+* Guard `get_current_screen()` calls to prevent a fatal error when admin code runs in early-init contexts where the current screen has not yet been set by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1260
+* Sync `post_author` to the assigned co-author on REST save before `wp_insert_post` fires, so the value Jetpack Sync ships is correct on the first save and the newsletter preview no longer shows the post creator until a second save by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1273
+* Keep `post_author` pointing at the first co-author after reordering co-authors in the block editor, so `the_author()`, the REST `author` field, and author archives reflect the new order by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1298
+* Normalise the block editor's co-author entity-store values to term IDs, fixing the empty `/authors-by-term-ids` responses and permanent sidebar spinner that appeared where the store returned full author objects by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1283
+* Keep the block editor's "Select An Author" combobox populated with the alphabetical author list before a search is typed, so it no longer shows "No items found" on focus or after clearing the query by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1305
+* Preserve feed query flags when clearing conflicting flags on guest-author pages, so author feed URLs like `/author/USERNAME/feed/` are served as feeds rather than the HTML archive by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1303
+* Render the posts list table's Authors column from the row's post ID rather than the global `$post`, fixing a warning and blank column when the list is built from a programmatic `WP_Query` (for example Admin Columns exports) by @justinmaurerdotdev and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1309
+* Refresh a co-author's search term and clear its cached author term when the linked user's profile changes, so author search stays current on sites with a persistent object cache by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1312
+* Guard against `get_post_type_object()` returning `null` when the `coauthors_supported_post_types` filter restricts the plugin to a single custom post type, avoiding PHP warnings by @garubi in https://github.com/Automattic/Co-Authors-Plus/pull/1114
+* Guard against a missing post or ID in Yoast's `filter_graph` context, preventing PHP warnings when a post type is excluded from the Yoast index by @mattwatsoncodes in https://github.com/Automattic/Co-Authors-Plus/pull/1125
+
+### Maintenance
+
+* Move hook registration out of the plugin's class constructors, so instantiating `CoAuthors_Plus`, `CoAuthors_Guest_Authors`, the REST endpoints, and the template filters no longer mutates the global hook registry as a side effect by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1316
+* Resolve Plugin Check (PCP) violations across the codebase: add `ABSPATH` direct-access guards, escape `_deprecated_hook()` message strings, add translator comments for block `sprintf()` calls, migrate `get_terms()` to the single-array signature, and harden input sanitisation by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1284, https://github.com/Automattic/Co-Authors-Plus/pull/1285, https://github.com/Automattic/Co-Authors-Plus/pull/1286, https://github.com/Automattic/Co-Authors-Plus/pull/1287, https://github.com/Automattic/Co-Authors-Plus/pull/1288 and https://github.com/Automattic/Co-Authors-Plus/pull/1289
+* Restructure the PHP test suite into feature-focused files and sub-directories, and add a WordPress-free unit test layer by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1317 and https://github.com/Automattic/Co-Authors-Plus/pull/1319
+* Fix and enforce the JS and CSS lint baseline so ESLint and Stylelint can fail CI again by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1318
+* Update development dependencies by @dependabot
+
+### Documentation
+
+* Add missing PHPDocs to four legacy template-tag and upgrade functions by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1265
+
 ## [4.0.2] - 2026-04-29
 
 ### Changed
@@ -680,6 +723,7 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
+[4.1.0]: https://github.com/automattic/co-authors-plus/compare/4.0.2...4.1.0
 [4.0.2]: https://github.com/automattic/co-authors-plus/compare/4.0.1...4.0.2
 [4.0.1]: https://github.com/automattic/co-authors-plus/compare/4.0.0...4.0.1
 [4.0.0]: https://github.com/automattic/co-authors-plus/compare/3.7.0...4.0.0

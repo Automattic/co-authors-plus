@@ -4,9 +4,16 @@
 # https://blog.madewithlove.be/post/gitattributes/
 
 # Directories
+# Kept in sync with .distignore so GitHub release archives match the
+# WordPress.org distribution build.
 /.github/                        export-ignore
 /.wordpress-org/                 export-ignore
+/.claude/                        export-ignore
+/.idea/                          export-ignore
+/.phpunit.cache/                 export-ignore
 /bin/                            export-ignore
+/docs/                           export-ignore
+/features/                       export-ignore
 /node_modules/                   export-ignore
 /src/                            export-ignore
 /tests/                          export-ignore
@@ -18,16 +25,23 @@
 /.gitattributes                  export-ignore
 /.gitignore                      export-ignore
 /.npmrc                          export-ignore
+/.nvmrc                          export-ignore
+/.phpcs.xml                      export-ignore
 /.phpcs.xml.dist                 export-ignore
 /.wp-env.json                    export-ignore
 /.wp-env.override.json           export-ignore
+/AGENTS.md                       export-ignore
+/behat.yml                       export-ignore
 /CHANGELOG.md                    export-ignore
 /composer.json                   export-ignore
 /composer.lock                   export-ignore
+/CONTRIBUTING.md                 export-ignore
 /package.json                    export-ignore
 /package-lock.json               export-ignore
+/phpunit.xml                     export-ignore
 /phpunit.xml.dist                export-ignore
 /webpack.config.js               export-ignore
+/wpcom-helper.php                export-ignore
 
 # Auto detect text files and perform LF normalization
 # https://pablorsk.medium.com/be-a-git-ninja-the-gitattributes-file-e58c07c9e915

@@ -1,4 +1,16 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
+/**
+ * Run upgrade routines based on the previously installed version.
+ *
+ * Dispatches to the relevant `coauthors_plus_upgrade_*()` routine for each
+ * version threshold the stored installation has crossed.
+ *
+ * @param float|string $from The previously installed plugin version.
+ */
 function coauthors_plus_upgrade( $from ) {
 	// TODO: handle upgrade failures
 
@@ -23,8 +35,8 @@ function coauthors_plus_upgrade_20() {
 	);
 
 	foreach ( $all_posts as $single_post ) {
-		// reset execution time limit
-		set_time_limit( 60 );
+		// Reset execution time limit for long-running upgrade routines.
+		set_time_limit( 60 ); // phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.runtime_configuration_set_time_limit
 
 		// create new array
 		$coauthors = array();

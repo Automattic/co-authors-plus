@@ -1,4 +1,7 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
 
 add_action( 'pre_amp_render_post', 'cap_add_amp_actions' );
 function cap_add_amp_actions() {

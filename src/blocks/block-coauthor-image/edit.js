@@ -6,6 +6,7 @@ import { __ } from '@wordpress/i18n';
 import {
 	useBlockProps,
 	store as blockEditorStore,
+	// eslint-disable-next-line @wordpress/no-unsafe-wp-apis -- Border support relies on this experimental hook; there is no stable equivalent yet.
 	__experimentalUseBorderProps as useBorderProps,
 	InspectorControls,
 	BlockControls,
@@ -31,11 +32,16 @@ import {
 import classnames from 'classnames';
 
 /**
- * Edit
+ * The edit function describes the structure of your block in the context of the
+ * editor. This represents what the editor will render when the block is used.
  *
- * @export
- * @param {Object} props { attributes, setAttributes, context, clientId }
- * @return {WPElement}
+ * @param {Object}   props               Block props.
+ * @param {Object}   props.attributes    Block attributes.
+ * @param {Function} props.setAttributes Function to update block attributes.
+ * @param {Object}   props.context       Block context provided by the parent Co-Authors block.
+ * @param {string}   props.clientId      Block client ID.
+ *
+ * @return {Element} Element to render.
  */
 export default function Edit( {
 	attributes,
@@ -52,7 +58,7 @@ export default function Edit( {
 		sizeSlug,
 		verticalAlign,
 		width,
-		align
+		align,
 	} = attributes;
 
 	// Author
@@ -103,6 +109,13 @@ export default function Edit( {
 	// Do placehold them in author archive contexts.
 	const panic = 0 !== author.id && false === media;
 
+	// Called unconditionally (rules of hooks); only the figure below consumes it.
+	const blockProps = useBlockProps( {
+		className: classnames( {
+			[ `align${ align }` ]: ! layout && align && 'none' !== align,
+		} ),
+	} );
+
 	return (
 		<>
 			<DimensionControls
@@ -111,19 +124,26 @@ export default function Edit( {
 				setAttributes={ setAttributes }
 				imageSizeOptions={ imageSizeOptions }
 			/>
-			{
-			'' === layout ? (
+			{ '' === layout ? (
 				<BlockControls>
-					<BlockAlignmentToolbar value={ align } onChange={ ( nextAlign ) => { setAttributes({align: nextAlign}) } } controls={['none', 'left', 'center', 'right', 'wide', 'full']} />
+					<BlockAlignmentToolbar
+						value={ align }
+						onChange={ ( nextAlign ) => {
+							setAttributes( { align: nextAlign } );
+						} }
+						controls={ [
+							'none',
+							'left',
+							'center',
+							'right',
+							'wide',
+							'full',
+						] }
+					/>
 				</BlockControls>
-			) : (null)
-			}
+			) : null }
 			{ panic ? null : (
-				<figure { ...useBlockProps({
-					className: classnames({
-						[`align${align}`]: ! layout && align && 'none' !== align
-					})
-				} ) }>
+				<figure { ...blockProps }>
 					{ media ? (
 						<img
 							alt={ __(
@@ -216,7 +236,10 @@ export default function Edit( {
 								},
 								{
 									value: 'text-bottom',
-									label: __( 'Text Bottom', 'co-authors-plus' ),
+									label: __(
+										'Text Bottom',
+										'co-authors-plus'
+									),
 								},
 								{
 									value: 'text-top',
@@ -229,7 +252,8 @@ export default function Edit( {
 							] }
 							onChange={ ( value ) => {
 								setAttributes( {
-									verticalAlign: '' === value ? undefined : value,
+									verticalAlign:
+										'' === value ? undefined : value,
 								} );
 							} }
 							help={ __(
@@ -238,9 +262,7 @@ export default function Edit( {
 							) }
 						/>
 					</PanelBody>
-				) : (
-					null
-				) }
+				) : null }
 			</InspectorControls>
 		</>
 	);

@@ -44,7 +44,9 @@ export default function useCoauthorDetails( termIds ) {
 		setIsLoading( true );
 
 		apiFetch( {
-			path: `/coauthors/v1/authors-by-term-ids?ids=${ uncachedIds.join( ',' ) }`,
+			path: `/coauthors/v1/authors-by-term-ids?ids=${ uncachedIds.join(
+				','
+			) }`,
 			method: 'GET',
 		} )
 			.then( ( results ) => {

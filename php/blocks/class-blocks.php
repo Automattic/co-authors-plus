@@ -133,7 +133,8 @@ class Blocks {
 			'coauthors-blocks-store',
 			plugins_url( '/co-authors-plus/build/blocks-store/index.js' ),
 			$asset['dependencies'],
-			$asset['version']
+			$asset['version'],
+			true
 		);
 
 		$data = apply_filters(

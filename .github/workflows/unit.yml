@@ -1,0 +1,66 @@
+name: Unit Tests
+
+on:
+  pull_request:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpunit.xml.dist'
+      - 'tests/bootstrap.php'
+      - 'tests/Unit/**'
+      - '.github/workflows/unit.yml'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpunit.xml.dist'
+      - 'tests/bootstrap.php'
+      - 'tests/Unit/**'
+      - '.github/workflows/unit.yml'
+  workflow_dispatch:
+
+# Disable all permissions by default; grant minimal permissions per job.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit:
+    name: Unit Tests (PHP ${{ matrix.php }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lowest and highest supported PHP. The unit suite needs no WordPress,
+        # so it runs fast on every PR without wp-env.
+        php: ['7.4', 'latest']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP ${{ matrix.php }}
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # 2.37.2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+
+      - name: Install Composer dependencies
+        uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
+        with:
+          composer-options: --ignore-platform-req=php+
+
+      - name: Run unit tests
+        run: composer test:unit

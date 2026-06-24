@@ -1,6 +1,17 @@
 <?php
+/**
+ * Base integration test case for Co-Authors Plus.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration;
+
+use PHPUnit\Framework\InvalidArgumentException;
+use WP_Term;
+use WP_User;
 
 /**
  * Base unit test class for Co-Authors Plus
@@ -78,5 +89,61 @@ class TestCase extends \Yoast\WPTestUtils\WPIntegration\TestCase {
 				'post_type'    => 'post',
 			)
 		);
+	}
+
+	/**
+	 * Convenience function which makes sure an author object is not a WP_User. This is because we don't have
+	 * an actual "Guest Author" object.
+	 *
+	 * @param object $author The author object.
+	 *
+	 * @return void
+	 */
+	public function assertIsGuestAuthorNotWpUser( object $author ): void {
+		// Perhaps we can further assert that the required properties exist on the object or is that overkill?
+
+		$this->assertThat(
+			$author,
+			$this->logicalNot(
+				$this->isInstanceOf( WP_User::class )
+			)
+		);
+	}
+
+	/**
+	 * This function handles asserting that a post has the authors specified, and the correct number of authors.
+	 *
+	 * @param int   $post_id The Post ID.
+	 * @param array $authors The authors to check that are assigned to a post.
+	 *
+	 * @return void
+	 * @throws InvalidArgumentException Throws exception if $authors is not a valid Guest Author or WP_User object or a string.
+	 */
+	public function assertPostHasCoAuthors( int $post_id, array $authors ) {
+		$authors = array_map(
+			function ( $author ) {
+				if ( is_object( $author ) ) {
+					return 'cap-' . $author->user_login;
+				} elseif ( is_string( $author ) ) {
+					return $author; // Assuming that caller is giving author slug.
+				} else {
+					throw InvalidArgumentException::create( 2, 'Authors should be string, Guest Author Object, or WP_User' );
+				}
+			},
+			$authors
+		);
+
+		$post_author_terms = wp_get_post_terms( $post_id, $this->_cap->coauthor_taxonomy );
+
+		$this->assertIsArray( $post_author_terms );
+		$this->assertSameSize(
+			$authors,
+			$post_author_terms
+		);
+
+		foreach ( $post_author_terms as $term ) {
+			$this->assertInstanceOf( WP_Term::class, $term );
+			$this->assertContains( $term->slug, $authors );
+		}
 	}
 }
