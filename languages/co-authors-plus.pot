@@ -2,40 +2,40 @@
 # This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Co-Authors Plus 4.1.0\n"
+"Project-Id-Version: Co-Authors Plus 4.1.1\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/co-authors-plus\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-06-24T18:13:46+00:00\n"
+"POT-Creation-Date: 2026-06-26T12:20:47+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: co-authors-plus\n"
 
 #. Plugin Name of the plugin
-#: co-authors-plus.php
+#: co-authors-plus.php:15
 msgid "Co-Authors Plus"
 msgstr ""
 
 #. Plugin URI of the plugin
-#: co-authors-plus.php
+#: co-authors-plus.php:16
 msgid "https://wordpress.org/plugins/co-authors-plus/"
 msgstr ""
 
 #. Description of the plugin
-#: co-authors-plus.php
+#: co-authors-plus.php:17
 msgid "Allows multiple authors to be assigned to a post. This plugin is an extended version of the Co-Authors plugin developed by Weston Ruter."
 msgstr ""
 
 #. Author of the plugin
-#: co-authors-plus.php
+#: co-authors-plus.php:21
 msgid "Mohammad Jangda, Daniel Bachhuber, Automattic"
 msgstr ""
 
 #. Author URI of the plugin
-#: co-authors-plus.php
+#: co-authors-plus.php:22
 msgid "https://automattic.com"
 msgstr ""
 
@@ -287,7 +287,7 @@ msgid "Add New Guest Author"
 msgstr ""
 
 #: php/class-coauthors-guest-authors.php:99
-#: php/class-coauthors-plus.php:777
+#: php/class-coauthors-plus.php:787
 msgid "Edit Guest Author"
 msgstr ""
 
@@ -712,11 +712,11 @@ msgid "Jabber / Google Talk"
 msgstr ""
 
 #: php/class-coauthors-plus.php:264
-#: php/class-coauthors-plus.php:515
-#: php/class-coauthors-plus.php:645
-#: php/class-coauthors-plus.php:791
-#: php/class-coauthors-plus.php:2471
-#: php/class-coauthors-plus.php:2782
+#: php/class-coauthors-plus.php:525
+#: php/class-coauthors-plus.php:655
+#: php/class-coauthors-plus.php:801
+#: php/class-coauthors-plus.php:2481
+#: php/class-coauthors-plus.php:2792
 #: build/index.js:1
 #: src/index.js:24
 msgid "Authors"
@@ -726,65 +726,65 @@ msgstr ""
 msgid "All Authors"
 msgstr ""
 
-#: php/class-coauthors-plus.php:585
+#: php/class-coauthors-plus.php:595
 msgid "<strong>Note:</strong> To edit post authors, please enable JavaScript or use a JavaScript-capable browser"
 msgstr ""
 
-#: php/class-coauthors-plus.php:592
-#: php/class-coauthors-plus.php:793
-#: php/class-coauthors-plus.php:2166
+#: php/class-coauthors-plus.php:602
+#: php/class-coauthors-plus.php:803
+#: php/class-coauthors-plus.php:2176
 msgid "Click on an author to change them. Drag to change their order. Click on <strong>Remove</strong> to remove them."
 msgstr ""
 
-#: php/class-coauthors-plus.php:707
+#: php/class-coauthors-plus.php:717
 msgid "Linked Guest Author"
 msgstr ""
 
-#: php/class-coauthors-plus.php:708
+#: php/class-coauthors-plus.php:718
 #: php/class-coauthors-wp-list-table.php:181
 msgid "Posts"
 msgstr ""
 
-#: php/class-coauthors-plus.php:758
+#: php/class-coauthors-plus.php:768
 msgid "View posts by this author"
 msgstr ""
 
-#: php/class-coauthors-plus.php:836
-#: php/class-coauthors-plus.php:854
+#: php/class-coauthors-plus.php:846
+#: php/class-coauthors-plus.php:864
 msgid "No co-author exists for that term"
 msgstr ""
 
-#: php/class-coauthors-plus.php:1633
-#: php/class-coauthors-plus.php:1661
+#: php/class-coauthors-plus.php:1643
+#: php/class-coauthors-plus.php:1671
 msgid "This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead."
 msgstr ""
 
-#: php/class-coauthors-plus.php:2161
+#: php/class-coauthors-plus.php:2171
 #: php/class-coauthors-wp-list-table.php:243
 msgid "Edit"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2162
+#: php/class-coauthors-plus.php:2172
 msgid "Remove"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2163
+#: php/class-coauthors-plus.php:2173
 msgid "Are you sure you want to remove this author?"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2164
+#: php/class-coauthors-plus.php:2174
 msgid "Click to change this author, or drag to change their position"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2165
+#: php/class-coauthors-plus.php:2175
 msgid "Search for an author"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2207
+#: php/class-coauthors-plus.php:2217
 msgid "Mine"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2785
+#: php/class-coauthors-plus.php:2795
 msgid "Leave the field below blank to keep the Authors unchanged. Any change here will overwrite all previously assigned Authors."
 msgstr ""
 
