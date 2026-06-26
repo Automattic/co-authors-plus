@@ -9,7 +9,7 @@
     "SCRIPT_DEBUG": true
   },
   "lifecycleScripts": {
-    "afterStart": "wp-env run cli wp plugin install query-monitor --activate"
+    "afterStart": "wp-env run cli wp plugin install query-monitor --activate && wp-env run cli wp eval 'require dirname( COAUTHORS_PLUS_FILE ) . \"/bin/seed-demo-data.php\";'"
   },
   "env": {
     "tests": {

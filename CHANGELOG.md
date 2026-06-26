@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.1.1] - 2026-06-26
+
+### Fixed
+
+* Restore the Authors box on custom post types, which 4.1.0 hid by caching the supported-post-type list too early — before custom post types had registered — so multiple authors can be assigned on custom post types again by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1322
+
+### Maintenance
+
+* Seed demo data on local wp-env start to ease plugin development by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1320
+
 ## [4.1.0] - 2026-06-24
 
 ### Added
@@ -723,6 +733,7 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
+[4.1.1]: https://github.com/automattic/co-authors-plus/compare/4.1.0...4.1.1
 [4.1.0]: https://github.com/automattic/co-authors-plus/compare/4.0.2...4.1.0
 [4.0.2]: https://github.com/automattic/co-authors-plus/compare/4.0.1...4.0.2
 [4.0.1]: https://github.com/automattic/co-authors-plus/compare/4.0.0...4.0.1

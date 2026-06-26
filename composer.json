@@ -71,6 +71,7 @@
 		"cs-fix": [
 			"@php ./vendor/bin/phpcbf -q"
 		],
+		"dev:seed": "wp-env run cli wp eval 'require dirname( COAUTHORS_PLUS_FILE ) . \"/bin/seed-demo-data.php\";'",
 		"i18n": [
 			"@php wp i18n make-pot . languages/co-authors-plus.pot --slug=co-authors-plus"
 		],

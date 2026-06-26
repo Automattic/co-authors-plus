@@ -201,4 +201,58 @@ class SupportedPostTypesTest extends TestCase {
 		$this->assertSame( $first, $second, 'supported_post_types() should return the memoised result on subsequent calls.' );
 		$this->assertNotContains( 'cap_post_type_added_late', $second, 'A filter change after the first call must not leak into the cached result.' );
 	}
+
+	/**
+	 * Regression coverage for the Authors box disappearing on custom post types.
+	 *
+	 * The memoisation from #1049 froze the supported-post-type list on the first
+	 * call. That call can arrive before `init` — a capability check during
+	 * bootstrap (kses_init() on set_current_user) reaches supported_post_types()
+	 * via filter_user_has_cap() → get_to_be_filtered_caps(). Caching there froze a
+	 * list of only the built-in post types, so every custom post type registered
+	 * on `init` was excluded for the rest of the request and its Authors box was
+	 * hidden, leaving only the native single-author selector.
+	 *
+	 * The list must therefore not be memoised until `wp_loaded` has fired, by
+	 * which point all post types are registered.
+	 *
+	 * @covers ::supported_post_types
+	 */
+	public function test_early_call_before_wp_loaded_does_not_freeze_the_list(): void {
+		global $wp_actions;
+
+		$this->_cap->supported_post_types = array();
+
+		// Simulate reaching supported_post_types() before wp_loaded has fired.
+		$wp_loaded_count = $wp_actions['wp_loaded'] ?? 0;
+		unset( $wp_actions['wp_loaded'] );
+
+		try {
+			// An early call must compute a result but must NOT memoise it.
+			$early = $this->_cap->supported_post_types();
+			$this->assertNotEmpty( $early, 'The early call should still return the built-in post types.' );
+			$this->assertEmpty(
+				$this->_cap->supported_post_types,
+				'The list must not be memoised before wp_loaded.'
+			);
+
+			// A custom post type registers later (as it would on init).
+			register_post_type( 'cap_late_cpt', array( 'supports' => array( 'author' ) ) );
+
+			// Once wp_loaded has fired, the late post type must be detected — not
+			// excluded by a stale list frozen during the early call.
+			$wp_actions['wp_loaded'] = max( $wp_loaded_count, 1 );
+			$supported               = $this->_cap->supported_post_types();
+
+			$this->assertContains(
+				'cap_late_cpt',
+				$supported,
+				'A custom post type registered after an early call must still be supported.'
+			);
+		} finally {
+			$wp_actions['wp_loaded']          = $wp_loaded_count;
+			$this->_cap->supported_post_types = array();
+			unregister_post_type( 'cap_late_cpt' );
+		}
+	}
 }
