@@ -12,6 +12,7 @@
 # Tests
 /.phpunit.cache/
 /phpunit.xml
+/artifacts/
 
 # PHPCS
 /phpcs.xml

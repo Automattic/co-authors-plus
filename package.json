@@ -27,7 +27,7 @@
 		"lint:pkg-json": "wp-scripts lint-pkg-json",
 		"packages-update": "wp-scripts packages-update",
 		"start": "wp-scripts start",
-		"test:e2e": "wp-scripts test-e2e",
+		"test:e2e": "playwright test --config playwright.config.js",
 		"test:unit": "wp-scripts test-unit-js",
 		"test:unit:watch": "wp-scripts test-unit-js --watch"
 	},
@@ -39,6 +39,8 @@
 		"@wordpress/i18n": "^6.9.0"
 	},
 	"devDependencies": {
+		"@playwright/test": "^1.61.0",
+		"@wordpress/e2e-test-utils-playwright": "^1.48.1",
 		"@wordpress/icons": "^14.0.1",
 		"@wordpress/scripts": "^32.4.1",
 		"classnames": "^2.5.1",
