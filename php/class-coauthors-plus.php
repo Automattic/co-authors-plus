@@ -356,8 +356,18 @@ class CoAuthors_Plus {
 		 */
 		$supported_post_types = (array) apply_filters( 'coauthors_supported_post_types', $post_types );
 
-		// Set class property for back-compat.
-		$this->supported_post_types = $supported_post_types;
+		// Only memoise once every post type has had a chance to register. The first
+		// call can arrive before `init` — a capability check during bootstrap (e.g.
+		// kses_init() on set_current_user calling current_user_can()) reaches this
+		// method via filter_user_has_cap() → get_to_be_filtered_caps(). Caching then
+		// would freeze a list containing only the built-in post types, permanently
+		// excluding every custom post type registered on `init` and hiding the
+		// Authors box on those screens. Compute fresh until `wp_loaded` (which fires
+		// after `init`), by which point the list is stable, then memoise it for the
+		// admin and REST requests where this method is called many times per request.
+		if ( did_action( 'wp_loaded' ) ) {
+			$this->supported_post_types = $supported_post_types;
+		}
 
 		return $supported_post_types;
 	}
