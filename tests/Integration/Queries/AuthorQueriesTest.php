@@ -264,4 +264,88 @@ class AuthorQueriesTest extends TestCase {
 			'Opting out must leave the query as a post_author query and skip co-authored posts.'
 		);
 	}
+	// -- Multi-author SQL structure tests, issue #1308 -------------------------
+
+	/**
+	 * The multi-author WHERE clause must use `term_id IN (...)` instead of
+	 * a per-term `(taxonomy = 'author' AND term_id = 'N') OR ...` chain.
+	 */
+	public function test_multi_author_query_uses_in_clause_not_or_chain(): void {
+		$author1 = $this->create_author( 'in_clause_a1' );
+		$author2 = $this->create_author( 'in_clause_a2' );
+		$post    = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+
+		$sql = '';
+		add_filter(
+			'posts_request',
+			function ( $request ) use ( &$sql ) {
+				$sql = $request;
+				return $request;
+			} 
+		);
+
+		$query = new WP_Query( array( 'author__in' => array( $author2->ID ) ) );
+
+		$this->assertNotEmpty( $sql, 'SQL must be captured via posts_request.' );
+		$this->assertStringContainsString( 'term_id IN (', $sql, 'Must use IN clause for multiple term IDs.' );
+
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
+
+	/**
+	 * When `coauthors_plus_should_query_post_author` returns false, the JOIN
+	 * should be an INNER JOIN (only co-author taxonomy matches needed).
+	 */
+	public function test_multi_author_query_uses_inner_join_when_post_author_excluded(): void {
+		$author1 = $this->create_author( 'inner_join_a1' );
+		$author2 = $this->create_author( 'inner_join_a2' );
+		$post    = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+
+		add_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+
+		$sql = '';
+		add_filter(
+			'posts_request',
+			function ( $request ) use ( &$sql ) {
+				$sql = $request;
+				return $request;
+			} 
+		);
+
+		$query = new WP_Query( array( 'author__in' => array( $author2->ID ) ) );
+
+		remove_all_filters( 'coauthors_plus_should_query_post_author' );
+
+		$this->assertNotEmpty( $sql, 'SQL must be captured via posts_request.' );
+		$this->assertStringContainsString( 'INNER JOIN', $sql, 'Must use INNER JOIN when post_author is excluded.' );
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
+
+	/**
+	 * By default (`coauthors_plus_should_query_post_author` is true), the JOIN
+	 * must be a LEFT JOIN to cover the post_author fallback.
+	 */
+	public function test_multi_author_query_uses_left_join_by_default(): void {
+		$author1 = $this->create_author( 'left_join_a1' );
+		$author2 = $this->create_author( 'left_join_a2' );
+		$post    = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+
+		$sql = '';
+		add_filter(
+			'posts_request',
+			function ( $request ) use ( &$sql ) {
+				$sql = $request;
+				return $request;
+			} 
+		);
+
+		$query = new WP_Query( array( 'author__in' => array( $author2->ID ) ) );
+
+		$this->assertNotEmpty( $sql, 'SQL must be captured via posts_request.' );
+		$this->assertStringContainsString( 'LEFT JOIN', $sql, 'Must use LEFT JOIN by default (post_author included).' );
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
 }

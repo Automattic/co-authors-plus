@@ -986,6 +986,36 @@ class CoAuthors_Plus {
 				return $join;
 			}
 
+			// Multi-author path (author__in / comma-separated author).
+			$author_ids      = $this->get_author_ids_from_query( $query );
+			$is_multi_author = ! empty( $author_ids ) && ( ! $query->is_author() || count( $author_ids ) > 1 );
+
+			if ( $is_multi_author ) {
+				$maybe_both = $this->force_guest_authors
+					? false
+					: apply_filters( 'coauthors_plus_should_query_post_author', true );
+
+				if ( $maybe_both ) {
+					// Need post_author fallback -- keep LEFT JOIN.
+					$rel_join = " LEFT JOIN {$wpdb->term_relationships} AS tr1 ON ({$wpdb->posts}.ID = tr1.object_id)";
+					$tax_join = " LEFT JOIN {$wpdb->term_taxonomy} ON ( tr1.term_taxonomy_id = {$wpdb->term_taxonomy}.term_taxonomy_id )";
+				} else {
+					// Only co-author terms -- INNER JOIN is sufficient.
+					$rel_join = " INNER JOIN {$wpdb->term_relationships} ON ({$wpdb->posts}.ID = {$wpdb->term_relationships}.object_id)";
+					$tax_join = " INNER JOIN {$wpdb->term_taxonomy} ON ( {$wpdb->term_relationships}.term_taxonomy_id = {$wpdb->term_taxonomy}.term_taxonomy_id )";
+				}
+
+				if ( false === strpos( $join, trim( $rel_join ) ) ) {
+					$join .= $rel_join;
+				}
+				if ( false === strpos( $join, trim( $tax_join ) ) ) {
+					$join .= $tax_join;
+				}
+
+				return $join;
+			}
+
+			// Single-author path: only add ONCE having_terms is populated.
 			if ( empty( $this->having_terms ) ) {
 				return $join;
 			}
@@ -1240,8 +1270,20 @@ class CoAuthors_Plus {
 			return $where;
 		}
 
-		$terms_implode = $this->build_terms_clauses( $all_terms );
-		$this->having_terms = rtrim( $this->having_terms, ' OR' );
+		// Build a single IN clause instead of a per-term OR-chain.
+		$term_ids = array_unique(
+			array_map(
+				function ( $t ) {
+					return $t->term_id;
+				},
+				$all_terms
+			)
+		);
+		$placeholders = implode( ', ', array_fill( 0, count( $term_ids ), '%d' ) );
+		$terms_implode = $wpdb->prepare(
+			"{$wpdb->term_taxonomy}.taxonomy = %s AND {$wpdb->term_taxonomy}.term_id IN ({$placeholders})",  // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			array_merge( array( $this->coauthor_taxonomy ), $term_ids )
+		);
 
 		$maybe_both = $this->force_guest_authors
 			? false
@@ -1276,7 +1318,15 @@ class CoAuthors_Plus {
 				return $groupby;
 			}
 
-			if ( $this->having_terms ) {
+			// Multi-author path: GROUP BY to deduplicate rows from the JOIN.
+			$author_ids       = $this->get_author_ids_from_query( $query );
+			$is_multi_author  = ! empty( $author_ids ) && ( ! $query->is_author() || count( $author_ids ) > 1 );
+
+			if ( $is_multi_author ) {
+				if ( empty( $groupby ) ) {
+					$groupby = $wpdb->posts . '.ID';
+				}
+			} elseif ( $this->having_terms ) {
 				$having  = 'MAX( IF ( ' . $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\', IF ( ' . $this->having_terms . ',2,1 ),0 ) ) <> 1 ';
 				$groupby = $wpdb->posts . '.ID HAVING ' . $having;
 			}
