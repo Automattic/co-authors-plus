@@ -832,6 +832,52 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	}
 
 	/**
+	 * List the co-authors assigned to a post.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <post_id>
+	 * : ID of the post to list co-authors for.
+	 *
+	 * @since 3.0
+	 *
+	 * @param array $args Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 *
+	 * @subcommand list-authors
+	 * @synopsis <post_id>
+	 */
+	public function list_authors( $args, $assoc_args ): void {
+		$post_id = absint( $args[0] ?? 0 );
+
+		if ( ! $post_id || ! get_post( $post_id ) ) {
+			WP_CLI::error( 'Please specify a valid post_id.' );
+		}
+
+		$coauthors = get_coauthors( $post_id );
+
+		if ( empty( $coauthors ) ) {
+			WP_CLI::log( 'No co-authors found for post #' . $post_id );
+			return;
+		}
+
+		foreach ( $coauthors as $coauthor ) {
+			$row = array_map(
+				static function ( $value ) {
+					return '"' . str_replace( '"', '""', (string) $value ) . '"';
+				},
+				array(
+					$coauthor->ID,
+					$coauthor->display_name,
+					$coauthor->user_nicename,
+					$coauthor->user_email,
+				)
+			);
+			WP_CLI::log( implode( ',', $row ) );
+		}
+	}
+
+	/**
 	 * Migrate author terms without prefixes to ones with prefixes
 	 * Pre-3.0, all author terms didn't have a 'cap-' prefix, which means
 	 * they can easily collide with terms in other taxonomies
