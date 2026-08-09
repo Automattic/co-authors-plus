@@ -14,6 +14,7 @@ declare( strict_types=1 );
 namespace Automattic\CoAuthorsPlus\Tests\Integration\Bylines;
 
 use Automattic\CoAuthorsPlus\Tests\Integration\TestCase;
+use CoAuthors\Cache\Store;
 
 /**
  * @coversDefaultClass \CoAuthors_Plus
@@ -58,14 +59,14 @@ class AuthorTermsTest extends TestCase {
 
 		global $coauthors_plus;
 
-		$cache_key = 'author-term-' . $this->author1->user_nicename;
+		$cache_key = Store::author_term_key( (int) $this->author1->ID );
 
 		// Checks when term does not exist in cache.
-		$this->assertFalse( wp_cache_get( $cache_key, 'co-authors-plus' ) );
+		$this->assertFalse( wp_cache_get( $cache_key, Store::GROUP ) );
 
 		// Checks when term exists in cache.
 		$author_term        = $coauthors_plus->get_author_term( $this->author1 );
-		$author_term_cached = wp_cache_get( $cache_key, 'co-authors-plus' );
+		$author_term_cached = wp_cache_get( $cache_key, Store::GROUP );
 
 		$this->assertInstanceOf( \WP_Term::class, $author_term );
 		$this->assertEquals( $author_term, $author_term_cached );

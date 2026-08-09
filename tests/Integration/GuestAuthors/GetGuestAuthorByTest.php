@@ -11,6 +11,7 @@ declare( strict_types=1 );
 namespace Automattic\CoAuthorsPlus\Tests\Integration\GuestAuthors;
 
 use Automattic\CoAuthorsPlus\Tests\Integration\TestCase;
+use CoAuthors\Cache\Store;
 
 /**
  * @coversDefaultClass \CoAuthors_Guest_Authors
@@ -64,14 +65,14 @@ class GetGuestAuthorByTest extends TestCase {
 
 		$guest_author_id = $guest_author_obj->create_guest_author_from_user_id( $this->editor1->ID );
 
-		$cache_key = $guest_author_obj->get_cache_key( 'ID', $guest_author_id );
+		$cache_key = Store::guest_author_key( 'ID', $guest_author_id );
 
 		// Checks when guest author does not exist in cache.
-		$this->assertFalse( wp_cache_get( $cache_key, $guest_author_obj::$cache_group ) );
+		$this->assertFalse( wp_cache_get( $cache_key, Store::GROUP ) );
 
 		// Checks when guest author exists in cache.
 		$guest_author        = $guest_author_obj->get_guest_author_by( 'ID', $guest_author_id );
-		$guest_author_cached = wp_cache_get( $cache_key, $guest_author_obj::$cache_group );
+		$guest_author_cached = wp_cache_get( $cache_key, Store::GROUP );
 
 		$this->assertInstanceOf( \stdClass::class, $guest_author );
 		$this->assertEquals( $guest_author, $guest_author_cached );
@@ -194,16 +195,16 @@ class GetGuestAuthorByTest extends TestCase {
 
 		$guest_author_obj = $coauthors_plus->guest_authors;
 
-		$cache_key = 'all-linked-accounts';
+		$cache_key = Store::all_linked_accounts_key();
 
 		// Checks when guest author does not exist in cache.
-		$this->assertFalse( wp_cache_get( $cache_key, $guest_author_obj::$cache_group ) );
+		$this->assertFalse( wp_cache_get( $cache_key, Store::GROUP ) );
 
 		// Checks when guest author exists in cache.
 		$guest_author_obj->create_guest_author_from_user_id( $this->editor1->ID );
 
 		$linked_accounts       = $guest_author_obj->get_all_linked_accounts();
-		$linked_accounts_cache = wp_cache_get( $cache_key, $guest_author_obj::$cache_group );
+		$linked_accounts_cache = wp_cache_get( $cache_key, Store::GROUP );
 
 		$this->assertEquals( $linked_accounts, $linked_accounts_cache );
 	}

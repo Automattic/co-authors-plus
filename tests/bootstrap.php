@@ -37,6 +37,9 @@ if ( ! $is_integration ) {
 		define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 	}
 
+	// Load cache infrastructure before unit tests instantiate legacy classes.
+	require_once dirname( __DIR__ ) . '/php/class-store.php';
+
 	return;
 }
 

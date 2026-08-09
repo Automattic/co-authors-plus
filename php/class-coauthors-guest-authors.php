@@ -14,7 +14,16 @@ class CoAuthors_Guest_Authors {
 	public $list_guest_authors_cap = 'list_users';
 	public $add_guest_author_cap   = 'edit_posts';
 
-	public static $cache_group = 'coauthors-plus-guest-authors';
+	/**
+	 * Object-cache group used by guest-author lookups.
+	 *
+	 * @deprecated 4.2.0 Use CoAuthors\Cache\Store::GROUP instead. Kept as
+	 *                   a deprecated alias so external code that reads this
+	 *                   static continues to resolve to the unified group.
+	 *
+	 * @var string
+	 */
+	public static $cache_group = \CoAuthors\Cache\Store::GROUP;
 
 	/**
 	 * Register the Guest Authors hooks and the guest author post type.
@@ -1042,9 +1051,9 @@ class CoAuthors_Guest_Authors {
 	public function get_guest_author_by( $key, $value, $force = false ) {
 		global $wpdb;
 
-		$cache_key = $this->get_cache_key( $key, $value );
+		$cache_key = \CoAuthors\Cache\Store::guest_author_key( $key, $value );
 
-		if ( ! $force && false !== ( $retval = wp_cache_get( $cache_key, self::$cache_group ) ) ) {
+		if ( ! $force && false !== ( $retval = wp_cache_get( $cache_key, \CoAuthors\Cache\Store::GROUP ) ) ) {
 			// Properly catch our false condition cache
 			if ( is_object( $retval ) ) {
 				return $retval;
@@ -1098,7 +1107,7 @@ class CoAuthors_Guest_Authors {
 
 		if ( ! $post_id ) {
 			// Best hacky way to cache the false condition
-			wp_cache_set( $cache_key, '0', self::$cache_group );
+			wp_cache_set( $cache_key, '0', \CoAuthors\Cache\Store::GROUP );
 			return false;
 		}
 
@@ -1124,7 +1133,7 @@ class CoAuthors_Guest_Authors {
 			$guest_author['nickname'] = '';
 		}
 
-		wp_cache_set( $cache_key, (object) $guest_author, self::$cache_group );
+		wp_cache_set( $cache_key, (object) $guest_author, \CoAuthors\Cache\Store::GROUP );
 
 		return (object) $guest_author;
 	}
@@ -1253,32 +1262,17 @@ class CoAuthors_Guest_Authors {
 	/**
 	 * Build a cache key for a given key/value
 	 *
+	 * @deprecated 4.2.0 Use CoAuthors\Cache\Store::guest_author_key() instead.
+	 *                   Kept as a thin wrapper so external integrations
+	 *                   that call it continue to work.
+	 *
 	 * @param string $key A guest author field
 	 * @param string $value The guest author field value
 	 *
 	 * @return string The generated cache key
 	 */
 	public function get_cache_key( $key, $value ): string {
-		// Normalize $key and $value
-		switch ( $key ) {
-			case 'post_name':
-				$key = 'user_nicename';
-
-				if ( 0 === strpos( $value, 'cap-' ) ) {
-					$value = substr( $value, 4 );
-				}
-
-				break;
-
-			case 'login':
-				$key = 'user_login';
-
-				break;
-		}
-
-		$cache_key = md5( 'guest-author-' . $key . '-' . $value );
-
-		return $cache_key;
+		return \CoAuthors\Cache\Store::guest_author_key( (string) $key, $value );
 	}
 
 	/**
@@ -1289,8 +1283,8 @@ class CoAuthors_Guest_Authors {
 	public function get_all_linked_accounts( $force = false ) {
 		global $wpdb;
 
-		$cache_key = 'all-linked-accounts';
-		$retval    = wp_cache_get( $cache_key, self::$cache_group );
+		$cache_key = \CoAuthors\Cache\Store::all_linked_accounts_key();
+		$retval    = wp_cache_get( $cache_key, \CoAuthors\Cache\Store::GROUP );
 
 		if ( true === $force || false === $retval ) {
 			$user_logins = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key=%s AND meta_value !=''", $this->get_post_meta_key( 'linked_account' ) ) );
@@ -1306,7 +1300,7 @@ class CoAuthors_Guest_Authors {
 				);
 			}
 			$retval = $users;
-			wp_cache_set( $cache_key, $retval, self::$cache_group );
+			wp_cache_set( $cache_key, $retval, \CoAuthors\Cache\Store::GROUP );
 		}
 		return ( $retval ) ?: array();
 	}
@@ -1367,13 +1361,13 @@ class CoAuthors_Guest_Authors {
 				$value_key = 'ID';
 			}
 
-			$cache_key = $this->get_cache_key( $key, $guest_author->$value_key );
+			$cache_key = \CoAuthors\Cache\Store::guest_author_key( $key, $guest_author->$value_key );
 
-			wp_cache_delete( $cache_key, self::$cache_group );
+			wp_cache_delete( $cache_key, \CoAuthors\Cache\Store::GROUP );
 		}
 
 		// Delete the 'all-linked-accounts' cache
-		wp_cache_delete( 'all-linked-accounts', self::$cache_group );
+		wp_cache_delete( \CoAuthors\Cache\Store::all_linked_accounts_key(), \CoAuthors\Cache\Store::GROUP );
 
 	}
 
