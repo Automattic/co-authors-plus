@@ -101,14 +101,7 @@ class CreateGuestAuthorTest extends TestCase {
 		$guest_author_obj = $coauthors_plus->guest_authors;
 
 		// Count posts before attempting to create the guest author.
-		$posts_before = get_posts(
-			array(
-				'post_type'   => $guest_author_obj->post_type,
-				'post_status' => 'any',
-				'numberposts' => -1,
-			)
-		);
-		$count_before = count( $posts_before );
+		$count_before = array_sum( (array) wp_count_posts( $guest_author_obj->post_type ) );
 
 		// Force wp_insert_term to fail by using a filter.
 		add_filter(
@@ -133,14 +126,7 @@ class CreateGuestAuthorTest extends TestCase {
 		$this->assertInstanceOf( 'WP_Error', $result );
 
 		// Verify no orphaned post was left behind.
-		$posts_after = get_posts(
-			array(
-				'post_type'   => $guest_author_obj->post_type,
-				'post_status' => 'any',
-				'numberposts' => -1,
-			)
-		);
-		$count_after = count( $posts_after );
+		$count_after = array_sum( (array) wp_count_posts( $guest_author_obj->post_type ) );
 
 		$this->assertEquals( $count_before, $count_after, 'Orphaned guest author post should be cleaned up on term creation failure.' );
 	}
