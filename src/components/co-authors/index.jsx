@@ -2,7 +2,13 @@
  * WordPress dependencies
  */
 import apiFetch from '@wordpress/api-fetch';
-import { ComboboxControl, Spinner } from '@wordpress/components';
+import {
+	Button,
+	ComboboxControl,
+	Modal,
+	Spinner,
+	TextControl,
+} from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { applyFilters } from '@wordpress/hooks';
 import { useDispatch, useSelect } from '@wordpress/data';
@@ -59,6 +65,23 @@ const CoAuthors = () => {
 	 * fetches; clearing the input now intentionally re-fetches the list.
 	 */
 	const hasInitialLoaded = useRef( false );
+
+	/**
+	 * Last non-empty query the user typed into the combobox. Prefills the
+	 * create-guest-author modal so the user does not have to retype. The
+	 * short-query branch in onFilterValueChange does not overwrite this, so
+	 * the prefill stays accurate even when the user backspaces.
+	 */
+	const lastQuery = useRef( '' );
+
+	/**
+	 * Create-guest-author modal state.
+	 */
+	const [ createModalOpen, setCreateModalOpen ] = useState( false );
+	const [ createDraftName, setCreateDraftName ] = useState( '' );
+	const [ createEmail, setCreateEmail ] = useState( '' );
+	const [ createError, setCreateError ] = useState( null );
+	const [ createSubmitting, setCreateSubmitting ] = useState( false );
 
 	/**
 	 * Read co-author term IDs from the core entity store.
@@ -220,10 +243,14 @@ const CoAuthors = () => {
 	 *
 	 * @param {string} query The text to search.
 	 */
-	const onFilterValueChange = useDebounce(
+		const onFilterValueChange = useDebounce(
 		useCallback( ( query ) => {
 			const { fetchAuthors: search, threshold: minLength } =
 				latest.current;
+
+			if ( query.length >= minLength ) {
+				lastQuery.current = query;
+			}
 
 			// Short or empty query: show the full alphabetical list. This keeps the
 			// dropdown useful while the user is still typing, and avoids the confusing
@@ -237,6 +264,57 @@ const CoAuthors = () => {
 		}, [] ),
 		500
 	);
+
+	/**
+	 * Open the create-guest-author modal, prefilled with the user's last
+	 * query when available.
+	 */
+	const openCreateModal = () => {
+		setCreateDraftName( lastQuery.current );
+		setCreateEmail( '' );
+		setCreateError( null );
+		setCreateModalOpen( true );
+	};
+
+	/**
+	 * Close the create-guest-author modal and reset its state.
+	 */
+	const closeCreateModal = () => {
+		setCreateModalOpen( false );
+		setCreateError( null );
+		setCreateSubmitting( false );
+	};
+
+	/**
+	 * Submit handler for the create-guest-author modal. POSTs to the REST
+	 * endpoint, then inserts the new author into the byline using the same
+	 * path as combobox selection so unresolved term IDs are preserved.
+	 */
+	const onSubmitCreate = async () => {
+		setCreateError( null );
+		setCreateSubmitting( true );
+
+		try {
+			const response = await apiFetch( {
+				path: '/coauthors/v1/guest-authors',
+				method: 'POST',
+				data: {
+					display_name: createDraftName,
+					user_email: createEmail,
+				},
+			} );
+
+			const formatted = formatAuthorData( response );
+			updateAuthors( [ ...selectedAuthors, formatted ] );
+			closeCreateModal();
+		} catch ( error ) {
+			const message =
+				( error && error.message ) ||
+				__( 'Could not create guest author.', 'co-authors-plus' );
+			setCreateError( message );
+			setCreateSubmitting( false );
+		}
+	};
 
 	// Show spinner while the post entity or author details are still loading.
 	// Once loading completes, render the resolved authors (which may be an
@@ -265,6 +343,71 @@ const CoAuthors = () => {
 				__next40pxDefaultSize
 				__nextHasNoMarginBottom
 			/>
+
+			<Button
+				variant="link"
+				className="cap-create-guest-author-trigger"
+				onClick={ openCreateModal }
+			>
+				{ __( '+ Create new guest author', 'co-authors-plus' ) }
+			</Button>
+
+			{ createModalOpen && (
+				<Modal
+					title={ __( 'Create new guest author', 'co-authors-plus' ) }
+					onRequestClose={ closeCreateModal }
+					className="cap-create-guest-author-modal"
+				>
+					<TextControl
+						label={ __( 'Display name', 'co-authors-plus' ) }
+						value={ createDraftName }
+						onChange={ setCreateDraftName }
+						required
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+					/>
+					<TextControl
+						label={ __( 'Email (optional)', 'co-authors-plus' ) }
+						value={ createEmail }
+						onChange={ setCreateEmail }
+						type="email"
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+					/>
+					<p className="cap-create-guest-author-help">
+						{ __(
+							'Creates a guest byline for someone who is not a registered WordPress user on this site. You can complete the rest of their profile later.',
+							'co-authors-plus'
+						) }
+					</p>
+					{ createError && (
+						<p className="cap-create-guest-author-error" role="alert">
+							{ createError }
+						</p>
+					) }
+					<div className="cap-create-guest-author-actions">
+						<Button
+							variant="tertiary"
+							onClick={ closeCreateModal }
+							disabled={ createSubmitting }
+						>
+							{ __( 'Cancel', 'co-authors-plus' ) }
+						</Button>
+						<Button
+							variant="primary"
+							onClick={ onSubmitCreate }
+							disabled={
+								createSubmitting ||
+								createDraftName.trim().length === 0
+							}
+						>
+							{ createSubmitting
+								? __( 'Creating…', 'co-authors-plus' )
+								: __( 'Create', 'co-authors-plus' ) }
+						</Button>
+					</div>
+				</Modal>
+			) }
 		</>
 	);
 };

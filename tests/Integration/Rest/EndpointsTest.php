@@ -91,6 +91,12 @@ class EndpointsTest extends TestCase {
 			Endpoints::SEARCH_ROUTE
 		);
 
+		$guest_authors_route = sprintf(
+			'/%1$s/%2$s',
+			Endpoints::NS,
+			Endpoints::GUEST_AUTHORS_ROUTE
+		);
+
 		$this->assertArrayHasKey(
 			$authors_route,
 			$routes,
@@ -101,6 +107,12 @@ class EndpointsTest extends TestCase {
 			$search_route,
 			$routes,
 			'Failed to assert that search endpoint is registered'
+		);
+
+		$this->assertArrayHasKey(
+			$guest_authors_route,
+			$routes,
+			'Failed to assert that guest-authors endpoint is registered'
 		);
 
 		$this->assertArrayHasKey(
@@ -119,6 +131,12 @@ class EndpointsTest extends TestCase {
 			'POST',
 			$routes[ $authors_route ][1]['methods'],
 			'Failed to assert that authors endpoint has POST method.'
+		);
+
+		$this->assertArrayHasKey(
+			'POST',
+			$routes[ $guest_authors_route ][0]['methods'],
+			'Failed to assert that guest-authors endpoint has POST method.'
 		);
 	}
 
@@ -238,6 +256,99 @@ class EndpointsTest extends TestCase {
 		$update_response = $this->_api->update_coauthors( $post_request );
 
 		$this->assertCount( 2, $update_response->data );
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::create_guest_author
+	 */
+	public function test_create_guest_author_rest_route_succeeds(): void {
+		$editor = $this->create_editor();
+		wp_set_current_user( $editor->ID );
+
+		$request = new \WP_REST_Request( 'POST' );
+		$request->set_url_params(
+			array(
+				'display_name' => 'New Byline Person',
+				'user_email'   => 'newbyline@example.com',
+			)
+		);
+
+		$response = $this->_api->create_guest_author( $request );
+
+		$this->assertInstanceOf( \WP_REST_Response::class, $response );
+		$data = $response->get_data();
+
+		$this->assertSame( 'New Byline Person', $data['displayName'] );
+		$this->assertSame( 'new-byline-person', $data['userNicename'] );
+		$this->assertSame( 'newbyline@example.com', $data['email'] );
+		$this->assertSame( 'guest-author', $data['userType'] );
+		$this->assertIsInt( $data['termId'] );
+		$this->assertGreaterThan( 0, $data['termId'] );
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::create_guest_author
+	 */
+	public function test_create_guest_author_rest_route_returns_error_on_blank_display_name(): void {
+		$editor = $this->create_editor();
+		wp_set_current_user( $editor->ID );
+
+		$request = new \WP_REST_Request( 'POST' );
+		$request->set_url_params(
+			array(
+				'display_name' => '   ',
+			)
+		);
+
+		$response = $this->_api->create_guest_author( $request );
+
+		$this->assertInstanceOf( \WP_Error::class, $response );
+		$this->assertSame( 'field-required', $response->get_error_code() );
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::create_guest_author
+	 */
+	public function test_create_guest_author_rest_route_returns_duplicate_error_on_existing_login(): void {
+		$editor = $this->create_editor();
+		wp_set_current_user( $editor->ID );
+
+		$this->create_guest_author( 'existing_guest' );
+
+		$request = new \WP_REST_Request( 'POST' );
+		$request->set_url_params(
+			array(
+				'display_name' => 'Existing Guest',
+				'user_login'   => 'existing_guest',
+			)
+		);
+
+		$response = $this->_api->create_guest_author( $request );
+
+		$this->assertInstanceOf( \WP_Error::class, $response );
+		$this->assertSame( 'duplicate-field', $response->get_error_code() );
+		$this->assertSame( 409, $response->get_error_data( 'duplicate-field' )['status'] );
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::create_guest_author
+	 */
+	public function test_create_guest_author_rest_route_returns_400_status_on_blank_display_name(): void {
+		$editor = $this->create_editor();
+		wp_set_current_user( $editor->ID );
+
+		$request = new \WP_REST_Request( 'POST' );
+		$request->set_url_params(
+			array(
+				'display_name' => '   ',
+			)
+		);
+
+		$response = $this->_api->create_guest_author( $request );
+
+		$this->assertInstanceOf( \WP_Error::class, $response );
+		$this->assertSame( 'field-required', $response->get_error_code() );
+		$this->assertSame( 400, $response->get_error_data( 'field-required' )['status'] );
 	}
 
 	public function data_only_editor_role_can_edit_coauthors(): array {
