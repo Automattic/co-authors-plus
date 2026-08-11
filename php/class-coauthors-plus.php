@@ -1662,6 +1662,7 @@ class CoAuthors_Plus {
 		// Set the co-authors
 		$coauthors        = array_unique( array_merge( $existing_coauthors, $coauthors ) );
 		$coauthor_objects = array();
+		$coauthor_terms   = array();
 		foreach ( $coauthors as &$author_name ) {
 			if ( $this->is_rest_save && has_filter( 'coauthors_post_get_coauthor_by_field' ) ) {
 				_deprecated_hook(
@@ -1676,11 +1677,39 @@ class CoAuthors_Plus {
 			$author             = $this->get_coauthor_by( $field, $author_name );
 			$coauthor_objects[] = $author;
 			$term               = $this->update_author_term( $author );
-			if ( is_object( $term ) ) {
+			$has_term           = is_object( $term ) && ! is_wp_error( $term );
+			$coauthor_terms[]   = $has_term ? $term : null;
+			if ( $has_term ) {
 				$author_name = $term->slug;
 			}
 		}
+		unset( $author_name );
 		wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
+
+		// Persist the requested order in wp_term_relationships.term_order so that
+		// get_coauthor_terms_for_post() (which orders by term_order ASC) returns
+		// the authors in the same order they were passed in. Without this, every
+		// row gets term_order = 0 and the read path falls back to an arbitrary
+		// order based on term_taxonomy_id. See issue #1052.
+		foreach ( $coauthors as $order => $slug ) {
+			$term_taxonomy_id = isset( $coauthor_terms[ $order ] ) && $coauthor_terms[ $order ]
+				? (int) $coauthor_terms[ $order ]->term_taxonomy_id
+				: 0;
+			if ( ! $term_taxonomy_id ) {
+				continue;
+			}
+			$wpdb->update(
+				$wpdb->term_relationships,
+				array( 'term_order' => (int) $order ),
+				array(
+					'object_id'        => $post_id,
+					'term_taxonomy_id' => $term_taxonomy_id,
+				),
+				array( '%d' ),
+				array( '%d', '%d' )
+			);
+		}
+		$this->clear_cache( $post_id );
 
 		// If the original post_author is no longer assigned,
 		// update to the first WP_User $coauthor

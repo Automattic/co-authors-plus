@@ -873,6 +873,61 @@ class AddCoauthorsTest extends TestCase {
 	}
 
 	/**
+	 * Confirms that add_coauthors() persists the order of the input array via
+	 * wp_term_relationships.term_order, and that get_coauthors() (which orders
+	 * by term_order ASC) returns the authors in that same order. See issue #1052.
+	 *
+	 * Also covers a re-call with a different order to prove the term_order
+	 * write actually overwrites the previously persisted value, rather than
+	 * only writing on the first call.
+	 *
+	 * @covers ::add_coauthors
+	 */
+	public function test_add_coauthors_preserves_input_order(): void {
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $this->editor1->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		// First assignment: alphabetic input order so it could plausibly match
+		// the read path's accidental ordering.
+		$first_order = array( $this->author1->user_login, $this->author2->user_login, $this->author3->user_login );
+		$this->assertTrue( $this->_cap->add_coauthors( $post_id, $first_order ) );
+
+		$coauthors = get_coauthors( $post_id );
+		$this->assertCount( 3, $coauthors );
+		$this->assertSame(
+			$first_order,
+			array_map(
+				function ( $c ) {
+					return $c->user_login;
+				},
+				$coauthors
+			)
+		);
+
+		// Reorder: a non-alphabetic, non-term-id order to prove the term_order
+		// write overrides the previous value rather than just touching new rows.
+		$second_order = array( $this->author3->user_login, $this->author1->user_login, $this->author2->user_login );
+		$this->assertTrue( $this->_cap->add_coauthors( $post_id, $second_order ) );
+
+		$reordered = get_coauthors( $post_id );
+		$this->assertCount( 3, $reordered );
+		$this->assertSame(
+			$second_order,
+			array_map(
+				function ( $c ) {
+					return $c->user_login;
+				},
+				$reordered
+			)
+		);
+	}
+
+	/**
 	 * Tests that deleting a user without a co-author term doesn't cause PHP warnings.
 	 *
 	 * @covers ::delete_user_action
