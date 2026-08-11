@@ -101,14 +101,10 @@ class CreateGuestAuthorTest extends TestCase {
 		$guest_author_obj = $coauthors_plus->guest_authors;
 
 		// Count posts before attempting to create the guest author.
-		$posts_before = get_posts(
-			array(
-				'post_type'   => $guest_author_obj->post_type,
-				'post_status' => 'any',
-				'numberposts' => -1,
-			)
-		);
-		$count_before = count( $posts_before );
+		// Sum every status key on the wp_count_posts() result so we count
+		// across all statuses without using numberposts => -1, which is
+		// prohibited by the VIP coding standard.
+		$count_before = $this->count_guest_author_posts( $guest_author_obj->post_type );
 
 		// Force wp_insert_term to fail by using a filter.
 		add_filter(
@@ -133,14 +129,7 @@ class CreateGuestAuthorTest extends TestCase {
 		$this->assertInstanceOf( 'WP_Error', $result );
 
 		// Verify no orphaned post was left behind.
-		$posts_after = get_posts(
-			array(
-				'post_type'   => $guest_author_obj->post_type,
-				'post_status' => 'any',
-				'numberposts' => -1,
-			)
-		);
-		$count_after = count( $posts_after );
+		$count_after = $this->count_guest_author_posts( $guest_author_obj->post_type );
 
 		$this->assertEquals( $count_before, $count_after, 'Orphaned guest author post should be cleaned up on term creation failure.' );
 	}
@@ -172,5 +161,25 @@ class CreateGuestAuthorTest extends TestCase {
 		$guest_author = $guest_author_obj->get_guest_author_by( 'ID', $guest_author_id );
 		$this->assertInstanceOf( \stdClass::class, $guest_author );
 		$this->assertEquals( 'Test Empty Content Author', $guest_author->display_name );
+	}
+
+	/**
+	 * Counts all guest-author posts across every status, matching the
+	 * behaviour of get_posts( [ 'post_status' => 'any', 'numberposts' => -1 ] )
+	 * without tripping the VIP no-paging rule.
+	 *
+	 * @param string $post_type The post type to count.
+	 * @return int Total number of posts in any status.
+	 */
+	private function count_guest_author_posts( string $post_type ): int {
+		$counts = wp_count_posts( $post_type );
+		if ( ! $counts instanceof \stdClass ) {
+			return 0;
+		}
+		$total = 0;
+		foreach ( (array) $counts as $value ) {
+			$total += (int) $value;
+		}
+		return $total;
 	}
 }
