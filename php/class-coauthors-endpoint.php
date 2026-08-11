@@ -80,6 +80,19 @@ class Endpoints {
 							'type'        => 'string',
 							'required'    => false,
 						),
+						'per_page'         => array(
+							'description'       => __( 'Maximum number of authors to return.', 'co-authors-plus' ),
+							'required'          => false,
+							'type'              => 'integer',
+							'default'           => 100,
+							'sanitize_callback' => function( $value ): int {
+								return absint( $value );
+							},
+							'validate_callback' => function( $value ): bool {
+								$value = (int) $value;
+								return $value >= 1 && $value <= 200;
+							},
+						),
 					),
 				),
 			)
@@ -160,7 +173,11 @@ class Endpoints {
 		$search  = strtolower( $request->get_param( 'q' ) );
 		$ignorable = $request->get_param( 'existing_authors' ) ?? '';
 		$ignore  = explode( ',', $ignorable );
-		$authors = $this->coauthors->search_authors( $search, $ignore );
+		$per_page = absint( $request->get_param( 'per_page' ) );
+		if ( ! $per_page ) {
+			$per_page = 100;
+		}
+		$authors = $this->coauthors->search_authors( $search, $ignore, $per_page );
 
 		if ( ! empty( $authors ) ) {
 			foreach ( $authors as $author ) {

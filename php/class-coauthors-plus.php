@@ -2072,7 +2072,22 @@ class CoAuthors_Plus {
 	/**
 	 * Get matching co-authors based on a search value
 	 */
-	public function search_authors( $search = '', $ignored_authors = array() ): array {
+	/**
+	 * Search authors by name, login, or email.
+	 *
+	 * The previous default of 10 silently truncated results for sites with
+	 * many guest authors, which broke the Gutenberg sidebar's ability to
+	 * select anyone past the first page. Default is now 100 to cover
+	 * realistic site sizes; pass a different value from the REST handler
+	 * or override the args via the coauthors_search_authors_get_terms_args
+	 * filter.
+	 *
+	 * @param string $search         Text to search for.
+	 * @param array  $ignored_authors List of user_nicenames to exclude.
+	 * @param int    $number          Maximum number of coauthor terms to return.
+	 * @return array
+	 */
+	public function search_authors( $search = '', $ignored_authors = array(), $number = 100 ): array {
 
 		// Since 2.7, we're searching against the term description for the fields
 		// instead of the user details. If the term is missing, we probably need to
@@ -2102,7 +2117,7 @@ class CoAuthors_Plus {
 		$args = array(
 			'search' => $search,
 			'get'    => 'all',
-			'number' => 10,
+			'number' => max( 1, (int) $number ),
 		);
 		$args = apply_filters( 'coauthors_search_authors_get_terms_args', $args );
 		add_filter( 'terms_clauses', array( $this, 'filter_terms_clauses' ) );

@@ -171,6 +171,58 @@ class EndpointsTest extends TestCase {
 	}
 
 	/**
+	 * @covers \CoAuthors\API\Endpoints::get_coauthors_search_results
+	 */
+	public function test_get_coauthors_search_results_exceeds_legacy_limit(): void {
+		// Create more guest authors than the old hard-coded limit of 10 so the
+		// result count proves the new default cap (100) is actually applied.
+		$guest_authors = array();
+		for ( $i = 1; $i <= 15; $i++ ) {
+			$guest_authors[] = $this->create_guest_author( 'search_guest_' . $i );
+		}
+
+		$get_request = new \WP_REST_Request( 'GET' );
+		$get_request->set_url_params(
+			array(
+				'q' => 'search_guest_',
+			)
+		);
+
+		$get_response = $this->_api->get_coauthors_search_results( $get_request );
+
+		$this->assertCount(
+			15,
+			$get_response->data,
+			'Failed to assert that coauthors search returns all guest authors when it exceeds the legacy limit.'
+		);
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::get_coauthors_search_results
+	 */
+	public function test_get_coauthors_search_results_honors_per_page(): void {
+		for ( $i = 1; $i <= 5; $i++ ) {
+			$this->create_guest_author( 'per_page_guest_' . $i );
+		}
+
+		$get_request = new \WP_REST_Request( 'GET' );
+		$get_request->set_url_params(
+			array(
+				'q'        => 'per_page_guest_',
+				'per_page' => 3,
+			)
+		);
+
+		$get_response = $this->_api->get_coauthors_search_results( $get_request );
+
+		$this->assertCount(
+			3,
+			$get_response->data,
+			'Failed to assert that coauthors search honors the per_page parameter.'
+		);
+	}
+
+	/**
 	 * @covers \CoAuthors\API\Endpoints::get_coauthors
 	 */
 	public function test_authors_get_coauthors(): void {
