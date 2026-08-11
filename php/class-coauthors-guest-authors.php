@@ -43,6 +43,7 @@ class CoAuthors_Guest_Authors {
 		// Handle actions to create or delete guest author accounts
 		add_action( 'admin_init', array( $this, 'handle_create_guest_author_action' ) );
 		add_action( 'admin_init', array( $this, 'handle_delete_guest_author_action' ) );
+		add_action( 'admin_post_cap_migrate_guest_authors', array( $this, 'handle_migrate_guest_authors_action' ) );
 
 		// Redirect if the user is mapped to a guest author
 		add_action( 'parse_request', array( $this, 'action_parse_request' ) );
@@ -384,6 +385,7 @@ class CoAuthors_Guest_Authors {
 	public function action_admin_menu(): void {
 
 		add_submenu_page( $this->parent_page, $this->labels['plural'], $this->labels['plural'], $this->list_guest_authors_cap, 'view-guest-authors', array( $this, 'view_guest_authors_list' ) );
+		add_submenu_page( $this->parent_page, __( 'Migrate Users', 'co-authors-plus' ), __( 'Migrate Users', 'co-authors-plus' ), $this->list_guest_authors_cap, 'migrate-users-to-guest-authors', array( $this, 'view_migrate_users_page' ) );
 
 	}
 
@@ -524,6 +526,17 @@ class CoAuthors_Guest_Authors {
 						),
 						admin_url( 'admin-ajax.php' )
 					),
+				)
+			);
+		} elseif ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'migrate-users-to-guest-authors' === $_GET['page'] ) {
+			wp_enqueue_script( 'coauthors-plus-migrate-users', plugins_url( 'js/co-authors-plus-migrate-users.js', __DIR__ ), array( 'jquery' ), COAUTHORS_PLUS_VERSION, true );
+			wp_localize_script(
+				'coauthors-plus-migrate-users',
+				'coAuthorsMigrateUsers',
+				array(
+					'url'    => admin_url( 'admin-post.php' ),
+					'action' => 'cap_migrate_guest_authors',
+					'nonce'  => wp_create_nonce( 'cap_migrate_guest_authors' ),
 				)
 			);
 		} elseif ( in_array( $pagenow, array( 'post.php', 'post-new.php' ) ) && $this->post_type === get_post_type() ) {
@@ -1513,6 +1526,111 @@ class CoAuthors_Guest_Authors {
 		return true;
 	}
 
+
+	/**
+	 * Render the user migration page.
+	 *
+	 * @since 4.2.0
+	 */
+	public function view_migrate_users_page(): void {
+		$missing = $this->get_users_missing_guest_author_count();
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Migrate Users to Guest Authors', 'co-authors-plus' ); ?></h1>
+			<p><?php esc_html_e( 'Create guest author profiles for users that do not have one yet.', 'co-authors-plus' ); ?></p>
+			<p><strong><?php echo esc_html( number_format_i18n( $missing ) ); ?></strong> <?php esc_html_e( 'users are ready to migrate.', 'co-authors-plus' ); ?></p>
+			<button type="button" class="button button-primary" id="coauthors-migrate-users"><?php esc_html_e( 'Migrate all users', 'co-authors-plus' ); ?></button>
+			<div id="coauthors-migrate-users-progress" hidden><p><progress max="100" value="0"></progress> <span></span></p><p class="notice notice-error" hidden></p></div>
+			<div id="coauthors-migrate-users-result" hidden></div>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Handle a request to migrate users to guest authors.
+	 *
+	 * @since 4.2.0
+	 */
+	public function handle_migrate_guest_authors_action(): void {
+		if ( ! current_user_can( $this->list_guest_authors_cap ) ) {
+			wp_die( esc_html__( "You don't have permission to perform this action.", 'co-authors-plus' ) );
+		}
+
+		check_admin_referer( 'cap_migrate_guest_authors' );
+		$offset     = isset( $_POST['offset'] ) ? absint( wp_unslash( $_POST['offset'] ) ) : 0;
+		$batch_size = isset( $_POST['batch_size'] ) ? absint( wp_unslash( $_POST['batch_size'] ) ) : 25;
+
+		wp_send_json_success( $this->migrate_guest_authors_batch( $offset, $batch_size ) );
+	}
+
+	/**
+	 * Get the number of users without a guest author.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @return int Number of users without a guest author.
+	 */
+	public function get_users_missing_guest_author_count(): int {
+		$users = get_users(
+			array(
+				'fields'  => array( 'ID', 'user_login' ),
+				'orderby' => 'user_login',
+				'order'   => 'ASC',
+			)
+		);
+		$count = 0;
+		foreach ( $users as $user ) {
+			if ( ! $this->get_guest_author_by( 'linked_account', $user->user_login ) ) {
+				$count++;
+			}
+		}
+
+		return $count;
+	}
+
+	/**
+	 * Migrate a batch of users to guest authors.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param int $offset Starting user offset.
+	 * @param int $batch_size Number of users to process.
+	 * @return array Migration progress and results.
+	 */
+	public function migrate_guest_authors_batch( int $offset, int $batch_size = 25 ): array {
+		$offset     = max( 0, $offset );
+		$batch_size = min( 100, max( 1, $batch_size ) );
+		$total      = count_users()['total_users'];
+		$users      = get_users(
+			array(
+				'fields'  => 'ID',
+				'number'  => $batch_size,
+				'offset'  => $offset,
+				'orderby' => 'user_login',
+				'order'   => 'ASC',
+			)
+		);
+		$created = 0;
+		$skipped = 0;
+		foreach ( $users as $user_id ) {
+			if ( is_wp_error( $this->create_guest_author_from_user_id( $user_id ) ) ) {
+				$skipped++;
+			} else {
+				$created++;
+			}
+		}
+		$next_offset = $offset + count( $users );
+
+		return array(
+			'offset'     => $next_offset,
+			'created'    => $created,
+			'skipped'    => $skipped,
+			'done'       => $next_offset >= $total,
+			'remaining'  => max( 0, $total - $next_offset ),
+			'total'      => $total,
+			'batch_size' => $batch_size,
+		);
+	}
 
 	/**
 	 * Create a guest author from an existing WordPress user
