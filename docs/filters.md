@@ -46,6 +46,13 @@ The resolved co-authors for a post. Runs after the plugin's lookup but before an
 - **Parameters:** `array $coauthors`, `int $post_id`
 - **File:** `template-tags.php`
 
+### `coauthors_block_authors`
+
+The resolved co-authors for a post, evaluated inside the `coauthors/v1/coauthors` REST endpoint. Use this to limit, reorder, or replace the list of co-authors that the Co-Authors block renders on the front end. The list is also exposed to the block editor via the same endpoint, so editor previews stay in sync. Returning a non-array from the callback yields an empty response.
+
+- **Parameters:** `array $coauthors`, `int $post_id`, `string $context`
+- **File:** `php/api/endpoints/class-coauthors-controller.php`
+
 ### `coauthors_open_graph_tags`
 
 The Open Graph tags the plugin contributes to the document head.

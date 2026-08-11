@@ -310,6 +310,35 @@ class CoAuthors_Controller extends WP_REST_Controller {
 			);
 		}
 
+		/**
+		 * Filters the resolved co-authors before they are formatted for the REST response.
+		 *
+		 * Allows consumers to limit, reorder, or replace the list returned by the
+		 * coauthors/v1/coauthors endpoint, which is the data source for the Co-Authors
+		 * block's server render. Returning a non-array short-circuits to an empty list.
+		 * Invalid (non-object) entries and sparse keys are dropped/reindexed so the
+		 * response stays a well-formed JSON array.
+		 *
+		 * @since 4.2.0
+		 * @param array  $coauthors Resolved co-author objects (WP_User|stdClass).
+		 * @param int    $post_id  Post ID from the request.
+		 * @param string $context  Always 'block' for now; reserved for future endpoints.
+		 */
+		$coauthors = apply_filters( 'coauthors_block_authors', $coauthors, (int) $request->get_param( 'post_id' ), 'block' );
+
+		if ( ! is_array( $coauthors ) ) {
+			$coauthors = array();
+		}
+
+		$coauthors = array_values(
+			array_filter(
+				$coauthors,
+				static function ( $author ) {
+					return is_object( $author );
+				}
+			)
+		);
+
 		return rest_ensure_response(
 			array_map(
 				function( $author ) use ( $request ) : array {
