@@ -26,6 +26,14 @@ class CoAuthors_Feed_Filters {
 		add_action( 'rss2_item', array( $this, 'action_add_rss_guest_authors' ) );
 	}
 
+	/**
+	 * Replace the feed byline with the first co-author's display name.
+	 *
+	 * Runs only in a feed, so template output is unaffected.
+	 *
+	 * @param string $the_author The author name core resolved from `post_author`.
+	 * @return string The first co-author's display name, or the original value.
+	 */
 	public function filter_the_author_rss( $the_author ) {
 		if ( ! function_exists( 'coauthors' ) || ! is_feed() ) {
 			return $the_author;
@@ -45,13 +53,25 @@ class CoAuthors_Feed_Filters {
 		return $the_author;
 	}
 
+	/**
+	 * Output a dc:creator element for each co-author beyond the first.
+	 *
+	 * The first co-author is already rendered by core's `the_author()` call, which
+	 * self::filter_the_author_rss() has filtered.
+	 *
+	 * @return void
+	 */
 	public function action_add_rss_guest_authors(): void {
-		$coauthors = get_coauthors();
+		$coauthors = (array) get_coauthors();
 
 		// Remove the first co-author, who is already added to the first dc:creator element.
 		array_shift( $coauthors );
 
 		foreach ( $coauthors as $coauthor ) {
+			if ( empty( $coauthor->display_name ) ) {
+				continue;
+			}
+
 			/*
 			 * Everything between `<![CDATA[` and `]]>` is literal, so escaping here would
 			 * make a display name like "Smith & Jones" render as "Smith &amp; Jones" in
