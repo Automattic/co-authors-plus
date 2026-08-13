@@ -33,7 +33,13 @@ class CoAuthors_Feed_Filters {
 
 		$coauthors = (array) get_coauthors();
 		if ( count( $coauthors ) >= 1 && isset( $coauthors[0]->display_name ) ) {
-			return $coauthors[0]->display_name;
+			/*
+			 * Core registers `add_filter( 'the_author', 'ent2ncr', 8 )`. This filter runs at
+			 * 15 and replaces the string wholesale, so the replacement would otherwise never
+			 * pass through that normalization. Invisible in RSS2, where the value sits inside
+			 * CDATA, but feed-atom.php renders the_author() inside a bare <name> element.
+			 */
+			return ent2ncr( $coauthors[0]->display_name );
 		}
 
 		return $the_author;
