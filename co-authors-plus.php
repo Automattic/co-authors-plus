@@ -31,6 +31,7 @@ const COAUTHORS_PLUS_FILE = __FILE__;
 require_once __DIR__ . '/template-tags.php';
 
 require_once __DIR__ . '/php/class-coauthors-template-filters.php';
+require_once __DIR__ . '/php/class-coauthors-feed-filters.php';
 require_once __DIR__ . '/php/class-coauthors-endpoint.php';
 require_once __DIR__ . '/php/integrations/amp.php';
 require_once __DIR__ . '/php/integrations/yoast.php';
