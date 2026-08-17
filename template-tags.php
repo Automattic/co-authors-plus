@@ -267,6 +267,27 @@ function coauthors_posts_links( $between = null, $betweenLast = null, $before = 
 }
 
 /**
+ * Get the URL for a coauthor's post archive.
+ *
+ * Guest authors are stored as posts rather than WP users, so get_author_posts_url()
+ * falls back to a default link that is not their archive. Run the author_link filter
+ * instead, which the plugin uses to resolve guest author links correctly.
+ *
+ * @param object $author Coauthor object.
+ * @return string
+ */
+function cap_get_coauthor_posts_url( $author ) {
+	if ( isset( $author->type ) && 'guest-author' === $author->type ) {
+		$link = apply_filters( 'author_link', '', $author->ID, $author->user_nicename );
+		if ( ! empty( $link ) ) {
+			return $link;
+		}
+	}
+
+	return get_author_posts_url( $author->ID, $author->user_nicename );
+}
+
+/**
  * Outputs a single co-author linked to their post archive.
  *
  * @param object $author
@@ -284,7 +305,7 @@ function coauthors_posts_links_single( $author ) {
 	}
 	$args        = array(
 		'before_html' => '',
-		'href'        => get_author_posts_url( $author->ID, $author->user_nicename ),
+		'href'        => cap_get_coauthor_posts_url( $author ),
 		'rel'         => 'author',
 		/* translators: %s: author display name */
 		'title'       => sprintf( __( 'Posts by %s', 'co-authors-plus' ), apply_filters( 'the_author', $author->display_name ) ),
@@ -705,7 +726,7 @@ function coauthors_wp_list_authors( $args = array() ) {
 			}
 		} else {
 			/* translators: %s: author display name */
-			$link = '<a href="' . get_author_posts_url( $author->ID, $author->user_nicename ) . '" title="' . esc_attr( sprintf( __( 'Posts by %s', 'co-authors-plus' ), $name ) ) . '">' . esc_html( $name ) . '</a>';
+			$link = '<a href="' . esc_url( cap_get_coauthor_posts_url( $author ) ) . '" title="' . esc_attr( sprintf( __( 'Posts by %s', 'co-authors-plus' ), $name ) ) . '">' . esc_html( $name ) . '</a>';
 
 			if ( ( ! empty( $args['feed_image'] ) ) || ( ! empty( $args['feed'] ) ) ) {
 				$link .= ' ';

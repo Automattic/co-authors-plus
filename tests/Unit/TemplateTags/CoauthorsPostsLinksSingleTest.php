@@ -46,6 +46,27 @@ final class CoauthorsPostsLinksSingleTest extends TestCase {
 		);
 	}
 
+	public function test_guest_author_uses_author_link_filter(): void {
+		$author = (object) array(
+			'ID'            => 10,
+			'user_nicename' => 'guest-jane',
+			'display_name'  => 'Jane Byline',
+			'type'          => 'guest-author',
+		);
+
+		// The plugin('s) author_link filter builds the guest author's own archive URL.
+		Functions\when( 'apply_filters' )->alias(
+			static fn( $tag, $value, ...$args ) => 'author_link' === $tag
+				? 'http://example.test/guests/guest-jane/'
+				: $value
+		);
+
+		$this->assertStringContainsString(
+			'href="http://example.test/guests/guest-jane/"',
+			\coauthors_posts_links_single( $author )
+		);
+	}
+
 	public function test_returns_null_and_warns_for_an_incomplete_author(): void {
 		// The guard must fire _doing_it_wrong() and bail rather than emit broken markup.
 		Functions\expect( '_doing_it_wrong' )->once();
