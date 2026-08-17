@@ -70,6 +70,36 @@ class CoauthorsPostsLinksTest extends TestCase {
 	/**
 	 * Test that co-author posts link is retrieved via coauthors_posts_links_single() but for multiple authors.
 	 */
+	/**
+	 * Test that a guest author byline links to the guest author archive rather
+	 * than the user who originally published the post.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1351
+	 */
+	public function test_coauthors_posts_links_for_single_guest_author(): void {
+		global $coauthors_plus;
+
+		$author       = $this->create_author();
+		$guest_author = $this->create_guest_author( 'guest_author' );
+		$guest_object = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $guest_author );
+		$post         = $this->create_post( $author );
+		$GLOBALS['post'] = $post;
+		$coauthors_plus->add_coauthors( $post->ID, array( 'guest_author' ), true );
+
+		$expected = apply_filters( 'author_link', '', $guest_object->ID, $guest_object->user_nicename );
+		if ( empty( $expected ) ) {
+			$expected = get_author_posts_url( $guest_object->ID, $guest_object->user_nicename );
+		}
+
+		$coauthors_posts_links = coauthors_posts_links( null, null, null, null, false );
+
+		$this->assertStringContainsString(
+			'href="' . $expected . '"',
+			$coauthors_posts_links,
+			'Guest author post link does not point to the guest author archive.'
+		);
+	}
+
 	public function test_coauthors_posts_links_for_multiple_authors_with_amended_args(): void {
 		global $coauthors_plus;
 
