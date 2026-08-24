@@ -18,6 +18,43 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 	private $args;
 
+
+	/**
+	 * Subcommand to assign co-authors to a post based on a given meta key
+	 *
+	 * @since 3.0
+	 *
+	 * @subcommand assign_coauthors_to_posts
+	 * @synopsis [--object_id=<object_id>] [--term_taxonomy_id=<term_taxonomy_id>] [--term_order=<term_order>]
+	 */
+	public function assign_coauthors_to_posts( $args, $assoc_args ) {
+		// Implementation for assigning co-authors to posts goes here.
+		global $wpdb;
+
+		$object_id = $assoc_args['object_id'] ?? null;
+		$term_taxonomy_id = $assoc_args['term_taxonomy_id'] ?? null;
+		$term_order = $assoc_args['term_order'] ?? 0;
+
+
+		WP_CLI::log( "Attempting to assign co-authors to posts for  Post ID {$object_id}." );
+
+
+		$insert_author_term_relationship = $wpdb->insert(
+			$wpdb->term_relationships,
+			[
+				'object_id'        => $object_id,
+				'term_taxonomy_id' => $term_taxonomy_id,
+				'term_order'       => $term_order,
+			]
+		);
+
+
+		WP_CLI::log( "- {$insert_author_term_relationship} id(s) in the term relationship for post ID {$object_id} was created" );
+
+
+	}
+
+
 	/**
 	 * Subcommand to create guest authors based on users.
 	 *

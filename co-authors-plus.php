@@ -234,3 +234,107 @@ function cap_register_coauthors_rest_api_routes(): void {
 	(new CoAuthors\API\Endpoints\CoAuthors_Controller( $coauthors_plus ))->register_routes();
 }
 add_action( 'rest_api_init', 'cap_register_coauthors_rest_api_routes' );
+
+
+function setup_taxonomies( $args, $taxonomy ) {
+	// Adds GraphQL support for categories.
+	if ( 'author' === $taxonomy ) { // Adds GraphQL support for authors.	
+		$args['show_in_graphql']     = true;
+		$args['graphql_single_name'] = 'author';
+		$args['graphql_plural_name'] = 'authors';
+		$args['graphql_description'] = __( 'A taxonomy term that represents the author of a post. Authors are used to attribute content to specific users and can be used to filter content by author.', 'wp-graphql' );
+	}
+
+	return $args;
+}
+
+
+add_filter( 'register_taxonomy_args', 'setup_taxonomies', 10, 2 );
+
+function setup_default_post_types( $args, $post_type ) {
+	if ( 'guestauthor' === $post_type ) { // Adds GraphQL support for posts.
+		$args['supports'][] = 'editor';
+		$args['public']                = true;
+		$args['publicly_queryable'] = true;
+		$args['show_in_graphql']     = true;
+		$args['graphql_single_name'] = 'guestauthor';
+		$args['graphql_plural_name'] = 'guestauthors';
+		$args['graphql_description'] = __( 'A chronological content entry typically used for blog posts, news articles, or similar date-based content.', 'wp-graphql' );
+	}
+
+	return $args;
+	}
+
+add_filter( 'register_post_type_args', 'setup_default_post_types', 10, 2 );
+
+add_action('graphql_register_types', function() {
+    register_graphql_field('guestauthor', 'displayName', [
+        'type'        => 'String',
+        'description' => 'The display name of the guest author',
+        'resolve'     => function($post) {
+            // Fetch the raw meta key from the database
+            $meta_value = get_post_meta($post->databaseId, 'cap-display_name', true);
+            return !empty($meta_value) ? $meta_value : null;
+        }
+    ]);
+
+
+    register_graphql_field('guestauthor', 'firstName', [
+        'type'        => 'String',
+        'description' => 'The first name of the guest author',
+        'resolve'     => function($post) {
+            // Fetch the raw meta key from the database
+            $meta_value = get_post_meta($post->databaseId, 'cap-first_name', true);
+            return !empty($meta_value) ? $meta_value : null;
+        }
+    ]);
+
+
+    register_graphql_field('guestauthor', 'lastName', [
+        'type'        => 'String',
+        'description' => 'The last name of the guest author',
+        'resolve'     => function($post) {
+            // Fetch the raw meta key from the database
+            $meta_value = get_post_meta($post->databaseId, 'cap-last_name', true);
+            return !empty($meta_value) ? $meta_value : null;
+        }
+    ]);
+
+    register_graphql_field('guestauthor', 'website', [
+        'type'        => 'String',
+        'description' => 'The website of the guest author',
+        'resolve'     => function($post) {
+            // Fetch the raw meta key from the database
+            $meta_value = get_post_meta($post->databaseId, 'cap-website', true);
+            return !empty($meta_value) ? $meta_value : null;
+        }
+    ]);
+
+    register_graphql_field('guestauthor', 'description', [
+        'type'        => 'String',
+        'description' => 'The description of the guest author',
+        'resolve'     => function($post) {
+            // Fetch the raw meta key from the database
+            $meta_value = get_post_meta($post->databaseId, 'cap-description', true);
+            return !empty($meta_value) ? $meta_value : null;
+        }
+    ]);
+
+    register_graphql_field('guestauthor', 'thumbnail', [
+        'type'        => 'String',
+        'description' => 'The thumbnail of the guest author',
+        'resolve'     => function($post) {
+
+					$thumbnail_id = (int) get_post_meta( $post->ID, '_thumbnail_id', true );
+					$thumbnail_post = get_post( $thumbnail_id );
+
+					if ( $thumbnail_post ) {
+						$thumbnail_url = wp_get_attachment_url( $thumbnail_id );
+						return $thumbnail_url;
+					}
+
+					return null;
+        }
+    ]);		
+
+});

@@ -9,7 +9,7 @@
 class CoAuthors_Guest_Authors {
 
 	public $labels;
-	public $post_type              = 'guest-author';
+	public $post_type              = 'guestauthor';
 	public $parent_page            = 'users.php';
 	public $list_guest_authors_cap = 'list_users';
 	public $add_guest_author_cap   = 'edit_posts';
