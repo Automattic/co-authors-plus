@@ -28,6 +28,7 @@ import {
 	buildCoauthorTermIds,
 	extractTermIds,
 	formatAuthorData,
+	needsPostIdFallback,
 } from '../../utils';
 
 /**
@@ -70,14 +71,24 @@ const CoAuthors = () => {
 	 * re-renders this component continuously and cancels the debounced search
 	 * below before it can fire.
 	 */
-	const { coauthorTermIdsKey, hasResolvedPost } = useSelect( ( select ) => {
-		const { getEditedPostAttribute } = select( 'core/editor' );
-		const coauthors = getEditedPostAttribute( 'coauthors' );
-		return {
-			coauthorTermIdsKey: extractTermIds( coauthors ).join( ',' ),
-			hasResolvedPost: coauthors !== undefined,
-		};
-	}, [] );
+	const { coauthorTermIdsKey, hasResolvedPost, postIdFallback } = useSelect(
+		( select ) => {
+			const { getEditedPostAttribute, getCurrentPostId } =
+				select( 'core/editor' );
+			const coauthors = getEditedPostAttribute( 'coauthors' );
+			return {
+				coauthorTermIdsKey: extractTermIds( coauthors ).join( ',' ),
+				hasResolvedPost: coauthors !== undefined,
+				// When the post has co-authors but their stored shape yields no
+				// term IDs (e.g. a third-party REST override), resolve them by
+				// post ID instead so the panel still populates.
+				postIdFallback: needsPostIdFallback( coauthors )
+					? getCurrentPostId()
+					: null,
+			};
+		},
+		[]
+	);
 
 	/**
 	 * Rebuild the term ID array from the stable key, so consumers below keep a
@@ -92,10 +103,13 @@ const CoAuthors = () => {
 	);
 
 	/**
-	 * Resolve term IDs to rich author data.
+	 * Resolve term IDs to rich author data, falling back to the post ID when the
+	 * stored co-author shape can't be read as term IDs.
 	 */
-	const { authors: selectedAuthors, isLoading } =
-		useCoauthorDetails( coauthorTermIds );
+	const { authors: selectedAuthors, isLoading } = useCoauthorDetails(
+		coauthorTermIds,
+		postIdFallback
+	);
 
 	/**
 	 * Get editPost dispatcher to write changes back to the core entity.
