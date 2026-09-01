@@ -235,7 +235,6 @@ function cap_register_coauthors_rest_api_routes(): void {
 }
 add_action( 'rest_api_init', 'cap_register_coauthors_rest_api_routes' );
 
-
 function setup_taxonomies( $args, $taxonomy ) {
 	// Adds GraphQL support for categories.
 	if ( 'author' === $taxonomy ) { // Adds GraphQL support for authors.	
@@ -267,6 +266,61 @@ function setup_default_post_types( $args, $post_type ) {
 
 add_filter( 'register_post_type_args', 'setup_default_post_types', 10, 2 );
 
+add_action( 'graphql_register_types', function() {
+
+    // 1. Define and register your custom object type structure
+    register_graphql_object_type( 'TermRelationships', [
+        'description' => __( 'A record from the custom database table', 'term_relationships' ),
+        'fields'      => [
+            'object_id' => [
+                'type'        => 'ID',
+                'description' => __( 'The object ID from the term relationships table', 'term_relationships' ),
+            ],
+            'term_taxonomy_id' => [
+                'type'        => 'String',
+                'description' => __( 'The term taxonomy ID from the term relationships table', 'term_relationships' ),
+            ],
+            'term_order' => [
+                'type'        => 'String',
+                'description' => __( 'The term order from the term relationships table', 'term_relationships' ),
+            ],
+        ],
+    ] );
+
+    // 2. Register the endpoint field on the Root Query to fetch the records
+    register_graphql_field( 'RootQuery', 'termRelationships', [
+        'type'        => [ 'list_of' => 'TermRelationships' ], // Tells GraphQL to expect an array of objects
+        'description' => __( 'Fetches rows directly from a database table', 'term_relationships' ),
+        'args'        => [
+            'postId' => [
+                'type'        => 'ID',
+                'description' => __( 'The ID of the post to fetch term relationships for', 'term_relationships' ),
+            ],
+        ],
+        'resolve'     => function( $root, $args, $context, $info ) {
+            global $wpdb;
+            
+
+						$post_id = $args['postId'] ?? null;
+            // Your raw database table name
+            $table_name = $wpdb->prefix . 'term_relationships'; 
+            
+            // Fetch records from database
+            $results = $wpdb->get_results( "SELECT object_id, term_taxonomy_id, term_order FROM {$table_name} WHERE object_id = {$post_id} LIMIT 10", ARRAY_A );
+
+            // Ensure we return an empty array if no data is found
+            if ( empty( $results ) ) {
+                return [];
+            }
+
+            return $results;
+        },
+    ] );
+} );
+
+
+
+
 add_action('graphql_register_types', function() {
     register_graphql_field('guestauthor', 'displayName', [
         'type'        => 'String',
@@ -278,7 +332,6 @@ add_action('graphql_register_types', function() {
         }
     ]);
 
-
     register_graphql_field('guestauthor', 'firstName', [
         'type'        => 'String',
         'description' => 'The first name of the guest author',
@@ -288,7 +341,6 @@ add_action('graphql_register_types', function() {
             return !empty($meta_value) ? $meta_value : null;
         }
     ]);
-
 
     register_graphql_field('guestauthor', 'lastName', [
         'type'        => 'String',

@@ -24,6 +24,26 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 *
 	 * @since 3.0
 	 *
+	 * @subcommand get_coauthor_by_uuid
+	 * @synopsis [--uuid=<uuid>]
+	 */
+	public function get_coauthor_by_uuid( $args, $assoc_args ) {
+		// Implementation for assigning co-authors to posts goes here.
+		global $wpdb;
+
+		$uuid = $assoc_args['uuid'] ?? null;	
+		$meta = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key='term-id' AND post_id=(SELECT post_id FROM $wpdb->postmeta WHERE meta_key='cap-id' AND meta_value='{$uuid}')", $uuid ));
+		$id = $meta[0] ?? '0';
+		WP_CLI::line( $id );
+
+	}
+
+
+	/**
+	 * Subcommand to assign co-authors to a post based on a given meta key
+	 *
+	 * @since 3.0
+	 *
 	 * @subcommand assign_coauthors_to_posts
 	 * @synopsis [--object_id=<object_id>] [--term_taxonomy_id=<term_taxonomy_id>] [--term_order=<term_order>]
 	 */
