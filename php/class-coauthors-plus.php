@@ -1870,6 +1870,9 @@ class CoAuthors_Plus {
 	/**
 	 * Get the post count for an author term with specific post types.
 	 *
+	 * The result is cached in the object cache for five minutes, so counts can
+	 * lag behind newly published or deleted posts by up to that long.
+	 *
 	 * @since 3.6.3
 	 *
 	 * @param WP_Term      $term        Author term object.
@@ -1883,6 +1886,14 @@ class CoAuthors_Plus {
 		$post_types    = (array) $post_type;
 		$post_statuses = $public_only ? array( 'publish' ) : array( 'publish', 'private' );
 
+		$cache_key = 'author-post-count-' . md5( $term->term_taxonomy_id . '|' . implode( ',', $post_types ) . '|' . implode( ',', $post_statuses ) );
+		$found     = false;
+		$count     = wp_cache_get( $cache_key, 'co-authors-plus', false, $found );
+
+		if ( $found ) {
+			return (int) $count;
+		}
+
 		$post_type_placeholders   = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
 		$post_status_placeholders = implode( ',', array_fill( 0, count( $post_statuses ), '%s' ) );
 
@@ -1891,7 +1902,9 @@ class CoAuthors_Plus {
 				"SELECT COUNT( DISTINCT p.ID ) FROM {$wpdb->posts} AS p INNER JOIN {$wpdb->term_relationships} AS tr ON p.ID = tr.object_id WHERE tr.term_taxonomy_id = %d AND p.post_type IN ( {$post_type_placeholders} ) AND p.post_status IN ( {$post_status_placeholders} )", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholders are built from array counts; values are passed to prepare().
 				array_merge( array( $term->term_taxonomy_id ), $post_types, $post_statuses )
 			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- COUNT query is cheaper than loading all posts via WP_Query; result changes with post updates.
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- COUNT query is cheaper than loading all posts via WP_Query.
+
+		wp_cache_set( $cache_key, (int) $count, 'co-authors-plus', 5 * MINUTE_IN_SECONDS );
 
 		return (int) $count;
 	}
