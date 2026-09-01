@@ -1878,32 +1878,22 @@ class CoAuthors_Plus {
 	 * @return int Post count.
 	 */
 	private function get_post_count_for_author_term( $term, $post_type = 'post', $public_only = false ): int {
-		$post_types = (array) $post_type;
+		global $wpdb;
 
-		$args = array(
-			'tax_query'              => array(
-				array(
-					'taxonomy' => $this->coauthor_taxonomy,
-					'field'    => 'term_id',
-					'terms'    => $term->term_id,
-				),
-			),
-			'post_type'              => $post_types,
-			'posts_per_page'         => -1,
-			'fields'                 => 'ids',
-			'update_post_meta_cache' => false,
-			'update_post_term_cache' => false,
-		);
+		$post_types    = (array) $post_type;
+		$post_statuses = $public_only ? array( 'publish' ) : array( 'publish', 'private' );
 
-		if ( $public_only ) {
-			$args['post_status'] = 'publish';
-		} else {
-			$args['post_status'] = array( 'publish', 'private' );
-		}
+		$post_type_placeholders   = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
+		$post_status_placeholders = implode( ',', array_fill( 0, count( $post_statuses ), '%s' ) );
 
-		$query = new \WP_Query( $args );
+		$count = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT COUNT( DISTINCT p.ID ) FROM {$wpdb->posts} AS p INNER JOIN {$wpdb->term_relationships} AS tr ON p.ID = tr.object_id WHERE tr.term_taxonomy_id = %d AND p.post_type IN ( {$post_type_placeholders} ) AND p.post_status IN ( {$post_status_placeholders} )", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholders are built from array counts; values are passed to prepare().
+				array_merge( array( $term->term_taxonomy_id ), $post_types, $post_statuses )
+			)
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- COUNT query is cheaper than loading all posts via WP_Query; result changes with post updates.
 
-		return $query->found_posts;
+		return (int) $count;
 	}
 
 	/**
