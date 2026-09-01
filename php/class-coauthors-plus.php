@@ -2121,6 +2121,9 @@ class CoAuthors_Plus {
 	 *
 	 * A post on more than one of the terms counts once.
 	 *
+	 * The result is cached in the object cache for five minutes, so counts can
+	 * lag behind newly published or deleted posts by up to that long.
+	 *
 	 * @since 3.6.3
 	 *
 	 * @param WP_Term|WP_Term[] $term        Author term object or objects.
@@ -2136,6 +2139,14 @@ class CoAuthors_Plus {
 
 		$term_taxonomy_ids = wp_list_pluck( is_array( $term ) ? $term : array( $term ), 'term_taxonomy_id' );
 
+		$cache_key = 'author-post-count-' . md5( implode( ',', $term_taxonomy_ids ) . '|' . implode( ',', $post_types ) . '|' . implode( ',', $post_statuses ) );
+		$found     = false;
+		$count     = wp_cache_get( $cache_key, 'co-authors-plus', false, $found );
+
+		if ( $found ) {
+			return (int) $count;
+		}
+
 		$term_placeholders        = implode( ',', array_fill( 0, count( $term_taxonomy_ids ), '%d' ) );
 		$post_type_placeholders   = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
 		$post_status_placeholders = implode( ',', array_fill( 0, count( $post_statuses ), '%s' ) );
@@ -2145,7 +2156,9 @@ class CoAuthors_Plus {
 				"SELECT COUNT( DISTINCT p.ID ) FROM {$wpdb->posts} AS p INNER JOIN {$wpdb->term_relationships} AS tr ON p.ID = tr.object_id WHERE tr.term_taxonomy_id IN ( {$term_placeholders} ) AND p.post_type IN ( {$post_type_placeholders} ) AND p.post_status IN ( {$post_status_placeholders} )", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholders are built from array counts; values are passed to prepare().
 				array_merge( $term_taxonomy_ids, $post_types, $post_statuses )
 			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- COUNT query is cheaper than loading all posts via WP_Query; result changes with post updates.
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- COUNT query is cheaper than loading all posts via WP_Query.
+
+		wp_cache_set( $cache_key, (int) $count, 'co-authors-plus', 5 * MINUTE_IN_SECONDS );
 
 		return (int) $count;
 	}
