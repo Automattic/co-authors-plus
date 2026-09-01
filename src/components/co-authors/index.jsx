@@ -6,7 +6,13 @@ import { ComboboxControl, Spinner } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import { applyFilters } from '@wordpress/hooks';
 import { useDispatch, useSelect } from '@wordpress/data';
-import { useEffect, useState, useRef } from '@wordpress/element';
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from '@wordpress/element';
 import { useDebounce } from '@wordpress/compose';
 
 /**
@@ -57,15 +63,33 @@ const CoAuthors = () => {
 	 * Read co-author term IDs from the core entity store.
 	 * Returns undefined until the post entity has loaded, then an array of term IDs.
 	 * Normalizes the value to handle both integer IDs and author objects.
+	 *
+	 * The IDs are returned as a comma-joined string rather than an array so that
+	 * useSelect's shallow equality check can actually compare them. Returning a
+	 * freshly built array fails that check on every store change, which
+	 * re-renders this component continuously and cancels the debounced search
+	 * below before it can fire.
 	 */
-	const { coauthorTermIds, hasResolvedPost } = useSelect( ( select ) => {
+	const { coauthorTermIdsKey, hasResolvedPost } = useSelect( ( select ) => {
 		const { getEditedPostAttribute } = select( 'core/editor' );
 		const coauthors = getEditedPostAttribute( 'coauthors' );
 		return {
-			coauthorTermIds: extractTermIds( coauthors ),
+			coauthorTermIdsKey: extractTermIds( coauthors ).join( ',' ),
 			hasResolvedPost: coauthors !== undefined,
 		};
 	}, [] );
+
+	/**
+	 * Rebuild the term ID array from the stable key, so consumers below keep a
+	 * stable reference for as long as the co-authors themselves are unchanged.
+	 */
+	const coauthorTermIds = useMemo(
+		() =>
+			'' === coauthorTermIdsKey
+				? []
+				: coauthorTermIdsKey.split( ',' ).map( Number ),
+		[ coauthorTermIdsKey ]
+	);
 
 	/**
 	 * Resolve term IDs to rich author data.
@@ -164,22 +188,41 @@ const CoAuthors = () => {
 	};
 
 	/**
+	 * Latest values needed by the debounced search handler.
+	 *
+	 * useDebounce lists its callback in the dependency array of the memo that
+	 * builds the debounced function, and cancels the previous one on cleanup.
+	 * An inline callback is a new reference on every render, so the pending
+	 * search is rebuilt and cancelled before its timer elapses and the request
+	 * is never sent. The handler below is therefore created once, with an empty
+	 * dependency array, and reads current values through this ref instead.
+	 */
+	const latest = useRef( {} );
+	latest.current = { fetchAuthors, threshold };
+
+	/**
 	 * The callback for updating autocomplete in the ComboBox component.
 	 * Fetch a list of authors matching the search text.
 	 *
 	 * @param {string} query The text to search.
 	 */
-	const onFilterValueChange = useDebounce( ( query ) => {
-		// Short or empty query: show the full alphabetical list. This keeps the
-		// dropdown useful while the user is still typing, and avoids the confusing
-		// "No items found" state for single-character input.
-		if ( query.length < threshold ) {
-			fetchAuthors( '' );
-			return;
-		}
+	const onFilterValueChange = useDebounce(
+		useCallback( ( query ) => {
+			const { fetchAuthors: search, threshold: minLength } =
+				latest.current;
 
-		fetchAuthors( query );
-	}, 500 );
+			// Short or empty query: show the full alphabetical list. This keeps the
+			// dropdown useful while the user is still typing, and avoids the confusing
+			// "No items found" state for single-character input.
+			if ( query.length < minLength ) {
+				search( '' );
+				return;
+			}
+
+			search( query );
+		}, [] ),
+		500
+	);
 
 	// Show spinner while the post entity or author details are still loading.
 	// Once loading completes, render the resolved authors (which may be an
