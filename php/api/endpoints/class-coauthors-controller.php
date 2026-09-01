@@ -203,6 +203,9 @@ class CoAuthors_Controller extends WP_REST_Controller {
 	 * any visitor could read. Guest authors and WP users are handled by the
 	 * same co-author term lookup so the check is consistent across both.
 	 *
+	 * The result is cached in the object cache for five minutes, so it can lag
+	 * behind newly published or unpublished posts by up to that long.
+	 *
 	 * @since 4.0.0
 	 * @param WP_User|stdClass $coauthor
 	 */
@@ -221,6 +224,14 @@ class CoAuthors_Controller extends WP_REST_Controller {
 			return false;
 		}
 
+		$cache_key = 'author-has-public-posts-' . md5( $term->term_taxonomy_id . '|' . implode( ',', $public_post_types ) );
+		$found     = false;
+		$cached    = wp_cache_get( $cache_key, 'co-authors-plus', false, $found );
+
+		if ( $found ) {
+			return (bool) $cached;
+		}
+
 		$post_type_placeholders = implode( ',', array_fill( 0, count( $public_post_types ), '%s' ) );
 
 		$post_id = $wpdb->get_var(
@@ -228,9 +239,13 @@ class CoAuthors_Controller extends WP_REST_Controller {
 				"SELECT p.ID FROM {$wpdb->posts} AS p INNER JOIN {$wpdb->term_relationships} AS tr ON p.ID = tr.object_id WHERE tr.term_taxonomy_id = %d AND p.post_type IN ( {$post_type_placeholders} ) AND p.post_status = 'publish' LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholders are built from array counts; values are passed to prepare().
 				array_merge( array( $term->term_taxonomy_id ), $public_post_types )
 			)
-		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Single-row existence check is cheaper than WP_Query; result changes with post updates.
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Single-row existence check is cheaper than WP_Query.
 
-		return null !== $post_id;
+		$has_public_posts = null !== $post_id;
+
+		wp_cache_set( $cache_key, (int) $has_public_posts, 'co-authors-plus', 5 * MINUTE_IN_SECONDS );
+
+		return $has_public_posts;
 	}
 
 	/**
