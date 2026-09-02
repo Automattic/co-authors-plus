@@ -839,13 +839,48 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * <post_id>
 	 * : ID of the post to list co-authors for.
 	 *
-	 * @since 3.0
+	 * [--field=<field>]
+	 * : Print the value of a single field for each co-author.
+	 *
+	 * [--fields=<fields>]
+	 * : Limit the output to specific fields. Defaults to all fields.
+	 *
+	 * [--format=<format>]
+	 * : Render output in a particular format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - csv
+	 *   - json
+	 *   - yaml
+	 *   - count
+	 * ---
+	 *
+	 * ## AVAILABLE FIELDS
+	 *
+	 * These fields are available for each co-author:
+	 *
+	 * * ID
+	 * * display_name
+	 * * user_nicename
+	 * * user_email
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # List the co-authors of a post as a table.
+	 *     $ wp co-authors-plus list-authors 123
+	 *
+	 *     # Print just the co-author IDs, one per line.
+	 *     $ wp co-authors-plus list-authors 123 --field=ID
+	 *
+	 * @since 4.2.0
 	 *
 	 * @param array $args Positional arguments.
 	 * @param array $assoc_args Associative arguments.
 	 *
 	 * @subcommand list-authors
-	 * @synopsis <post_id>
+	 * @synopsis <post_id> [--field=<field>] [--fields=<fields>] [--format=<format>]
 	 */
 	public function list_authors( $args, $assoc_args ): void {
 		$post_id = absint( $args[0] ?? 0 );
@@ -861,20 +896,23 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			return;
 		}
 
-		foreach ( $coauthors as $coauthor ) {
-			$row = array_map(
-				static function ( $value ) {
-					return '"' . str_replace( '"', '""', (string) $value ) . '"';
-				},
-				array(
-					$coauthor->ID,
-					$coauthor->display_name,
-					$coauthor->user_nicename,
-					$coauthor->user_email,
-				)
-			);
-			WP_CLI::log( implode( ',', $row ) );
-		}
+		$fields = array( 'ID', 'display_name', 'user_nicename', 'user_email' );
+
+		$items = array_map(
+			static function ( $coauthor ) use ( $fields ) {
+				$item = array();
+
+				foreach ( $fields as $field ) {
+					$item[ $field ] = $coauthor->$field ?? '';
+				}
+
+				return $item;
+			},
+			$coauthors
+		);
+
+		$formatter = new \WP_CLI\Formatter( $assoc_args, $fields );
+		$formatter->display_items( $items );
 	}
 
 	/**

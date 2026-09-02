@@ -30,6 +30,30 @@ Feature: Co-authors of a post can be listed
       author1
       """
 
+	Scenario: Format the co-author output
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		When I run `wp post create --post_author={AUTHOR1_ID} --post_status=publish --post_title="A post" --porcelain`
+		And save STDOUT as {POST_ID}
+
+		When I run `wp co-authors-plus list-authors {POST_ID} --field=ID`
+		Then STDOUT should be:
+      """
+      {AUTHOR1_ID}
+      """
+
+		When I run `wp co-authors-plus list-authors {POST_ID} --format=count`
+		Then STDOUT should be:
+      """
+      1
+      """
+
+		When I run `wp co-authors-plus list-authors {POST_ID} --format=csv`
+		Then STDOUT should contain:
+      """
+      ID,display_name,user_nicename,user_email
+      """
+
 	Scenario: List multiple co-authors assigned to a post
 		When I run `wp co-authors-plus create-guest-authors`
 		When I run `wp user create author1 author1@example.com --role=author --porcelain`
