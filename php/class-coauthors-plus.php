@@ -1676,10 +1676,16 @@ class CoAuthors_Plus {
 			$author             = $this->get_coauthor_by( $field, $author_name );
 			$coauthor_objects[] = $author;
 			$term               = $this->update_author_term( $author );
-			if ( is_object( $term ) ) {
+
+			// A WP_Error is an object too, and its ->slug would blank the author.
+			if ( is_object( $term ) && ! is_wp_error( $term ) ) {
 				$author_name = $term->slug;
 			}
 		}
+
+		// Break the reference, so later writes cannot alias the last element.
+		unset( $author_name );
+
 		wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
 
 		// If the original post_author is no longer assigned,
