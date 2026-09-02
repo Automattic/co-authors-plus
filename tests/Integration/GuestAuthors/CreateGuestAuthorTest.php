@@ -105,6 +105,7 @@ class CreateGuestAuthorTest extends TestCase {
 			array(
 				'post_type'   => $guest_author_obj->post_type,
 				'post_status' => 'any',
+				// phpcs:ignore WordPressVIPMinimum.Performance.NoPaging.posts_per_page_numberposts -- Test-only: exhaustively count guest author posts in the isolated test database.
 				'numberposts' => -1,
 			)
 		);
@@ -137,6 +138,7 @@ class CreateGuestAuthorTest extends TestCase {
 			array(
 				'post_type'   => $guest_author_obj->post_type,
 				'post_status' => 'any',
+				// phpcs:ignore WordPressVIPMinimum.Performance.NoPaging.posts_per_page_numberposts -- Test-only: exhaustively count guest author posts in the isolated test database.
 				'numberposts' => -1,
 			)
 		);
