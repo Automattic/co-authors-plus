@@ -1022,6 +1022,17 @@ class CoAuthors_Plus {
 		global $wpdb;
 
 		if ( $this->is_author_query( $query ) ) {
+			/*
+			 * Start from a clean slate. having_terms is instance state handed from
+			 * this filter to posts_join_filter() and posts_groupby_filter() within a
+			 * single query, but nothing reset it between queries: every early return
+			 * below left the previous query's terms in place, and the JOIN and
+			 * GROUP BY filters then applied them to a query whose WHERE clause had
+			 * been left alone. The result was a silent, arbitrary HAVING that dropped
+			 * exactly those posts carrying some other co-author's term. See #1371.
+			 */
+			$this->having_terms = '';
+
 			// Route to the multi-author path when author IDs are explicitly provided:
 			//
 			// • author__in (any count): WordPress does NOT set is_author for author__in,
