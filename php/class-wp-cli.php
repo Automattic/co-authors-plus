@@ -37,10 +37,15 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * [--number=<number>]
 	 * : Maximum number of users to process in this run. Defaults to all users.
 	 *
+	 * [--role=<role>]
+	 * : Only display users with a certain role.
+	 *
+	 * [--<field>=<value>]
+	 * : Control output by one or more arguments of WP_User_Query().
+	 *
 	 * @since 3.0
 	 *
 	 * @subcommand create-guest-authors
-	 * @synopsis [--offset=<offset>] [--number=<number>]
 	 */
 	public function create_guest_authors( $args, $assoc_args ): void {
 		global $coauthors_plus;
