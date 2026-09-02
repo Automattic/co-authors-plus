@@ -65,7 +65,10 @@ const AuthorsSelection = ( { selectedAuthors, updateAuthors } ) => {
 					<FlexItem className="cap-author-flex-item">
 						<span>{ display }</span>
 					</FlexItem>
-					<FlexItem justify="flex-end" className="cap-author-flex-item">
+					<FlexItem
+						justify="flex-end"
+						className="cap-author-flex-item"
+					>
 						<Flex>
 							<div className="cap-icon-button-stack">
 								<Button

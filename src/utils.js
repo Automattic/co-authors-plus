@@ -30,6 +30,31 @@ export const extractTermIds = ( coauthors ) => {
 };
 
 /**
+ * Decide whether the post's co-authors must be resolved by post ID rather than
+ * from the entity store's `coauthors` value.
+ *
+ * The sidebar normally reads the author taxonomy's default REST output — an
+ * array of term IDs — from `getEditedPostAttribute( 'coauthors' )`. Some sites
+ * override that REST field (commonly a `register_rest_field( 'post', 'coauthors',
+ * … )` carried over from before Co-Authors Plus exposed the field itself), so it
+ * arrives as full author objects with no `term_id`. `extractTermIds` then yields
+ * nothing and the panel would render empty even though the post has co-authors.
+ *
+ * When that happens we fall back to the plugin's own `/coauthors/v1/authors/{id}`
+ * endpoint, which returns the authors regardless of the REST field's shape.
+ *
+ * @param {Array|undefined} coauthors Raw value from getEditedPostAttribute.
+ * @return {boolean} True when the post has co-authors but no usable term IDs.
+ */
+export const needsPostIdFallback = ( coauthors ) => {
+	return (
+		Array.isArray( coauthors ) &&
+		coauthors.length > 0 &&
+		0 === extractTermIds( coauthors ).length
+	);
+};
+
+/**
  * Move an item up or down in an array.
  *
  * @param {string} targetItem Item to move.

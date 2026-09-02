@@ -672,8 +672,10 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * Swap one co-author with another on all posts for which they are a co-author. Unlike rename-coauthor,
 	 * this leaves the original co-author term intact and works when the 'to' user already has a co-author term.
 	 *
+	 * Pass --dry-run to preview the swap without writing anything.
+	 *
 	 * @subcommand swap-coauthors
-	 * @synopsis --from=<user-login> --to=<user-login> [--post_type=<ptype>] [--dry=<dry>]
+	 * @synopsis --from=<user-login> --to=<user-login> [--post_type=<ptype>] [--dry-run] [--dry]
 	 */
 	public function swap_coauthors( $args, $assoc_args ): void {
 		global $coauthors_plus, $wpdb;
@@ -682,18 +684,22 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			'from'      => null,
 			'to'        => null,
 			'post_type' => 'post',
-			'dry'       => false,
 		);
+
+		// Read the preview flags before defaults are merged in, so that an
+		// absent flag stays absent and can be told apart from an explicit one.
+		$dry = (bool) \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false );
+
+		// --dry predates --dry-run and is kept working for existing scripts.
+		if ( null !== \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry', null ) ) {
+			WP_CLI::warning( 'The --dry flag is deprecated; use --dry-run instead.' );
+			$dry = $dry || (bool) \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry', false );
+		}
 
 		$assoc_args = array_merge( $defaults, $assoc_args );
 
-		$dry = $assoc_args['dry'];
-
 		$from_userlogin = $assoc_args['from'];
 		$to_userlogin   = $assoc_args['to'];
-
-		$from_userlogin_prefixed = 'cap-' . $from_userlogin;
-		$to_userlogin_prefixed   = 'cap-' . $to_userlogin;
 
 		$orig_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $from_userlogin );
 
@@ -709,6 +715,22 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		if ( ! $to_coauthor ) {
 			WP_CLI::error( "No co-author found for $to_userlogin" );
+		}
+
+		// Work from the resolved logins rather than the raw input. Co-author
+		// lookups are not case sensitive, so "--from=Alice" can resolve to the
+		// co-author stored as "alice"; comparing the raw value against the
+		// stored one would then never match, the term would never be removed,
+		// and the drain loop below would never end.
+		$from_userlogin = $orig_coauthor->user_login;
+		$to_userlogin   = $to_coauthor->user_login;
+
+		$from_userlogin_prefixed = 'cap-' . $from_userlogin;
+
+		// Swapping a co-author with themselves would remove the term and add it
+		// straight back, so the loop below would never drain.
+		if ( $from_userlogin === $to_userlogin ) {
+			WP_CLI::error( '--from and --to must be different co-authors' );
 		}
 
 		WP_CLI::log( "Swapping authorship from {$from_userlogin} to {$to_userlogin}" );
@@ -734,7 +756,27 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		WP_CLI::log( "Found $posts->found_posts posts to update." );
 
+		$previous_first_post_id = null;
+
 		while ( $posts->post_count ) {
+			// Outside preview mode this loop re-runs the same query and relies
+			// on each post losing the "from" term to make progress. If a page
+			// comes back unchanged, that has not happened, so stop rather than
+			// spin forever.
+			$first_post_id = $posts->posts[0]->ID;
+
+			if ( ! $dry && $first_post_id === $previous_first_post_id ) {
+				WP_CLI::error(
+					sprintf(
+						'Post #%d still has the "%s" term after being processed, so the swap cannot make progress. Aborting.',
+						$first_post_id,
+						$from_userlogin_prefixed
+					)
+				);
+			}
+
+			$previous_first_post_id = $first_post_id;
+
 			foreach ( $posts->posts as $post ) {
 				$coauthors = get_coauthors( $post->ID );
 
@@ -829,6 +871,90 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			$posts = new WP_Query( $this->args );
 		}
 
+	}
+
+	/**
+	 * List the co-authors assigned to a post.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <post_id>
+	 * : ID of the post to list co-authors for.
+	 *
+	 * [--field=<field>]
+	 * : Print the value of a single field for each co-author.
+	 *
+	 * [--fields=<fields>]
+	 * : Limit the output to specific fields. Defaults to all fields.
+	 *
+	 * [--format=<format>]
+	 * : Render output in a particular format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - csv
+	 *   - json
+	 *   - yaml
+	 *   - count
+	 * ---
+	 *
+	 * ## AVAILABLE FIELDS
+	 *
+	 * These fields are available for each co-author:
+	 *
+	 * * ID
+	 * * display_name
+	 * * user_nicename
+	 * * user_email
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # List the co-authors of a post as a table.
+	 *     $ wp co-authors-plus list-authors 123
+	 *
+	 *     # Print just the co-author IDs, one per line.
+	 *     $ wp co-authors-plus list-authors 123 --field=ID
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param array $args Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 *
+	 * @subcommand list-authors
+	 * @synopsis <post_id> [--field=<field>] [--fields=<fields>] [--format=<format>]
+	 */
+	public function list_authors( $args, $assoc_args ): void {
+		$post_id = absint( $args[0] ?? 0 );
+
+		if ( ! $post_id || ! get_post( $post_id ) ) {
+			WP_CLI::error( 'Please specify a valid post_id.' );
+		}
+
+		$coauthors = get_coauthors( $post_id );
+
+		if ( empty( $coauthors ) ) {
+			WP_CLI::log( 'No co-authors found for post #' . $post_id );
+			return;
+		}
+
+		$fields = array( 'ID', 'display_name', 'user_nicename', 'user_email' );
+
+		$items = array_map(
+			static function ( $coauthor ) use ( $fields ) {
+				$item = array();
+
+				foreach ( $fields as $field ) {
+					$item[ $field ] = $coauthor->$field ?? '';
+				}
+
+				return $item;
+			},
+			$coauthors
+		);
+
+		$formatter = new \WP_CLI\Formatter( $assoc_args, $fields );
+		$formatter->display_items( $items );
 	}
 
 	/**
