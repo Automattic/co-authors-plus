@@ -832,6 +832,90 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	}
 
 	/**
+	 * List the co-authors assigned to a post.
+	 *
+	 * ## OPTIONS
+	 *
+	 * <post_id>
+	 * : ID of the post to list co-authors for.
+	 *
+	 * [--field=<field>]
+	 * : Print the value of a single field for each co-author.
+	 *
+	 * [--fields=<fields>]
+	 * : Limit the output to specific fields. Defaults to all fields.
+	 *
+	 * [--format=<format>]
+	 * : Render output in a particular format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - csv
+	 *   - json
+	 *   - yaml
+	 *   - count
+	 * ---
+	 *
+	 * ## AVAILABLE FIELDS
+	 *
+	 * These fields are available for each co-author:
+	 *
+	 * * ID
+	 * * display_name
+	 * * user_nicename
+	 * * user_email
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # List the co-authors of a post as a table.
+	 *     $ wp co-authors-plus list-authors 123
+	 *
+	 *     # Print just the co-author IDs, one per line.
+	 *     $ wp co-authors-plus list-authors 123 --field=ID
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param array $args Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 *
+	 * @subcommand list-authors
+	 * @synopsis <post_id> [--field=<field>] [--fields=<fields>] [--format=<format>]
+	 */
+	public function list_authors( $args, $assoc_args ): void {
+		$post_id = absint( $args[0] ?? 0 );
+
+		if ( ! $post_id || ! get_post( $post_id ) ) {
+			WP_CLI::error( 'Please specify a valid post_id.' );
+		}
+
+		$coauthors = get_coauthors( $post_id );
+
+		if ( empty( $coauthors ) ) {
+			WP_CLI::log( 'No co-authors found for post #' . $post_id );
+			return;
+		}
+
+		$fields = array( 'ID', 'display_name', 'user_nicename', 'user_email' );
+
+		$items = array_map(
+			static function ( $coauthor ) use ( $fields ) {
+				$item = array();
+
+				foreach ( $fields as $field ) {
+					$item[ $field ] = $coauthor->$field ?? '';
+				}
+
+				return $item;
+			},
+			$coauthors
+		);
+
+		$formatter = new \WP_CLI\Formatter( $assoc_args, $fields );
+		$formatter->display_items( $items );
+	}
+
+	/**
 	 * Migrate author terms without prefixes to ones with prefixes
 	 * Pre-3.0, all author terms didn't have a 'cap-' prefix, which means
 	 * they can easily collide with terms in other taxonomies
