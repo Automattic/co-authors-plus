@@ -88,6 +88,8 @@ class CoAuthors_Plus {
 
 		// Keep an existing co-author's search term (and its cache) in step when the user's profile changes.
 		add_action( 'profile_update', array( $this, 'update_author_term_on_profile_update' ) );
+		add_action( 'user_register', array( $this, 'invalidate_author_term_on_user_register' ) );
+		add_action( 'set_user_role', array( $this, 'invalidate_author_term_on_role_change' ), 10, 2 );
 
 		add_filter( 'get_usernumposts', array( $this, 'filter_count_user_posts' ), 10, 4 );
 
@@ -855,7 +857,10 @@ class CoAuthors_Plus {
 			return new WP_Error( 'missing-coauthor', __( 'No co-author exists for that term', 'co-authors-plus' ) );
 		}
 
-		wp_cache_delete( 'author-term-' . $coauthor->user_nicename, 'co-authors-plus' );
+		wp_cache_delete(
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $coauthor->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
+		);
 	}
 
 	/**
@@ -894,7 +899,10 @@ class CoAuthors_Plus {
 		$count = $wpdb->query( $query ); // phpcs:ignore
 		$wpdb->update( $wpdb->term_taxonomy, array( 'count' => $count ), array( 'term_taxonomy_id' => $term->term_taxonomy_id ) );
 
-		wp_cache_delete( 'author-term-' . $coauthor->user_nicename, 'co-authors-plus' );
+		wp_cache_delete(
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $coauthor->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
+		);
 	}
 
 	/**
@@ -2407,21 +2415,21 @@ class CoAuthors_Plus {
 	 */
 	public function get_author_term( $coauthor ) {
 
-		if ( ! is_object( $coauthor ) ) {
+		if ( ! is_object( $coauthor ) || empty( $coauthor->ID ) ) {
 			return;
 		}
 
-		$cache_key = 'author-term-' . $coauthor->user_nicename;
-		if ( false !== ( $term = wp_cache_get( $cache_key, 'co-authors-plus' ) ) ) {
+		$cache_key = \Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $coauthor->user_nicename );
+		if ( false !== ( $term = wp_cache_get( $cache_key, \Automattic\CoAuthorsPlus\Cache\Keys::GROUP ) ) ) {
 			return $term;
 		}
 
-		// See if the prefixed term is available, otherwise default to just the nicename
+		// See if the prefixed term is available, otherwise default to just the nicename.
 		$term = get_term_by( 'slug', 'cap-' . $coauthor->user_nicename, $this->coauthor_taxonomy );
 		if ( ! $term ) {
 			$term = get_term_by( 'slug', $coauthor->user_nicename, $this->coauthor_taxonomy );
 		}
-		wp_cache_set( $cache_key, $term, 'co-authors-plus' );
+		wp_cache_set( $cache_key, $term, \Automattic\CoAuthorsPlus\Cache\Keys::GROUP );
 		return $term;
 	}
 
@@ -2463,7 +2471,10 @@ class CoAuthors_Plus {
 				return $new_term;
 			}
 		}
-		wp_cache_delete( 'author-term-' . $coauthor->user_nicename, 'co-authors-plus' );
+		wp_cache_delete(
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $coauthor->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
+		);
 		return $this->get_author_term( $coauthor );
 	}
 
@@ -2491,6 +2502,58 @@ class CoAuthors_Plus {
 		if ( $this->get_author_term( $user ) ) {
 			$this->update_author_term( $user );
 		}
+	}
+
+	/**
+	 * Invalidate a co-author term's cache entry when a user is registered.
+	 *
+	 * Mirrors `update_author_term_on_profile_update()`: the new user gets no
+	 * term created here (avoids unbounded term growth), but any prior cached
+	 * value under their nicename is dropped so the next read of
+	 * `get_author_term()` rebuilds it from current data.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param int $user_id The newly registered user ID.
+	 * @return void
+	 */
+	public function invalidate_author_term_on_user_register( $user_id ): void {
+		$user = get_userdata( (int) $user_id );
+		if ( ! $user ) {
+			return;
+		}
+
+		wp_cache_delete(
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $user->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
+		);
+	}
+
+	/**
+	 * Invalidate a co-author term's cache entry on a role change.
+	 *
+	 * A role change does not currently alter the term slug, but it is
+	 * conservatively treated as a possible future change to the searchable
+	 * term description, so the cache entry is dropped.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param int    $user_id The user whose role changed.
+	 * @param string $new_role The new role slug.
+	 * @return void
+	 */
+	public function invalidate_author_term_on_role_change( $user_id, $new_role ): void {
+		unset( $new_role );
+
+		$user = get_userdata( (int) $user_id );
+		if ( ! $user ) {
+			return;
+		}
+
+		wp_cache_delete(
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $user->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
+		);
 	}
 
 	/**
@@ -2599,8 +2662,8 @@ class CoAuthors_Plus {
 			return array();
 		}
 
-		$cache_key      = 'coauthors_post_' . $post_id;
-		$coauthor_terms = wp_cache_get( $cache_key, 'co-authors-plus' );
+		$cache_key      = \Automattic\CoAuthorsPlus\Cache\Keys::coauthors_post_key( (int) $post_id );
+		$coauthor_terms = wp_cache_get( $cache_key, \Automattic\CoAuthorsPlus\Cache\Keys::GROUP );
 
 		if ( false === $coauthor_terms ) {
 			$coauthor_terms = wp_get_object_terms(
@@ -2617,7 +2680,7 @@ class CoAuthors_Plus {
 				return array();
 			}
 
-			wp_cache_set( $cache_key, $coauthor_terms, 'co-authors-plus' );
+			wp_cache_set( $cache_key, $coauthor_terms, \Automattic\CoAuthorsPlus\Cache\Keys::GROUP );
 		}
 
 		return $coauthor_terms;
@@ -2630,7 +2693,10 @@ class CoAuthors_Plus {
 	 * @param $post_id The Post ID.
 	 */
 	public function clear_cache( $post_id ): void {
-		wp_cache_delete( 'coauthors_post_' . $post_id, 'co-authors-plus' );
+		wp_cache_delete(
+			\Automattic\CoAuthorsPlus\Cache\Keys::coauthors_post_key( (int) $post_id ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
+		);
 	}
 
 	/**
@@ -2645,7 +2711,10 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		wp_cache_delete( 'coauthors_post_' . $object_id, 'co-authors-plus' );
+		wp_cache_delete(
+			\Automattic\CoAuthorsPlus\Cache\Keys::coauthors_post_key( (int) $object_id ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
+		);
 
 	}
 

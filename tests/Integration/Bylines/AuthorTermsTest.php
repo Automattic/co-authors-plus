@@ -13,6 +13,7 @@ declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Integration\Bylines;
 
+use Automattic\CoAuthorsPlus\Cache\Keys;
 use Automattic\CoAuthorsPlus\Tests\Integration\TestCase;
 
 /**
@@ -47,6 +48,7 @@ class AuthorTermsTest extends TestCase {
 		$this->assertEmpty( $coauthors_plus->get_author_term( '' ) );
 		$this->assertEmpty( $coauthors_plus->get_author_term( $this->author1->ID ) );
 		$this->assertEmpty( $coauthors_plus->get_author_term( (array) $this->author1 ) );
+		$this->assertEmpty( $coauthors_plus->get_author_term( new \stdClass() ) );
 	}
 
 	/**
@@ -58,14 +60,14 @@ class AuthorTermsTest extends TestCase {
 
 		global $coauthors_plus;
 
-		$cache_key = 'author-term-' . $this->author1->user_nicename;
+		$cache_key = Keys::author_term_key( (string) $this->author1->user_nicename );
 
 		// Checks when term does not exist in cache.
-		$this->assertFalse( wp_cache_get( $cache_key, 'co-authors-plus' ) );
+		$this->assertFalse( wp_cache_get( $cache_key, Keys::GROUP ) );
 
 		// Checks when term exists in cache.
 		$author_term        = $coauthors_plus->get_author_term( $this->author1 );
-		$author_term_cached = wp_cache_get( $cache_key, 'co-authors-plus' );
+		$author_term_cached = wp_cache_get( $cache_key, Keys::GROUP );
 
 		$this->assertInstanceOf( \WP_Term::class, $author_term );
 		$this->assertEquals( $author_term, $author_term_cached );
