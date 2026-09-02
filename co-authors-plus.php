@@ -133,6 +133,8 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 		$notify_author = apply_filters( 'comment_notification_notify_author', false, $comment->comment_ID );
 
 		// The comment was left by one of the co-authors.
+		// Note: for a guest author, $coauthor->ID is the guest-author CPT's post ID, not a WP user ID —
+		// it could theoretically collide with $comment->user_id or the current user's ID for an unrelated post/user pair.
 		foreach ( $coauthors as $coauthor ) {
 			if ( ! $notify_author && (int) $comment->user_id === (int) $coauthor->ID ) {
 				unset( $emails[ $coauthor->user_email ] );
@@ -230,7 +232,7 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 					$subject = sprintf( __( '[%1$s] Pingback: "%2$s"', 'co-authors-plus' ), $blogname, $post->post_title );
 					break;
 
-				default: 
+				default:
 					// Comments.
 					/* translators: %s: Post title. */
 					$notify_message = sprintf( __( 'New comment on your post "%s"', 'co-authors-plus' ), $post->post_title ) . "\r\n";
@@ -253,7 +255,7 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 			/* translators: %s: Comment URL. */
 			$notify_message .= sprintf( __( 'Permalink: %s', 'co-authors-plus' ), get_comment_link( $comment ) ) . "\r\n";
 
-			if ( user_can( $post->post_author, 'edit_comment', $comment->comment_ID ) ) {
+			if ( $user && user_can( $user, 'edit_comment', $comment->comment_ID ) ) {
 				if ( EMPTY_TRASH_DAYS ) {
 					/* translators: Comment moderation. %s: Comment action URL. */
 					$notify_message .= sprintf( __( 'Trash it: %s', 'co-authors-plus' ), admin_url( "comment.php?action=trash&c={$comment->comment_ID}#wpbody-content" ) ) . "\r\n";

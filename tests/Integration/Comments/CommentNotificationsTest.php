@@ -118,6 +118,7 @@ class CommentNotificationsTest extends TestCase {
 		$result = $this->capture_recipients( null, array( $guest_author->user_login ) );
 
 		$this->assertContains( 'guest@example.com', $result['recipients'], 'Guest author email must be in the recipient list.' );
+		$this->assertContains( 'guest@example.com', $result['sent_to'], 'Guest author must receive the notification.' );
 	}
 
 	/**
@@ -125,10 +126,11 @@ class CommentNotificationsTest extends TestCase {
 	 */
 	public function test_comment_author_is_not_notified_for_their_own_comment(): void {
 		$author = $this->create_author( 'notif_own_author' );
+		$other  = $this->create_author( 'notif_own_other' );
 
 		$result = $this->capture_recipients(
 			$author,
-			array(),
+			array( $other->user_login ),
 			array(
 				'user_id'             => $author->ID,
 				'comment_author'      => $author->display_name,
@@ -137,6 +139,7 @@ class CommentNotificationsTest extends TestCase {
 		);
 
 		$this->assertNotContains( $author->user_email, $result['sent_to'], 'Author must not be sent their own comment notification.' );
+		$this->assertContains( $other->user_email, $result['sent_to'], 'Other co-author must still be notified.' );
 	}
 
 	/**
