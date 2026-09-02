@@ -873,6 +873,99 @@ class AddCoauthorsTest extends TestCase {
 	}
 
 	/**
+	 * Confirms that the byline order a caller passes to add_coauthors() survives
+	 * a round-trip through get_coauthors().
+	 *
+	 * The ordering is not implemented in add_coauthors() itself. The author
+	 * taxonomy is registered with 'sort' => true, so wp_set_object_terms()
+	 * writes wp_term_relationships.term_order in the order the slugs are
+	 * passed, and the taxonomy's 'args' force the read path to order by
+	 * term_order ASC. This test pins that contract, because both halves of it
+	 * live in easily-removed registration args (see action_init_late()).
+	 *
+	 * The second assignment deliberately uses a different, non-alphabetic order
+	 * so a passing first assertion cannot be explained by the read path falling
+	 * back to term_taxonomy_id order.
+	 *
+	 * @covers ::add_coauthors
+	 */
+	public function test_add_coauthors_preserves_input_order(): void {
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $this->editor1->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		$first_order = array( $this->author1->user_login, $this->author2->user_login, $this->author3->user_login );
+		$this->assertTrue( $this->_cap->add_coauthors( $post_id, $first_order ) );
+		$this->assertSame( $first_order, $this->get_coauthor_logins( $post_id ) );
+
+		$second_order = array( $this->author3->user_login, $this->author1->user_login, $this->author2->user_login );
+		$this->assertTrue( $this->_cap->add_coauthors( $post_id, $second_order ) );
+		$this->assertSame( $second_order, $this->get_coauthor_logins( $post_id ) );
+	}
+
+	/**
+	 * Confirms that appending co-authors keeps the existing bylines in place and
+	 * adds the new ones after them, even when the appended list repeats an
+	 * author who is already assigned.
+	 *
+	 * Note that add_coauthors() merges the existing and incoming lists itself
+	 * and always calls wp_set_post_terms() in non-append mode, so every
+	 * term_order value is rewritten on each save. The repeated author matters because array_unique()
+	 * preserves keys, so the merged list is left with a gap in its numeric keys.
+	 * Anything that assumes those keys are sequential will mis-order the tail.
+	 *
+	 * @covers ::add_coauthors
+	 */
+	public function test_add_coauthors_appends_after_existing_bylines(): void {
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $this->editor1->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		// Create the three author terms in ascending order first, so that the
+		// byline order asserted below runs counter to term_taxonomy_id order. A
+		// post left with every term_order at 0 sorts by term_taxonomy_id, so
+		// without this the assertion would pass either way.
+		$this->_cap->add_coauthors(
+			$post_id,
+			array( $this->author1->user_login, $this->author2->user_login, $this->author3->user_login )
+		);
+
+		$this->_cap->add_coauthors( $post_id, array( $this->author3->user_login, $this->author2->user_login ) );
+
+		// author2 is already assigned, so array_unique() drops the middle entry
+		// of the merged list and leaves the keys as 0, 1, 3.
+		$this->_cap->add_coauthors( $post_id, array( $this->author2->user_login, $this->author1->user_login ), true );
+
+		$this->assertSame(
+			array( $this->author3->user_login, $this->author2->user_login, $this->author1->user_login ),
+			$this->get_coauthor_logins( $post_id )
+		);
+	}
+
+	/**
+	 * Returns the user_login of each of a post's co-authors, in byline order.
+	 *
+	 * @param int $post_id Post to read.
+	 * @return string[]
+	 */
+	private function get_coauthor_logins( int $post_id ): array {
+		return array_map(
+			function ( $coauthor ) {
+				return $coauthor->user_login;
+			},
+			get_coauthors( $post_id )
+		);
+	}
+
+	/**
 	 * Tests that deleting a user without a co-author term doesn't cause PHP warnings.
 	 *
 	 * @covers ::delete_user_action
