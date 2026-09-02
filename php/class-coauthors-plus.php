@@ -267,6 +267,15 @@ class CoAuthors_Plus {
 			'query_var'    => false,
 			'rewrite'      => false,
 			'public'       => false,
+
+			/*
+			 * 'sort' and the 'term_order' args are what make byline order work, so
+			 * do not drop them. 'sort' => true makes wp_set_object_terms() write
+			 * wp_term_relationships.term_order in the order the slugs are passed,
+			 * and 'args' forces every wp_get_object_terms() call for this taxonomy
+			 * to read back in that order. Without the pair, bylines come back in an
+			 * arbitrary order. See AddCoauthorsTest for the round-trip coverage.
+			 */
 			'sort'         => true,
 			'args'         => array( 'orderby' => 'term_order' ),
 			'show_ui'      => false,
@@ -1687,10 +1696,23 @@ class CoAuthors_Plus {
 			$author             = $this->get_coauthor_by( $field, $author_name );
 			$coauthor_objects[] = $author;
 			$term               = $this->update_author_term( $author );
-			if ( is_object( $term ) ) {
+
+			// A WP_Error is an object too, and its ->slug would blank the author.
+			if ( is_object( $term ) && ! is_wp_error( $term ) ) {
 				$author_name = $term->slug;
 			}
 		}
+
+		// Break the reference, so later writes cannot alias the last element.
+		unset( $author_name );
+
+		/*
+		 * The author taxonomy is registered with 'sort' => true (see
+		 * action_init_late()), and this is a non-append call, so
+		 * wp_set_object_terms() writes wp_term_relationships.term_order in the
+		 * order the slugs are passed here. That is what makes the byline order
+		 * round-trip: the read path orders by term_order ASC.
+		 */
 		wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
 
 		// If the original post_author is no longer assigned,
