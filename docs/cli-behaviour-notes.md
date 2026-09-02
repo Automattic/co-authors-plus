@@ -93,9 +93,11 @@ PHP 8.4) rather than inferred from reading the source.
 
 (Calibrated against the live env 2026-09-01; all scenarios green.)
 
-- `--dry` uses the raw string value in a boolean context (php/class-wp-cli.php:690,
-  749), so ANY non-empty value — including `--dry=false` — enables dry-run mode.
-  Pinned in the "Treat --dry=false as a dry run" scenario. Confirmed.
+- ~~`--dry` uses the raw string value in a boolean context, so ANY non-empty
+  value — including `--dry=false` — enables dry-run mode.~~ **FIXED.** The
+  command now declares `[--dry-run]` as a boolean flag per WP-CLI convention and
+  reads it with `Utils\get_flag_value()`. `--dry` remains accepted as a
+  deprecated alias, emitting a notice.
 - When a post has multiple co-authors, the swap rewrites `post_author` to the FIRST
   remaining co-author with a WP user (term-name order from `get_coauthors()`), not
   necessarily the `--to` author, even though the log claims the `--to` author "has
@@ -138,16 +140,16 @@ PHP 8.4) rather than inferred from reading the source.
   case-insensitively, and/or break out when a page yields no removals. A Gherkin
   comment at the top of features/swap-coauthors.feature warns authors off adding such
   a scenario.
-- `--dry` truthiness, now calibrated end to end in "Preview with --dry, where only 0
-  and a valueless flag swap for real": `--dry=true` and `--dry=false` are BOTH
-  previews (any non-empty string is truthy), but `--dry=0` performs a REAL,
-  irreversible swap because PHP treats the string "0" as falsy at :749. Worse, the
-  valueless flag form `--dry` also swaps for real: WP-CLI matches it against the
-  `[--dry=<dry>]` synopsis, prints `Warning: --dry parameter needs a value`, DISCARDS
-  the argument, and the `false` default then applies — so the most natural way to ask
-  for a preview is the one that mutates the site, and it still exits 0. That warning
-  text is WP-CLI's, so the scenario pins only CAP's own lines, via
-  `STDOUT should contain:`.
+- ~~`--dry` truthiness: `--dry=true` and `--dry=false` are BOTH previews, but
+  `--dry=0` and the valueless `--dry` perform a REAL swap — WP-CLI matches the
+  bare flag against the `[--dry=<dry>]` synopsis, warns `--dry parameter needs a
+  value`, DISCARDS it, and the `false` default applies.~~ **FIXED.** This was the
+  worst defect the characterisation pass found: the two most natural ways to ask
+  for a preview both mutated the site and exited 0. `--dry-run` (and the
+  deprecated `--dry`) now preview correctly in their bare form. Following WP-CLI
+  convention, `--dry-run=0` and `--no-dry-run` remain real swaps, since flag
+  values use PHP truthiness and `--no-<flag>` is the documented negation; both
+  are pinned in "Treat --dry-run=0 and --no-dry-run as a real swap".
 - The command is TERM-driven, not `post_author`-driven. A post whose only link to the
   `from` author is `wp_posts.post_author` (its `cap-<from>` term removed) is reported
   as `Found 0 posts to update.` / `Success: All done!` and left untouched — unlike

@@ -672,8 +672,10 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * Swap one co-author with another on all posts for which they are a co-author. Unlike rename-coauthor,
 	 * this leaves the original co-author term intact and works when the 'to' user already has a co-author term.
 	 *
+	 * Pass --dry-run to preview the swap without writing anything.
+	 *
 	 * @subcommand swap-coauthors
-	 * @synopsis --from=<user-login> --to=<user-login> [--post_type=<ptype>] [--dry=<dry>]
+	 * @synopsis --from=<user-login> --to=<user-login> [--post_type=<ptype>] [--dry-run] [--dry]
 	 */
 	public function swap_coauthors( $args, $assoc_args ): void {
 		global $coauthors_plus, $wpdb;
@@ -682,12 +684,19 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			'from'      => null,
 			'to'        => null,
 			'post_type' => 'post',
-			'dry'       => false,
 		);
 
-		$assoc_args = array_merge( $defaults, $assoc_args );
+		// Read the preview flags before defaults are merged in, so that an
+		// absent flag stays absent and can be told apart from an explicit one.
+		$dry = (bool) \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false );
 
-		$dry = $assoc_args['dry'];
+		// --dry predates --dry-run and is kept working for existing scripts.
+		if ( null !== \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry', null ) ) {
+			WP_CLI::warning( 'The --dry flag is deprecated; use --dry-run instead.' );
+			$dry = $dry || (bool) \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry', false );
+		}
+
+		$assoc_args = array_merge( $defaults, $assoc_args );
 
 		$from_userlogin = $assoc_args['from'];
 		$to_userlogin   = $assoc_args['to'];

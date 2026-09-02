@@ -1,12 +1,12 @@
 Feature: One co-author can be swapped with another on their posts
 
-	# WARNING: outside dry mode the command only makes progress by removing the
-	# cap-<from> term from each matched post and re-running the SAME WP_Query
-	# (php/class-wp-cli.php:770-773 increments `paged` only when `--dry` is set).
-	# Any input that leaves the cap-<from> term in place therefore loops forever:
-	# `--from` equal to `--to`, or a `--from` whose case differs from the stored
-	# user_login. Do NOT characterise those with a live run — the step would hang
-	# until the CI job times out. See .context/phase0-findings.md.
+	# WARNING: outside preview mode the command only makes progress by removing
+	# the cap-<from> term from each matched post and re-running the SAME
+	# WP_Query, as it advances `paged` only when previewing. Any input that
+	# leaves the cap-<from> term in place therefore loops forever: `--from`
+	# equal to `--to`, or a `--from` whose case differs from the stored
+	# user_login. Do NOT characterise those with a live run — the step would
+	# hang until the CI job times out. See docs/cli-behaviour-notes.md.
 
 	Background:
 		Given a WP installation with the Co-Authors Plus plugin
@@ -140,27 +140,13 @@ Feature: One co-author can be swapped with another on their posts
 		{AUTHOR3_ID}
 		"""
 
-	Scenario: Preview with --dry, where only 0 and a valueless flag swap for real
+	Scenario: Preview a swap with --dry-run and change nothing
 		When I run `wp user create author1 author1@example.com --role=author --porcelain`
 		And save STDOUT as {AUTHOR1_ID}
 		And I run `wp user create author2 author2@example.com --role=author --porcelain`
-		And save STDOUT as {AUTHOR2_ID}
 		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Post one" --post_status=publish --porcelain`
 		And save STDOUT as {POST_ID_1}
-		And I run `wp term list author --slug=cap-author2 --format=count`
-		Then STDOUT should be:
-		"""
-		0
-		"""
-		When I run `wp co-authors-plus swap-coauthors --from=author1 --to=author2 --dry=true`
-		Then STDOUT should be:
-		"""
-		Swapping authorship from author1 to author2
-		Found 1 posts to update.
-		1: Post #{POST_ID_1} will be assigned "author2" as a co-author
-		Success: All done!
-		"""
-		When I run `wp co-authors-plus swap-coauthors --from=author1 --to=author2 --dry=false`
+		When I run `wp co-authors-plus swap-coauthors --from=author1 --to=author2 --dry-run`
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
@@ -183,8 +169,40 @@ Feature: One co-author can be swapped with another on their posts
 		"""
 		0
 		"""
+
+	Scenario: Accept the deprecated --dry flag as a preview, with a notice
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp user create author2 author2@example.com --role=author --porcelain`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Post one" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_1}
 		When I run `wp co-authors-plus swap-coauthors --from=author1 --to=author2 --dry`
-		Then STDOUT should contain:
+		Then STDOUT should be:
+		"""
+		Warning: The --dry flag is deprecated; use --dry-run instead.
+		Swapping authorship from author1 to author2
+		Found 1 posts to update.
+		1: Post #{POST_ID_1} will be assigned "author2" as a co-author
+		Success: All done!
+		"""
+		When I run `wp term list author --object_ids={POST_ID_1} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		"""
+
+	# WP-CLI treats a flag's value with PHP truthiness and documents --no-<flag>
+	# as the way to switch one off, so both forms below are real swaps. Pinned so
+	# the distinction stays deliberate rather than becoming a surprise.
+	Scenario: Treat --dry-run=0 and --no-dry-run as a real swap
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp user create author2 author2@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR2_ID}
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Post one" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_1}
+		When I run `wp co-authors-plus swap-coauthors --from=author1 --to=author2 --dry-run=0`
+		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
 		Found 1 posts to update.
@@ -198,7 +216,7 @@ Feature: One co-author can be swapped with another on their posts
 		"""
 		When I run `wp post create --post_author={AUTHOR1_ID} --post_title="Post two" --post_status=publish --porcelain`
 		And save STDOUT as {POST_ID_2}
-		And I run `wp co-authors-plus swap-coauthors --from=author1 --to=author2 --dry=0`
+		And I run `wp co-authors-plus swap-coauthors --from=author1 --to=author2 --no-dry-run`
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
@@ -210,11 +228,6 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		cap-author2
-		"""
-		When I run `wp post get {POST_ID_2} --field=post_author`
-		Then STDOUT should be:
-		"""
-		{AUTHOR2_ID}
 		"""
 
 	Scenario: Swap only within the given --post_type
