@@ -1,12 +1,11 @@
 Feature: One co-author can be swapped with another on their posts
 
-	# WARNING: outside preview mode the command only makes progress by removing
-	# the cap-<from> term from each matched post and re-running the SAME
-	# WP_Query, as it advances `paged` only when previewing. Any input that
-	# leaves the cap-<from> term in place therefore loops forever: `--from`
-	# equal to `--to`, or a `--from` whose case differs from the stored
-	# user_login. Do NOT characterise those with a live run — the step would
-	# hang until the CI job times out. See docs/cli-behaviour-notes.md.
+	# Outside preview mode the command makes progress only by removing the
+	# cap-<from> term from each matched post and re-running the SAME WP_Query,
+	# as it advances `paged` only when previewing. Any input leaving that term
+	# in place would once loop forever; the two known causes are now rejected up
+	# front and a no-progress guard aborts anything else, so the scenarios below
+	# are safe to run. See docs/cli-behaviour-notes.md.
 
 	Background:
 		Given a WP installation with the Co-Authors Plus plugin
@@ -225,6 +224,44 @@ Feature: One co-author can be swapped with another on their posts
 		Success: All done!
 		"""
 		When I run `wp term list author --object_ids={POST_ID_2} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author2
+		"""
+
+	Scenario: Refuse to swap a co-author with themselves
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Post one" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_1}
+		When I try `wp co-authors-plus swap-coauthors --from=author1 --to=author1`
+		Then STDERR should be:
+		"""
+		Error: --from and --to must be different co-authors
+		"""
+		And STDOUT should be empty
+		And the return code should be 1
+		When I run `wp term list author --object_ids={POST_ID_1} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		"""
+
+	Scenario: Resolve a --from whose case differs from the stored user_login
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp user create author2 author2@example.com --role=author --porcelain`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Post one" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_1}
+		When I run `wp co-authors-plus swap-coauthors --from=AUTHOR1 --to=author2`
+		Then STDOUT should be:
+		"""
+		Swapping authorship from author1 to author2
+		Found 1 posts to update.
+		1: Post #{POST_ID_1} has been assigned "author2" as a co-author
+		Success: All done!
+		"""
+		When I run `wp term list author --object_ids={POST_ID_1} --field=slug`
 		Then STDOUT should be:
 		"""
 		cap-author2

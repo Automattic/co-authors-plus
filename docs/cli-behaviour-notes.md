@@ -122,24 +122,15 @@ PHP 8.4) rather than inferred from reading the source.
   rendering belongs to WP-CLI, not to CAP (and CI installs wp-env, hence WP-CLI,
   unpinned), so a one-class-per-command split that swaps `@synopsis` for a
   `## OPTIONS` docblock must not fail this file.
-- **Unbounded loop — do NOT characterise with a live run.** Outside dry mode the
-  command never advances `paged` (php/class-wp-cli.php:770-773 increments it only
-  `if ( $dry )`); it relies on `add_coauthors()` removing the `cap-<from>` term so the
-  identical `WP_Query` shrinks to zero. Two reachable inputs never remove that term:
-  (a) `--from` === `--to`, where the login is `unset()` from `$coauthors` and
-  immediately re-appended (:751-761) so the same term is rewritten unchanged; and
-  (b) a `--from` whose case differs from the stored `user_login` (e.g. `--from=Author1`)
-  — `get_coauthor_by()` and the slug tax_query both match case-insensitively, but the
-  removal loop compares with `===` at :753. Either way `while ( $posts->post_count )`
-  runs forever, emitting `N: Post #X has been assigned ...` until the process is
-  killed; on CI the job would burn its whole runner allowance (the workflow sets no
-  `timeout-minutes`). A third trigger is the `continue` at :741-743 for a post whose
-  `get_coauthors()` is empty. `rename-coauthor` has an equivalent guard ("New
-  user_login value conflicts with existing co-author"); `swap-coauthors` has none.
-  Candidate fix: error when `$from_userlogin === $to_userlogin`, compare logins
-  case-insensitively, and/or break out when a page yields no removals. A Gherkin
-  comment at the top of features/swap-coauthors.feature warns authors off adding such
-  a scenario.
+- ~~**Unbounded loop.** Outside preview mode the drain loop advances `paged`
+  only when previewing, relying on `add_coauthors()` removing the `cap-<from>`
+  term to make progress; `--from` equal to `--to`, or a `--from` whose case
+  differed from the stored `user_login`, left the term in place and the command
+  ran forever.~~ **FIXED.** The command now works from the resolved co-author
+  logins rather than the raw input, which removes the case-mismatch cause
+  entirely, rejects `--from` equal to `--to` up front, and aborts with a clear
+  error if a page of posts ever comes back unprocessed. Both former triggers are
+  now pinned by scenarios, which are safe to run.
 - ~~`--dry` truthiness: `--dry=true` and `--dry=false` are BOTH previews, but
   `--dry=0` and the valueless `--dry` perform a REAL swap — WP-CLI matches the
   bare flag against the `[--dry=<dry>]` synopsis, warns `--dry parameter needs a

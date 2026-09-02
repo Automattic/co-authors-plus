@@ -701,9 +701,6 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		$from_userlogin = $assoc_args['from'];
 		$to_userlogin   = $assoc_args['to'];
 
-		$from_userlogin_prefixed = 'cap-' . $from_userlogin;
-		$to_userlogin_prefixed   = 'cap-' . $to_userlogin;
-
 		$orig_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $from_userlogin );
 
 		if ( ! $orig_coauthor ) {
@@ -718,6 +715,22 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		if ( ! $to_coauthor ) {
 			WP_CLI::error( "No co-author found for $to_userlogin" );
+		}
+
+		// Work from the resolved logins rather than the raw input. Co-author
+		// lookups are not case sensitive, so "--from=Alice" can resolve to the
+		// co-author stored as "alice"; comparing the raw value against the
+		// stored one would then never match, the term would never be removed,
+		// and the drain loop below would never end.
+		$from_userlogin = $orig_coauthor->user_login;
+		$to_userlogin   = $to_coauthor->user_login;
+
+		$from_userlogin_prefixed = 'cap-' . $from_userlogin;
+
+		// Swapping a co-author with themselves would remove the term and add it
+		// straight back, so the loop below would never drain.
+		if ( $from_userlogin === $to_userlogin ) {
+			WP_CLI::error( '--from and --to must be different co-authors' );
 		}
 
 		WP_CLI::log( "Swapping authorship from {$from_userlogin} to {$to_userlogin}" );
@@ -743,7 +756,27 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		WP_CLI::log( "Found $posts->found_posts posts to update." );
 
+		$previous_first_post_id = null;
+
 		while ( $posts->post_count ) {
+			// Outside preview mode this loop re-runs the same query and relies
+			// on each post losing the "from" term to make progress. If a page
+			// comes back unchanged, that has not happened, so stop rather than
+			// spin forever.
+			$first_post_id = $posts->posts[0]->ID;
+
+			if ( ! $dry && $first_post_id === $previous_first_post_id ) {
+				WP_CLI::error(
+					sprintf(
+						'Post #%d still has the "%s" term after being processed, so the swap cannot make progress. Aborting.',
+						$first_post_id,
+						$from_userlogin_prefixed
+					)
+				);
+			}
+
+			$previous_first_post_id = $first_post_id;
+
 			foreach ( $posts->posts as $post ) {
 				$coauthors = get_coauthors( $post->ID );
 
