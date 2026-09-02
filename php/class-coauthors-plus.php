@@ -849,8 +849,8 @@ class CoAuthors_Plus {
 		}
 
 		wp_cache_delete(
-			CoAuthors\Cache\Store::author_term_key( (int) $coauthor->ID ),
-			CoAuthors\Cache\Store::GROUP
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $coauthor->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
 		);
 	}
 
@@ -891,8 +891,8 @@ class CoAuthors_Plus {
 		$wpdb->update( $wpdb->term_taxonomy, array( 'count' => $count ), array( 'term_taxonomy_id' => $term->term_taxonomy_id ) );
 
 		wp_cache_delete(
-			CoAuthors\Cache\Store::author_term_key( (int) $coauthor->ID ),
-			CoAuthors\Cache\Store::GROUP
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $coauthor->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
 		);
 	}
 
@@ -2386,19 +2386,17 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		$cache_key = CoAuthors\Cache\Store::author_term_key( (int) $coauthor->ID );
-		if ( false !== ( $term = wp_cache_get( $cache_key, CoAuthors\Cache\Store::GROUP ) ) ) {
+		$cache_key = \Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $coauthor->user_nicename );
+		if ( false !== ( $term = wp_cache_get( $cache_key, \Automattic\CoAuthorsPlus\Cache\Keys::GROUP ) ) ) {
 			return $term;
 		}
 
 		// See if the prefixed term is available, otherwise default to just the nicename.
-		// The term slug is still derived from `user_nicename` — only the cache key
-		// is keyed on the stable `user_id`.
 		$term = get_term_by( 'slug', 'cap-' . $coauthor->user_nicename, $this->coauthor_taxonomy );
 		if ( ! $term ) {
 			$term = get_term_by( 'slug', $coauthor->user_nicename, $this->coauthor_taxonomy );
 		}
-		wp_cache_set( $cache_key, $term, CoAuthors\Cache\Store::GROUP );
+		wp_cache_set( $cache_key, $term, \Automattic\CoAuthorsPlus\Cache\Keys::GROUP );
 		return $term;
 	}
 
@@ -2441,8 +2439,8 @@ class CoAuthors_Plus {
 			}
 		}
 		wp_cache_delete(
-			CoAuthors\Cache\Store::author_term_key( (int) $coauthor->ID ),
-			CoAuthors\Cache\Store::GROUP
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $coauthor->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
 		);
 		return $this->get_author_term( $coauthor );
 	}
@@ -2478,7 +2476,7 @@ class CoAuthors_Plus {
 	 *
 	 * Mirrors `update_author_term_on_profile_update()`: the new user gets no
 	 * term created here (avoids unbounded term growth), but any prior cached
-	 * value under their user_id is dropped so the next read of
+	 * value under their nicename is dropped so the next read of
 	 * `get_author_term()` rebuilds it from current data.
 	 *
 	 * @since 4.2.0
@@ -2487,9 +2485,14 @@ class CoAuthors_Plus {
 	 * @return void
 	 */
 	public function invalidate_author_term_on_user_register( $user_id ): void {
+		$user = get_userdata( (int) $user_id );
+		if ( ! $user ) {
+			return;
+		}
+
 		wp_cache_delete(
-			CoAuthors\Cache\Store::author_term_key( (int) $user_id ),
-			CoAuthors\Cache\Store::GROUP
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $user->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
 		);
 	}
 
@@ -2507,9 +2510,16 @@ class CoAuthors_Plus {
 	 * @return void
 	 */
 	public function invalidate_author_term_on_role_change( $user_id, $new_role ): void {
+		unset( $new_role );
+
+		$user = get_userdata( (int) $user_id );
+		if ( ! $user ) {
+			return;
+		}
+
 		wp_cache_delete(
-			CoAuthors\Cache\Store::author_term_key( (int) $user_id ),
-			CoAuthors\Cache\Store::GROUP
+			\Automattic\CoAuthorsPlus\Cache\Keys::author_term_key( (string) $user->user_nicename ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
 		);
 	}
 
@@ -2619,8 +2629,8 @@ class CoAuthors_Plus {
 			return array();
 		}
 
-		$cache_key      = CoAuthors\Cache\Store::coauthors_post_key( (int) $post_id );
-		$coauthor_terms = wp_cache_get( $cache_key, CoAuthors\Cache\Store::GROUP );
+		$cache_key      = \Automattic\CoAuthorsPlus\Cache\Keys::coauthors_post_key( (int) $post_id );
+		$coauthor_terms = wp_cache_get( $cache_key, \Automattic\CoAuthorsPlus\Cache\Keys::GROUP );
 
 		if ( false === $coauthor_terms ) {
 			$coauthor_terms = wp_get_object_terms(
@@ -2637,7 +2647,7 @@ class CoAuthors_Plus {
 				return array();
 			}
 
-			wp_cache_set( $cache_key, $coauthor_terms, CoAuthors\Cache\Store::GROUP );
+			wp_cache_set( $cache_key, $coauthor_terms, \Automattic\CoAuthorsPlus\Cache\Keys::GROUP );
 		}
 
 		return $coauthor_terms;
@@ -2651,8 +2661,8 @@ class CoAuthors_Plus {
 	 */
 	public function clear_cache( $post_id ): void {
 		wp_cache_delete(
-			CoAuthors\Cache\Store::coauthors_post_key( (int) $post_id ),
-			CoAuthors\Cache\Store::GROUP
+			\Automattic\CoAuthorsPlus\Cache\Keys::coauthors_post_key( (int) $post_id ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
 		);
 	}
 
@@ -2669,8 +2679,8 @@ class CoAuthors_Plus {
 		}
 
 		wp_cache_delete(
-			CoAuthors\Cache\Store::coauthors_post_key( (int) $object_id ),
-			CoAuthors\Cache\Store::GROUP
+			\Automattic\CoAuthorsPlus\Cache\Keys::coauthors_post_key( (int) $object_id ),
+			\Automattic\CoAuthorsPlus\Cache\Keys::GROUP
 		);
 
 	}

@@ -38,7 +38,7 @@ if ( ! $is_integration ) {
 	}
 
 	// Load cache infrastructure before unit tests instantiate legacy classes.
-	require_once dirname( __DIR__ ) . '/php/class-store.php';
+	require_once dirname( __DIR__ ) . '/php/cache/class-keys.php';
 
 	return;
 }

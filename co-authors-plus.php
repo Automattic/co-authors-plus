@@ -36,7 +36,7 @@ require_once __DIR__ . '/php/integrations/amp.php';
 require_once __DIR__ . '/php/integrations/yoast.php';
 require_once __DIR__ . '/php/integrations/class-wordpress-importer.php';
 require_once __DIR__ . '/php/integrations/class-jetpack-subscriber-emails.php';
-require_once __DIR__ . '/php/class-store.php';
+require_once __DIR__ . '/php/cache/class-keys.php';
 require_once __DIR__ . '/php/class-coauthors-plus.php';
 require_once __DIR__ . '/php/class-coauthors-iterator.php';
 

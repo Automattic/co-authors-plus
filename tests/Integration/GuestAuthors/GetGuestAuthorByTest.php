@@ -11,7 +11,7 @@ declare( strict_types=1 );
 namespace Automattic\CoAuthorsPlus\Tests\Integration\GuestAuthors;
 
 use Automattic\CoAuthorsPlus\Tests\Integration\TestCase;
-use CoAuthors\Cache\Store;
+use Automattic\CoAuthorsPlus\Cache\Keys;
 
 /**
  * @coversDefaultClass \CoAuthors_Guest_Authors
@@ -65,14 +65,14 @@ class GetGuestAuthorByTest extends TestCase {
 
 		$guest_author_id = $guest_author_obj->create_guest_author_from_user_id( $this->editor1->ID );
 
-		$cache_key = Store::guest_author_key( 'ID', $guest_author_id );
+		$cache_key = Keys::guest_author_key( 'ID', $guest_author_id );
 
 		// Checks when guest author does not exist in cache.
-		$this->assertFalse( wp_cache_get( $cache_key, Store::GROUP ) );
+		$this->assertFalse( wp_cache_get( $cache_key, Keys::GROUP ) );
 
 		// Checks when guest author exists in cache.
 		$guest_author        = $guest_author_obj->get_guest_author_by( 'ID', $guest_author_id );
-		$guest_author_cached = wp_cache_get( $cache_key, Store::GROUP );
+		$guest_author_cached = wp_cache_get( $cache_key, Keys::GROUP );
 
 		$this->assertInstanceOf( \stdClass::class, $guest_author );
 		$this->assertEquals( $guest_author, $guest_author_cached );
@@ -195,16 +195,16 @@ class GetGuestAuthorByTest extends TestCase {
 
 		$guest_author_obj = $coauthors_plus->guest_authors;
 
-		$cache_key = Store::all_linked_accounts_key();
+		$cache_key = Keys::all_linked_accounts_key();
 
 		// Checks when guest author does not exist in cache.
-		$this->assertFalse( wp_cache_get( $cache_key, Store::GROUP ) );
+		$this->assertFalse( wp_cache_get( $cache_key, Keys::GROUP ) );
 
 		// Checks when guest author exists in cache.
 		$guest_author_obj->create_guest_author_from_user_id( $this->editor1->ID );
 
 		$linked_accounts       = $guest_author_obj->get_all_linked_accounts();
-		$linked_accounts_cache = wp_cache_get( $cache_key, Store::GROUP );
+		$linked_accounts_cache = wp_cache_get( $cache_key, Keys::GROUP );
 
 		$this->assertEquals( $linked_accounts, $linked_accounts_cache );
 	}
