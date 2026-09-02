@@ -5,6 +5,7 @@ import {
 	buildCoauthorTermIds,
 	extractTermIds,
 	formatAuthorData,
+	needsPostIdFallback,
 } from '../utils';
 import { addFilter, removeFilter } from '@wordpress/hooks';
 import {
@@ -169,6 +170,42 @@ describe( 'Utility - extractTermIds', () => {
 		[ 'returns empty array for non-array input', 'not an array', [] ],
 	] )( '%s', ( _label, input, expected ) => {
 		expect( extractTermIds( input ) ).toStrictEqual( expected );
+	} );
+} );
+
+describe( 'Utility - needsPostIdFallback', () => {
+	it.each( [
+		[ 'term-ID array needs no fallback', [ 42, 43 ], false ],
+		[
+			'objects carrying term_id need no fallback',
+			[ { term_id: 5 } ],
+			false,
+		],
+		[
+			'objects with only user_id need the fallback',
+			[ { user_id: 8703 }, { user_id: 16 } ],
+			true,
+		],
+		[
+			'objects with only id or ID need the fallback',
+			[ { id: 5 }, { ID: 99 } ],
+			true,
+		],
+		[
+			'objects with no recognisable ID need the fallback',
+			[ { display_name: 'John Doe', user_nicename: 'john-doe' } ],
+			true,
+		],
+		[
+			'a partially resolvable list needs no fallback',
+			[ 42, { user_id: 1 } ],
+			false,
+		],
+		[ 'an empty array needs no fallback', [], false ],
+		[ 'undefined needs no fallback', undefined, false ],
+		[ 'a non-array needs no fallback', 'not an array', false ],
+	] )( '%s', ( _label, input, expected ) => {
+		expect( needsPostIdFallback( input ) ).toBe( expected );
 	} );
 } );
 
