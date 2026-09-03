@@ -36,9 +36,23 @@ jest.mock( '@wordpress/data', () => ( {
 	useDispatch: jest.fn(),
 } ) );
 
+/**
+ * Capture the props handed to AuthorsSelection.
+ *
+ * AuthorsSelection used to declare propTypes marking both props required and
+ * updateAuthors a function. Those two checks did fire, unlike the malformed
+ * arrayOf() element check beside them, and were removed with the rest of the
+ * block in #1387. They only ever guarded this one call site, so asserting the
+ * wiring here covers the same ground as a real test rather than a dev-only
+ * console warning.
+ */
+let selectionProps;
 jest.mock( '../components/author-selection', () => ( {
 	__esModule: true,
-	default: () => null,
+	default: ( props ) => {
+		selectionProps = props;
+		return null;
+	},
 } ) );
 
 jest.mock( '../hooks/use-coauthor-details', () => ( {
@@ -63,6 +77,7 @@ describe( 'CoAuthors author search', () => {
 	beforeEach( () => {
 		jest.useFakeTimers();
 		comboboxProps = undefined;
+		selectionProps = undefined;
 
 		apiFetch.mockResolvedValue( [] );
 		useDispatch.mockReturnValue( { editPost: jest.fn() } );
@@ -181,5 +196,46 @@ describe( 'CoAuthors author search', () => {
 		} );
 
 		expect( comboboxProps.options ).toStrictEqual( [] );
+	} );
+} );
+
+describe( 'CoAuthors selection wiring', () => {
+	beforeEach( () => {
+		selectionProps = undefined;
+		apiFetch.mockResolvedValue( [] );
+		useDispatch.mockReturnValue( { editPost: jest.fn() } );
+		// No co-authors in the store, so the assertion below is about the
+		// wiring alone. buildCoauthorTermIds() has its own tests for
+		// preserving term IDs the REST endpoint could not resolve.
+		useSelect.mockReturnValue( {
+			coauthorTermIdsKey: '',
+			hasResolvedPost: true,
+		} );
+	} );
+
+	afterEach( () => {
+		jest.clearAllMocks();
+	} );
+
+	it( 'hands AuthorsSelection both props it requires', async () => {
+		render( <CoAuthors /> );
+		await act( async () => {} );
+
+		expect( Array.isArray( selectionProps.selectedAuthors ) ).toBe( true );
+		expect( typeof selectionProps.updateAuthors ).toBe( 'function' );
+	} );
+
+	it( 'writes the edited byline through updateAuthors', async () => {
+		const editPost = jest.fn();
+		useDispatch.mockReturnValue( { editPost } );
+
+		render( <CoAuthors /> );
+		await act( async () => {} );
+
+		act( () => {
+			selectionProps.updateAuthors( [ { termId: 7 }, { termId: 8 } ] );
+		} );
+
+		expect( editPost ).toHaveBeenCalledWith( { coauthors: [ 7, 8 ] } );
 	} );
 } );
