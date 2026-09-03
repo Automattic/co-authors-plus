@@ -201,71 +201,55 @@ Feature: Author terms can be reassigned between co-authors
 		{ORPHAN_ID},orphan
 		"""
 
-	Scenario: Report empty results when no reassignment arguments are given
+	Scenario: Require either a mapping file or both term arguments
 		When I try `wp co-authors-plus reassign-terms`
-		Then the return code should be 0
-		And STDERR should contain:
+		Then STDERR should be:
 		"""
-		Warning: Undefined variable $authors_to_migrate
+		Error: Please specify either --author-mapping, or both --old_term and --new_term.
 		"""
-		And STDERR should contain:
-		"""
-		Warning: foreach() argument must be of type array|object, null given
-		"""
-		And STDOUT should contain:
-		"""
-		Reassignment complete. Here are your results:
-		- 0 authors were successfully reassigned terms
-		- 0 authors had their old term merged to their new term
-		- 0 authors were missing old terms
-		"""
+		And STDOUT should be empty
+		And the return code should be 1
 		When I try `wp co-authors-plus reassign-terms --old_term=olduser`
-		Then the return code should be 0
-		And STDERR should contain:
+		Then STDERR should be:
 		"""
-		Warning: Undefined variable $authors_to_migrate
+		Error: Please specify either --author-mapping, or both --old_term and --new_term.
 		"""
-		And STDOUT should contain:
-		"""
-		- 0 authors were successfully reassigned terms
-		"""
+		And the return code should be 1
 
-	Scenario: The documented --author-mapping flag is silently ignored
+	Scenario: Reassign terms from an --author-mapping file
 		When I run `wp user create olduser olduser@example.com --role=author`
 		And I run `wp co-authors-plus create-guest-authors`
-		And I try `wp co-authors-plus reassign-terms --author-mapping=features/fixtures/reassign-author-mapping.php`
-		Then the return code should be 0
-		And STDERR should contain:
-		"""
-		Warning: Undefined variable $authors_to_migrate
-		"""
-		And STDOUT should contain:
-		"""
-		Reassignment complete. Here are your results:
-		- 0 authors were successfully reassigned terms
-		- 0 authors had their old term merged to their new term
-		- 0 authors were missing old terms
-		"""
-		And STDOUT should not match /Converted/
-		When I run `wp term list author --field=slug`
+		And I run `wp term list author --field=slug`
 		Then STDOUT should be:
 		"""
 		cap-admin
 		cap-olduser
 		"""
-
-	Scenario: A nonexistent --author-mapping file does not trigger the documented error
-		When I try `wp co-authors-plus reassign-terms --author-mapping=features/fixtures/no-such-file.php`
-		Then the return code should be 0
-		And STDERR should not match /author_mapping doesn't exist/
-		And STDERR should contain:
+		When I run `wp co-authors-plus reassign-terms --author-mapping=features/fixtures/reassign-author-mapping.php`
+		Then STDOUT should be:
 		"""
-		Warning: Undefined variable $authors_to_migrate
-		"""
-		And STDOUT should contain:
-		"""
+		Success: Converted 'olduser' term to 'newuser'
 		Reassignment complete. Here are your results:
+		- 1 authors were successfully reassigned terms
+		- 0 authors had their old term merged to their new term
+		- 0 authors were missing old terms
 		"""
+		And the return code should be 0
+		When I run `wp term list author --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-admin
+		newuser
+		"""
+
+	Scenario: Report a missing --author-mapping file
+		When I try `wp co-authors-plus reassign-terms --author-mapping=features/fixtures/no-such-file.php`
+		Then STDERR should be:
+		"""
+		Error: --author-mapping file doesn't exist: features/fixtures/no-such-file.php
+		"""
+		And STDOUT should be empty
+		And the return code should be 1
 
 	Scenario: The underscore variant --author_mapping is rejected as an unknown parameter
 		When I try `wp co-authors-plus reassign-terms --author_mapping=features/fixtures/reassign-author-mapping.php`

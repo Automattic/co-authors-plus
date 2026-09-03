@@ -539,23 +539,31 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		global $coauthors_plus;
 
 		$defaults   = array(
-			'author_mapping' => null,
+			// WP-CLI supplies this under the hyphenated name given in the
+			// synopsis, so reading 'author_mapping' silently found nothing.
+			'author-mapping' => null,
 			'old_term'       => null,
 			'new_term'       => null,
 		);
 		$this->args = wp_parse_args( $assoc_args, $defaults );
 
-		$author_mapping = $this->args['author_mapping'];
+		$author_mapping = $this->args['author-mapping'];
 		$old_term       = $this->args['old_term'];
 		$new_term       = $this->args['new_term'];
+
+		$authors_to_migrate = array();
 
 		// Get the reassignment data
 		if ( $author_mapping && is_file( $author_mapping ) ) {
 			require_once $author_mapping;
+
+			if ( ! isset( $cli_user_map ) ) {
+				WP_CLI::error( 'Mapping file does not define $cli_user_map: ' . $author_mapping );
+			}
+
 			$authors_to_migrate = $cli_user_map;
 		} elseif ( $author_mapping ) {
-			WP_CLI::error( "author_mapping doesn't exist: " . $author_mapping );
-			exit;
+			WP_CLI::error( "--author-mapping file doesn't exist: " . $author_mapping );
 		}
 
 		// Alternate reassigment approach
@@ -563,6 +571,10 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			$authors_to_migrate = array(
 				$old_term => $new_term,
 			);
+		}
+
+		if ( empty( $authors_to_migrate ) ) {
+			WP_CLI::error( 'Please specify either --author-mapping, or both --old_term and --new_term.' );
 		}
 
 		// For each author to migrate, check whether the term exists,
