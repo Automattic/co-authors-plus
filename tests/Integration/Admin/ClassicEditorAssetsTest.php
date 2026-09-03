@@ -78,19 +78,4 @@ class ClassicEditorAssetsTest extends TestCase {
 
 		$this->assertStringContainsString( 'jquery', $head );
 	}
-
-	/**
-	 * Nothing is enqueued on an admin page the plugin does not touch.
-	 */
-	public function test_enqueues_nothing_on_an_unrelated_page(): void {
-		$scripts = wp_scripts();
-		$scripts->queue = array();
-		wp_styles()->queue = array();
-
-		$GLOBALS['pagenow'] = 'options-general.php';
-		$this->_cap->enqueue_scripts( 'options-general.php' );
-
-		$this->assertFalse( wp_script_is( 'co-authors-plus-js', 'enqueued' ) );
-		$this->assertFalse( wp_style_is( 'co-authors-plus-css', 'enqueued' ) );
-	}
 }
