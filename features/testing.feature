@@ -9,6 +9,8 @@
       Manage co-authors and guest authors.
       """
 
+  # Add every new subcommand here. This guard is what fails first if one stops
+  # being registered, so a command missing from the list is silently unguarded.
   Scenario: All expected subcommands remain registered
     Given a WP installation with the Co-Authors Plus plugin
 
@@ -48,6 +50,10 @@
     And STDOUT should contain:
       """
       delete-postmeta-that-skip-author-term-backfill
+      """
+    And STDOUT should contain:
+      """
+      list-authors
       """
     And STDOUT should contain:
       """
