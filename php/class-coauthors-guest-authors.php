@@ -1236,11 +1236,14 @@ class CoAuthors_Guest_Authors {
 	 * Gets a postmeta key by prefixing it with 'cap-'
 	 * if not yet prefixed
 	 *
+	 * The comparison is case-insensitive, so a key that already arrives as
+	 * 'CAP-foo' is left alone rather than becoming 'cap-CAP-foo'.
+	 *
 	 * @since 3.0
 	 */
 	public function get_post_meta_key( $key ) {
 
-		if ( 0 !== stripos( $key, 'cap-' ) ) {
+		if ( ! str_starts_with( strtolower( $key ), 'cap-' ) ) {
 			$key = 'cap-' . $key;
 		}
 
@@ -1261,7 +1264,7 @@ class CoAuthors_Guest_Authors {
 			case 'post_name':
 				$key = 'user_nicename';
 
-				if ( 0 === strpos( $value, 'cap-' ) ) {
+				if ( str_starts_with( $value, 'cap-' ) ) {
 					$value = substr( $value, 4 );
 				}
 

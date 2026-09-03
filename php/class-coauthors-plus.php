@@ -2155,7 +2155,7 @@ class CoAuthors_Plus {
 		$found_users = array();
 		foreach ( $found_terms as $found_term ) {
 			$found_user = $this->get_coauthor_by( 'user_nicename', $found_term->slug );
-			if ( ! $found_user && 0 === strpos( $found_term->slug, 'cap-cap-' ) ) {
+			if ( ! $found_user && str_starts_with( $found_term->slug, 'cap-cap-' ) ) {
 				// Account for guest author terms that start with 'cap-'.
 				// e.g. "Cap Ri" -> "cap-cap-ri".
 				$cap_slug   = substr( $found_term->slug, 4, strlen( $found_term->slug ) );
