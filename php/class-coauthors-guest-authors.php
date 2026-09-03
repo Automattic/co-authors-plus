@@ -53,9 +53,6 @@ class CoAuthors_Guest_Authors {
 		// Over-ride the author feed
 		add_filter( 'author_feed_link', array( $this, 'filter_author_feed_link' ), 10, 2 );
 
-		// Validate new guest authors
-		add_filter( 'wp_insert_post_empty_content', array( $this, 'filter_wp_insert_post_empty_content' ), 10, 2 );
-
 		// Add meta boxes for our guest author management interface
 		add_action( 'add_meta_boxes', array( $this, 'action_add_meta_boxes' ), 10, 2 );
 		add_action( 'wp_insert_post_data', array( $this, 'manage_guest_author_filter_post_data' ), 10, 2 );
@@ -1550,23 +1547,6 @@ class CoAuthors_Guest_Authors {
 
 		$retval = $this->create( $guest_author );
 		return $retval;
-	}
-
-	/**
-	 * Guest authors must have Display Names
-	 *
-	 * @since 3.0
-	 */
-	public function filter_wp_insert_post_empty_content( $maybe_empty, $postarr ) {
-
-		if ( $this->post_type != $postarr['post_type'] ) {
-			return $maybe_empty;
-		}
-
-		// Guest author posts store their data in post meta, not post_content/post_excerpt.
-		// Allow empty content so auto-drafts and new posts can be created.
-		// Display name validation is handled separately in manage_guest_author_filter_post_data().
-		return false;
 	}
 
 	/**

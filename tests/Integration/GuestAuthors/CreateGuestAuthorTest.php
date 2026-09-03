@@ -150,10 +150,11 @@ class CreateGuestAuthorTest extends TestCase {
 	/**
 	 * Checks that creating a guest author via the create() method works end-to-end.
 	 *
-	 * This exercises the full flow including the empty content filter.
+	 * Guest author posts have empty title/content (their data lives in post meta),
+	 * so this also guards that core does not reject them as "empty" — which holds
+	 * because the post type supports none of editor/title/excerpt.
 	 *
 	 * @covers CoAuthors_Guest_Authors::create()
-	 * @covers CoAuthors_Guest_Authors::filter_wp_insert_post_empty_content()
 	 */
 	public function test_create_guest_author_succeeds_with_display_name(): void {
 
