@@ -54,7 +54,7 @@ final class CoauthorsPostsLinksSingleTest extends TestCase {
 			'type'          => 'guest-author',
 		);
 
-		// The plugin('s) author_link filter builds the guest author's own archive URL.
+		// The plugin's author_link filter builds the guest author's own archive URL.
 		Functions\when( 'apply_filters' )->alias(
 			static fn( $tag, $value, ...$args ) => 'author_link' === $tag
 				? 'http://example.test/guests/guest-jane/'

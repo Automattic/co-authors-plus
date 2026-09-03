@@ -68,38 +68,79 @@ class CoauthorsPostsLinksTest extends TestCase {
 	}
 
 	/**
-	 * Test that co-author posts link is retrieved via coauthors_posts_links_single() but for multiple authors.
-	 */
-	/**
 	 * Test that a guest author byline links to the guest author archive rather
-	 * than the user who originally published the post.
+	 * than the user who originally published the post, with pretty permalinks.
+	 *
+	 * The plugin links guest authors via the author_name query argument, which
+	 * matches how guest author links are built elsewhere in the plugin.
 	 *
 	 * @see https://github.com/Automattic/co-authors-plus/issues/1351
 	 */
-	public function test_coauthors_posts_links_for_single_guest_author(): void {
+	public function test_coauthors_posts_links_for_single_guest_author_with_pretty_permalinks(): void {
+		$this->assert_single_guest_author_byline_links_to_guest_archive( '/%postname%/' );
+	}
+
+	/**
+	 * Test that a guest author byline links to the guest author archive rather
+	 * than the user who originally published the post, with plain permalinks.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1351
+	 */
+	public function test_coauthors_posts_links_for_single_guest_author_with_plain_permalinks(): void {
+		$this->assert_single_guest_author_byline_links_to_guest_archive( '' );
+	}
+
+	/**
+	 * Assert that a post whose single coauthor is a guest author renders a byline
+	 * pointing to the guest author's own archive, and not to the user who
+	 * originally published the post.
+	 *
+	 * The expected URL is built from the guest author's nicename directly rather
+	 * than by re-running the production author_link filter, so expected and actual
+	 * cannot share a source of truth.
+	 *
+	 * @param string $permalink_structure Permalink structure to test with.
+	 */
+	private function assert_single_guest_author_byline_links_to_guest_archive( string $permalink_structure ): void {
 		global $coauthors_plus;
 
-		$author       = $this->create_author();
-		$guest_author = $this->create_guest_author( 'guest_author' );
+		$this->set_permalink_structure( $permalink_structure );
+
+		$publisher    = $this->create_author( 'publisher-bob' );
+		$guest_author = $this->create_guest_author( 'jane-guest' );
 		$guest_object = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $guest_author );
-		$post         = $this->create_post( $author );
-		$GLOBALS['post'] = $post;
-		$coauthors_plus->add_coauthors( $post->ID, array( 'guest_author' ), true );
+		$post         = $this->create_post( $publisher );
+		$coauthors_plus->add_coauthors( $post->ID, array( 'jane-guest' ), false );
 
-		$expected = apply_filters( 'author_link', '', $guest_object->ID, $guest_object->user_nicename );
-		if ( empty( $expected ) ) {
-			$expected = get_author_posts_url( $guest_object->ID, $guest_object->user_nicename );
-		}
+		$coauthors = get_coauthors( $post->ID );
+		$this->assertCount( 1, $coauthors );
+		$this->assertIsGuestAuthorNotWpUser( $coauthors[0] );
+		$this->assertSame( 'jane-guest', $coauthors[0]->user_nicename );
 
-		$coauthors_posts_links = coauthors_posts_links( null, null, null, null, false );
+		// Simulate the frontend rendering of the byline from a fresh URL context.
+		$this->go_to( get_permalink( $post->ID ) );
 
-		$this->assertStringContainsString(
-			'href="' . $expected . '"',
-			$coauthors_posts_links,
+		// The plugin links guest authors through the author_name query argument,
+		// regardless of the site's permalink style.
+		$expected_href = add_query_arg( 'author_name', rawurlencode( $guest_object->user_nicename ), home_url() );
+
+		$byline = coauthors_posts_links( null, null, null, null, false );
+
+		$this->assertSame(
+			'<a href="' . $expected_href . '" title="Posts by jane-guest" class="author url fn" rel="author">jane-guest</a>',
+			$byline,
 			'Guest author post link does not point to the guest author archive.'
+		);
+		$this->assertStringNotContainsString(
+			'publisher-bob',
+			$byline,
+			'Byline must not link to the user who originally published the post.'
 		);
 	}
 
+	/**
+	 * Test that co-author posts link is retrieved via coauthors_posts_links_single() but for multiple authors.
+	 */
 	public function test_coauthors_posts_links_for_multiple_authors_with_amended_args(): void {
 		global $coauthors_plus;
 
