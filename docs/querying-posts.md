@@ -72,7 +72,11 @@ function my_coauthor_query( $query ) {
 add_action( 'elementor/query/my_coauthor_query', 'my_coauthor_query' );
 ```
 
-Use `author__in` in this callback so Co-Authors Plus recognizes the programmatic author query and includes co-author taxonomy matches. This uses Elementor's custom query integration and Co-Authors Plus' normal `WP_Query` behavior. Elementor configuration and available query controls depend on the Elementor version and widget. Co-Authors Plus does not add an Elementor-specific widget control.
+Use `author__in` in this callback so Co-Authors Plus recognizes the programmatic author query and includes co-author taxonomy matches.
+
+Why `author__in` here and not `author`: Co-Authors Plus checks two things when its SQL filters run. It checks whether WordPress set the `is_author` flag, which only happens during query parsing, and it checks whether `author__in` is a non-empty array. Elementor's hook runs on `pre_get_posts`, after parsing, so a late `author` no longer sets the `is_author` flag. WordPress still expands a non-empty `author` value into `author__in` before the SQL filters run, so a late `author` does trigger the rewrite through the multi-author path. `author__in` is the explicit form that Co-Authors Plus reads directly from the query vars, so use it for programmatic queries. Pass an array of integer IDs, because a string value does not pass the check.
+
+This uses Elementor's custom query integration and Co-Authors Plus' normal `WP_Query` behavior. Elementor configuration and available query controls depend on the Elementor version and widget. Co-Authors Plus does not add an Elementor-specific widget control.
 
 ## Guest authors and supported post types
 
@@ -94,7 +98,11 @@ Use `coauthors_plus_is_author_query` to opt a specific query out of the Co-Autho
 add_filter(
 	'coauthors_plus_is_author_query',
 	function ( $is_author_query, $query ) {
-		return false;
+		if ( 'my_plain_author_query' === $query->get( 'my_query_id' ) ) {
+			return false;
+		}
+
+		return $is_author_query;
 	},
 	10,
 	2
