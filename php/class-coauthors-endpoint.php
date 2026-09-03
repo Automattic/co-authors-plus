@@ -22,6 +22,7 @@ class Endpoints {
 	const SEARCH_ROUTE          = 'search';
 	const AUTHORS_ROUTE         = 'authors';
 	const AUTHORS_BY_TERMS_ROUTE = 'authors-by-term-ids';
+	const GUEST_AUTHORS_ROUTE   = 'guest-authors';
 
 	/**
 	 * Link to remove from REST response to manage core author visibility in
@@ -146,6 +147,49 @@ class Endpoints {
 				),
 			)
 		);
+
+		register_rest_route(
+			static::NS,
+			static::GUEST_AUTHORS_ROUTE,
+			array(
+				array(
+					'methods'             => 'POST',
+					'callback'            => array( $this, 'create_guest_author' ),
+					'permission_callback' => array( $this, 'can_edit_coauthors' ),
+					'args'                => array(
+						'display_name' => array(
+							'description'       => __( 'Display name for the new guest author.', 'co-authors-plus' ),
+							'type'              => 'string',
+							'required'          => true,
+							'sanitize_callback' => static function ( $value ) {
+								$value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', (string) $value );
+
+								return sanitize_text_field( $value );
+							},
+						),
+						'user_email'   => array(
+							'description'       => __( 'Optional email address for the new guest author.', 'co-authors-plus' ),
+							'type'              => 'string',
+							'required'          => false,
+							'sanitize_callback' => 'sanitize_text_field',
+							'validate_callback' => static function ( $value ) {
+								$email = trim( (string) $value );
+								if ( '' === $email ) {
+									return true;
+								}
+								return is_email( $email );
+							},
+						),
+						'user_login'   => array(
+							'description'       => __( 'Optional login/slug. Derived from display_name when empty.', 'co-authors-plus' ),
+							'type'              => 'string',
+							'required'          => false,
+							'sanitize_callback' => 'sanitize_text_field',
+						),
+					),
+				),
+			)
+		);
 	}
 
 	/**
@@ -210,6 +254,101 @@ class Endpoints {
 		}
 
 		return rest_ensure_response( $response );
+	}
+
+	/**
+	 * Create a new guest author.
+	 *
+	 * Thin REST wrapper around CoAuthors_Guest_Authors::create(). Derives
+	 * user_login from display_name when not supplied. Returns the formatted
+	 * author data on success, or the underlying WP_Error on failure so the
+	 * block-editor modal can surface the message.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return WP_REST_Response|WP_Error
+	 */
+	public function create_guest_author( $request ) {
+		if ( ! $this->coauthors->is_guest_authors_enabled() || ! isset( $this->coauthors->guest_authors ) ) {
+			return new WP_Error(
+				'guest-authors-disabled',
+				__( 'Guest authors are disabled.', 'co-authors-plus' ),
+				array( 'status' => 404 )
+			);
+		}
+
+		$display_name = trim( (string) $request->get_param( 'display_name' ) );
+		$user_email   = trim( (string) $request->get_param( 'user_email' ) );
+		$user_login   = trim( (string) $request->get_param( 'user_login' ) );
+
+		if ( '' === $user_login ) {
+			$user_login = sanitize_user( sanitize_title( remove_accents( $display_name ) ) );
+			if ( '' === $user_login ) {
+				$user_login = 'guest-author';
+			}
+		}
+
+		$args = array(
+			'display_name' => $display_name,
+			'user_login'   => $user_login,
+		);
+
+		if ( '' !== $user_email ) {
+			$args['user_email'] = $user_email;
+		}
+
+		$post_id = $this->coauthors->guest_authors->create( $args );
+
+		if ( is_wp_error( $post_id ) ) {
+			return $this->map_create_error_status( $post_id );
+		}
+
+		$author = $this->coauthors->get_coauthor_by( 'ID', $post_id );
+
+		if ( ! $author ) {
+			return new WP_Error(
+				'guest-author-not-loaded',
+				__( 'Guest author was created but could not be loaded.', 'co-authors-plus' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		$formatted = $this->_format_author_data( $author );
+
+		if ( null === $formatted ) {
+			return new WP_Error(
+				'guest-author-format-failed',
+				__( 'Guest author was created but could not be formatted.', 'co-authors-plus' ),
+				array( 'status' => 500 )
+			);
+		}
+
+		return rest_ensure_response( $formatted );
+	}
+
+	/**
+	 * Map error codes from CoAuthors_Guest_Authors::create() to REST HTTP statuses.
+	 *
+	 * Without this, raw WP_Error returns would be served as HTTP 500 by the REST
+	 * server, even for client errors like blank names or duplicate logins.
+	 *
+	 * @param WP_Error $error Error returned from create().
+	 * @return WP_Error Error with 'status' data set where appropriate.
+	 */
+	private function map_create_error_status( \WP_Error $error ): \WP_Error {
+		$code = $error->get_error_code();
+		$status = 500;
+
+		if ( 'field-required' === $code ) {
+			$status = 400;
+		} elseif ( 'duplicate-field' === $code ) {
+			$status = 409;
+		}
+
+		if ( 500 !== $status ) {
+			$error->add_data( array( 'status' => $status ), $code );
+		}
+
+		return $error;
 	}
 
 	/**
