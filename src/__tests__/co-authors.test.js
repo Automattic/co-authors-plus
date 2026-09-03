@@ -134,4 +134,52 @@ describe( 'CoAuthors author search', () => {
 			method: 'GET',
 		} );
 	} );
+
+	it( 'offers the search results as formatted dropdown options', async () => {
+		await renderPanel();
+
+		apiFetch.mockResolvedValue( [
+			{
+				id: 5,
+				termId: 42,
+				displayName: 'Ada Lovelace',
+				userNicename: 'ada',
+				email: 'ada@example.com',
+				userType: 'wpuser',
+			},
+		] );
+
+		act( () => {
+			comboboxProps.onFilterValueChange( 'ada' );
+		} );
+
+		await act( async () => {
+			jest.advanceTimersByTime( 500 );
+		} );
+
+		expect( comboboxProps.options ).toStrictEqual( [
+			{
+				id: 5,
+				termId: 42,
+				label: 'Ada Lovelace | ada@example.com',
+				display: 'Ada Lovelace',
+				value: 'ada',
+				userType: 'wpuser',
+			},
+		] );
+	} );
+
+	it( 'empties the dropdown when the search matches nobody', async () => {
+		await renderPanel();
+
+		act( () => {
+			comboboxProps.onFilterValueChange( 'nobody' );
+		} );
+
+		await act( async () => {
+			jest.advanceTimersByTime( 500 );
+		} );
+
+		expect( comboboxProps.options ).toStrictEqual( [] );
+	} );
 } );
