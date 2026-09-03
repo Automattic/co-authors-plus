@@ -528,28 +528,46 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * for authors have changed. During the import process, 'author' terms will be
 	 * created with the old user_login value. We can use this to migrate to the new user_login
 	 *
+	 * Supply either --author-mapping, or both --old-term and --new-term. The
+	 * underscored --old_term and --new_term are deprecated aliases, still
+	 * accepted but reporting a notice.
+	 *
 	 * @todo support reassigning by CSV
 	 *
 	 * @since 3.0
 	 *
 	 * @subcommand reassign-terms
-	 * @synopsis [--author-mapping=<file>] [--old_term=<slug>] [--new_term=<slug>]
+	 * @synopsis [--author-mapping=<file>] [--old-term=<slug>] [--new-term=<slug>] [--old_term=<slug>] [--new_term=<slug>]
 	 */
 	public function reassign_terms( $args, $assoc_args ): void {
 		global $coauthors_plus;
 
 		$defaults   = array(
-			// WP-CLI supplies this under the hyphenated name given in the
-			// synopsis, so reading 'author_mapping' silently found nothing.
+			// WP-CLI supplies these under the hyphenated names given in the
+			// synopsis, so reading underscored keys silently found nothing.
 			'author-mapping' => null,
+			'old-term'       => null,
+			'new-term'       => null,
 			'old_term'       => null,
 			'new_term'       => null,
 		);
 		$this->args = wp_parse_args( $assoc_args, $defaults );
 
 		$author_mapping = $this->args['author-mapping'];
-		$old_term       = $this->args['old_term'];
-		$new_term       = $this->args['new_term'];
+		$old_term       = $this->args['old-term'];
+		$new_term       = $this->args['new-term'];
+
+		// --old_term and --new_term predate the hyphenated spellings and are
+		// kept working for existing scripts.
+		if ( null !== $this->args['old_term'] ) {
+			WP_CLI::warning( 'The --old_term flag is deprecated; use --old-term instead.' );
+			$old_term = $old_term ?? $this->args['old_term'];
+		}
+
+		if ( null !== $this->args['new_term'] ) {
+			WP_CLI::warning( 'The --new_term flag is deprecated; use --new-term instead.' );
+			$new_term = $new_term ?? $this->args['new_term'];
+		}
 
 		$authors_to_migrate = array();
 
@@ -574,7 +592,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		}
 
 		if ( empty( $authors_to_migrate ) ) {
-			WP_CLI::error( 'Please specify either --author-mapping, or both --old_term and --new_term.' );
+			WP_CLI::error( 'Please specify either --author-mapping, or both --old-term and --new-term.' );
 		}
 
 		// For each author to migrate, check whether the term exists,
@@ -688,7 +706,8 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * Swap one co-author with another on all posts for which they are a co-author. Unlike rename-coauthor,
 	 * this leaves the original co-author term intact and works when the 'to' user already has a co-author term.
 	 *
-	 * Pass --dry-run to preview the swap without writing anything.
+	 * Pass --dry-run to preview the swap without writing anything. --dry is a
+	 * deprecated alias for it, still accepted but reporting a notice.
 	 *
 	 * @subcommand swap-coauthors
 	 * @synopsis --from=<user-login> --to=<user-login> [--post_type=<ptype>] [--dry-run] [--dry]

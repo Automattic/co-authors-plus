@@ -215,6 +215,10 @@ PHP 8.4) rather than inferred from reading the source.
   The defaults and the read now use the hyphenated key WP-CLI actually
   supplies, so the file is loaded, and a missing file reports an error and
   exits non-zero.
+- The flag naming in this command was mixed: `--author-mapping` hyphenated
+  alongside `--old_term`/`--new_term` underscored, which is what invited the
+  key-mismatch bug above. `--old-term` and `--new-term` are now the documented
+  spellings; the underscored forms still work but report a deprecation notice.
 - ~~When neither a usable mapping nor `--old_term`/`--new_term` is supplied,
   `$authors_to_migrate` is never defined, so the `foreach` raises PHP warnings
   on PHP 8+ — yet the command still prints a zero-count summary and exits

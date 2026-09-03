@@ -7,7 +7,7 @@ Feature: Author terms can be reassigned between co-authors
 	Scenario: Rename an old term when the new term does not exist yet
 		When I run `wp user create olduser olduser@example.com --role=author`
 		And I run `wp co-authors-plus create-guest-authors`
-		And I run `wp co-authors-plus reassign-terms --old_term=olduser --new_term=newuser`
+		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term=newuser`
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
@@ -30,7 +30,7 @@ Feature: Author terms can be reassigned between co-authors
 		cap-admin
 		cap-olduser
 		"""
-		When I run `wp co-authors-plus reassign-terms --old_term=olduser --new_term=newuser`
+		When I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term=newuser`
 		Then STDOUT should be:
 		"""
 		Error: Term 'olduser' doesn't exist, skipping
@@ -53,7 +53,7 @@ Feature: Author terms can be reassigned between co-authors
 		And I run `wp post create --post_title="Shared post" --post_status=publish --porcelain`
 		And save STDOUT as {POST_ID}
 		And I run `wp post term add {POST_ID} author cap-olduser`
-		And I run `wp co-authors-plus reassign-terms --old_term=olduser --new_term=newuser`
+		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term=newuser`
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
@@ -88,7 +88,7 @@ Feature: Author terms can be reassigned between co-authors
 		And I run `wp post create --post_title="Owned post" --post_status=publish --porcelain`
 		And save STDOUT as {POST_ID}
 		And I run `wp post term add {POST_ID} author cap-olduser`
-		And I run `wp co-authors-plus reassign-terms --old_term=olduser --new_term=olduser`
+		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term=olduser`
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
@@ -107,12 +107,12 @@ Feature: Author terms can be reassigned between co-authors
 		cap-admin
 		"""
 
-	Scenario: A numeric --new_term is resolved to that user's login
+	Scenario: A numeric --new-term is resolved to that user's login
 		When I run `wp user create olduser olduser@example.com --role=author`
 		And I run `wp co-authors-plus create-guest-authors`
 		And I run `wp user create newuser newuser@example.com --role=author --porcelain`
 		And save STDOUT as {NEWUSER_ID}
-		And I run `wp co-authors-plus reassign-terms --old_term=olduser --new_term={NEWUSER_ID}`
+		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term={NEWUSER_ID}`
 		Then STDOUT should be:
 		"""
 		Success: Converted 'olduser' term to 'newuser'
@@ -128,10 +128,10 @@ Feature: Author terms can be reassigned between co-authors
 		newuser
 		"""
 
-	Scenario: A numeric --new_term for an unknown user id is not resolved
+	Scenario: A numeric --new-term for an unknown user id is not resolved
 		When I run `wp user create olduser olduser@example.com --role=author`
 		And I run `wp co-authors-plus create-guest-authors`
-		And I try `wp co-authors-plus reassign-terms --old_term=olduser --new_term=999999`
+		And I try `wp co-authors-plus reassign-terms --old-term=olduser --new-term=999999`
 		Then the return code should be 0
 		And STDERR should contain:
 		"""
@@ -153,7 +153,7 @@ Feature: Author terms can be reassigned between co-authors
 		And I run `wp co-authors-plus create-guest-authors`
 		And I run `wp term create author newuser --porcelain`
 		And save STDOUT as {EXISTING_ID}
-		And I run `wp co-authors-plus reassign-terms --old_term=olduser --new_term=newuser`
+		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term=newuser`
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
@@ -172,7 +172,7 @@ Feature: Author terms can be reassigned between co-authors
 		"""
 
 	Scenario: A missing old term is reported and skipped without an error exit
-		When I run `wp co-authors-plus reassign-terms --old_term=ghost --new_term=whatever`
+		When I run `wp co-authors-plus reassign-terms --old-term=ghost --new-term=whatever`
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
@@ -184,7 +184,7 @@ Feature: Author terms can be reassigned between co-authors
 		"""
 		When I run `wp term create author orphan --porcelain`
 		And save STDOUT as {ORPHAN_ID}
-		And I run `wp co-authors-plus reassign-terms --old_term=orphan --new_term=whatever`
+		And I run `wp co-authors-plus reassign-terms --old-term=orphan --new-term=whatever`
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
@@ -205,14 +205,14 @@ Feature: Author terms can be reassigned between co-authors
 		When I try `wp co-authors-plus reassign-terms`
 		Then STDERR should be:
 		"""
-		Error: Please specify either --author-mapping, or both --old_term and --new_term.
+		Error: Please specify either --author-mapping, or both --old-term and --new-term.
 		"""
 		And STDOUT should be empty
 		And the return code should be 1
-		When I try `wp co-authors-plus reassign-terms --old_term=olduser`
+		When I try `wp co-authors-plus reassign-terms --old-term=olduser`
 		Then STDERR should be:
 		"""
-		Error: Please specify either --author-mapping, or both --old_term and --new_term.
+		Error: Please specify either --author-mapping, or both --old-term and --new-term.
 		"""
 		And the return code should be 1
 
@@ -250,6 +250,28 @@ Feature: Author terms can be reassigned between co-authors
 		"""
 		And STDOUT should be empty
 		And the return code should be 1
+
+	Scenario: Accept the deprecated --old_term and --new_term flags with a notice
+		When I run `wp user create olduser olduser@example.com --role=author`
+		And I run `wp co-authors-plus create-guest-authors`
+		And I run `wp co-authors-plus reassign-terms --old_term=olduser --new_term=newuser`
+		Then STDOUT should be:
+		"""
+		Warning: The --old_term flag is deprecated; use --old-term instead.
+		Warning: The --new_term flag is deprecated; use --new-term instead.
+		Success: Converted 'olduser' term to 'newuser'
+		Reassignment complete. Here are your results:
+		- 1 authors were successfully reassigned terms
+		- 0 authors had their old term merged to their new term
+		- 0 authors were missing old terms
+		"""
+		And the return code should be 0
+		When I run `wp term list author --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-admin
+		newuser
+		"""
 
 	Scenario: The underscore variant --author_mapping is rejected as an unknown parameter
 		When I try `wp co-authors-plus reassign-terms --author_mapping=features/fixtures/reassign-author-mapping.php`
