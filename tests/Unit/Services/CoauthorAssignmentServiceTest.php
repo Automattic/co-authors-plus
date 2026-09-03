@@ -124,10 +124,11 @@ final class CoauthorAssignmentServiceTest extends TestCase {
 	}
 
 	/**
-	 * add_coauthors() returns false when it replaces a byline that resolves to
-	 * no WordPress user, which is every byline of guest authors without linked
-	 * accounts, despite having written the terms. Reporting that as "unchanged"
-	 * made an import claim it had linked nothing while the terms were there.
+	 * A false return from add_coauthors() does not mean nothing changed. It
+	 * returns false when it replaces a byline that resolves to no WordPress
+	 * user, which is every byline of guest authors without linked accounts,
+	 * despite having written the terms. Reporting that as "unchanged" made an
+	 * import claim it had linked nothing while the terms were there.
 	 */
 	public function test_it_reports_a_change_even_when_add_coauthors_returns_false(): void {
 		list( $service, $coauthors_plus ) = $this->service();
