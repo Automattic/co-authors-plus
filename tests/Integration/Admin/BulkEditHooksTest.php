@@ -70,9 +70,13 @@ class BulkEditHooksTest extends TestCase {
 	public function test_bulk_edit_assigns_coauthors_to_each_selected_post(): void {
 		wp_set_current_user( $this->create_editor( 'bulk_editor' )->ID );
 
+		// One owner for both posts: create_post() would otherwise call
+		// create_author() twice with its default login and get a WP_Error back
+		// for the duplicate.
+		$owner    = $this->create_author( 'bulk_owner' );
 		$coauthor = $this->create_author( 'bulk_coauthor' );
-		$first    = $this->create_post();
-		$second   = $this->create_post();
+		$first    = $this->create_post( $owner );
+		$second   = $this->create_post( $owner );
 
 		$this->_cap->action_bulk_edit_update_coauthors(
 			array(),
