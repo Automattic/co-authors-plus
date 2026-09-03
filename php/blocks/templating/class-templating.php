@@ -28,18 +28,6 @@ class Templating {
 	}
 
 	/**
-	 * Render Self Closing Element
-	 *
-	 * @since 3.6.0
-	 * @param string      $name
-	 * @param null|string $attributes
-	 * @return string
-	 */
-	public static function render_self_closing_element( string $name, ?string $attributes = '' ): string {
-		return "<{$name} $attributes/>";
-	}
-
-	/**
 	 * Render Attribute String
 	 *
 	 * @since 3.6.0
