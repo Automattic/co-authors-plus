@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 WP_CLI::add_command( 'co-authors-plus', 'CoAuthorsPlus_Command' );
 
+use CoAuthors\Prefix;
+
 class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 	const SKIP_POST_FOR_BACKFILL_META_KEY = '_cap_skip_backfill';
@@ -667,7 +669,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		$assoc_args = array_merge( $defaults, $assoc_args );
 
 		$to_userlogin          = $assoc_args['to'];
-		$to_userlogin_prefixed = 'cap-' . $to_userlogin;
+		$to_userlogin_prefixed = Prefix::prefix_slug( $to_userlogin );
 
 		$orig_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $assoc_args['from'] );
 		if ( ! $orig_coauthor ) {
@@ -694,7 +696,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		if ( 'guest-author' == $orig_coauthor->type ) {
 			$wpdb->update( $wpdb->posts, array( 'post_name' => $to_userlogin_prefixed ), array( 'ID' => $orig_coauthor->ID ) );
 			clean_post_cache( $orig_coauthor->ID );
-			update_post_meta( $orig_coauthor->ID, 'cap-user_login', $to_userlogin );
+			update_post_meta( $orig_coauthor->ID, Prefix::ensure_meta_key_prefix( 'user_login' ), $to_userlogin );
 			$coauthors_plus->guest_authors->delete_guest_author_cache( $orig_coauthor->ID );
 			WP_CLI::log( 'Updated guest author profile value too' );
 		}
@@ -760,7 +762,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		$from_userlogin = $orig_coauthor->user_login;
 		$to_userlogin   = $to_coauthor->user_login;
 
-		$from_userlogin_prefixed = 'cap-' . $from_userlogin;
+		$from_userlogin_prefixed = Prefix::prefix_slug( $from_userlogin );
 
 		// Swapping a co-author with themselves would remove the term and add it
 		// straight back, so the loop below would never drain.
@@ -1011,12 +1013,12 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		WP_CLI::log( 'Now migrating up to ' . count( $author_terms ) . ' terms' );
 		foreach ( $author_terms as $author_term ) {
 			// Term is already prefixed. We're good.
-			if ( preg_match( '#^cap\-#', $author_term->slug, $matches ) ) {
+			if ( Prefix::slug_has_prefix( $author_term->slug ) ) {
 				WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) is already prefixed, skipping" );
 				continue;
 			}
 			// A prefixed term was accidentally created, and the old term needs to be merged into the new (WordPress.com VIP)
-			if ( $prefixed_term = get_term_by( 'slug', 'cap-' . $author_term->slug, $coauthors_plus->coauthor_taxonomy ) ) {
+			if ( $prefixed_term = get_term_by( 'slug', Prefix::prefix_slug( $author_term->slug ), $coauthors_plus->coauthor_taxonomy ) ) {
 				WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) has a new term too: $prefixed_term->slug ($prefixed_term->term_id). Merging" );
 				$args = array(
 					'default'       => $author_term->term_id,
@@ -1028,7 +1030,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			// Term isn't prefixed, doesn't have a sibling, and should be updated
 			WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) isn't prefixed, adding one" );
 			$args = array(
-				'slug' => 'cap-' . $author_term->slug,
+				'slug' => Prefix::prefix_slug( $author_term->slug ),
 			);
 			wp_update_term( $author_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
 		}
