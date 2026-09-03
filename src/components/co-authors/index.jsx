@@ -138,14 +138,9 @@ const CoAuthors = () => {
 				path: `/coauthors/v1/search/?q=${ query }&existing_authors=${ existingAuthors }`,
 				method: 'GET',
 			} );
-			const formattedAuthors = ( ( items ) => {
-				if ( items.length > 0 ) {
-					return items.map( ( item ) => formatAuthorData( item ) );
-				}
-				return [];
-			} )( response );
-
-			setDropdownOptions( formattedAuthors );
+			setDropdownOptions(
+				response.map( ( item ) => formatAuthorData( item ) )
+			);
 		} catch ( error ) {
 			console.log( error ); // eslint-disable-line no-console
 		}
