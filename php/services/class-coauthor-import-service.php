@@ -103,7 +103,10 @@ class Coauthor_Import_Service {
 		if ( $guest_author ) {
 			++$summary['authors_skipped'];
 		} elseif ( $skip_create ) {
-			++$summary['authors_skipped'];
+			// Deliberately not counted as skipped: that count is reported as
+			// profiles that already existed, and this one did not. The missing
+			// profile is reported against each post it cannot be linked to.
+			$summary['warnings'][] = sprintf( 'No profile for "%s" and --skip-create was given.', $user_login );
 		} elseif ( $dry_run ) {
 			++$summary['authors_created'];
 		} else {

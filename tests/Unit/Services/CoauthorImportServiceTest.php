@@ -227,7 +227,9 @@ final class CoauthorImportServiceTest extends TestCase {
 			true
 		);
 
-		$this->assertSame( 1, $summary['authors_skipped'] );
+		// Not counted as skipped: that count is reported to the operator as
+		// profiles that already existed, and this one did not.
+		$this->assertSame( 0, $summary['authors_skipped'] );
 		$this->assertSame( 0, $summary['authors_created'] );
 		$this->assertNotEmpty( $summary['warnings'] );
 	}
