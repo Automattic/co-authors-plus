@@ -75,6 +75,31 @@ describe( 'Utility - moveItem', () => {
 			selectedAuthors[ 3 ],
 		] );
 	} );
+
+	it( 'should not mutate the array it was given', () => {
+		const original = [ ...selectedAuthors ];
+
+		moveItem( selectedAuthors[ 0 ], selectedAuthors, 'down' );
+
+		expect( selectedAuthors ).toStrictEqual( original );
+	} );
+
+	it.each( [
+		[ 'the first item up', 0, 'up' ],
+		[ 'the last item down', 3, 'down' ],
+	] )( 'should leave the order alone when moving %s', ( _label, i, dir ) => {
+		// Moving off either end has no meaningful answer. Splicing at -1 used
+		// to wrap the first item round to second-from-last instead.
+		expect(
+			moveItem( selectedAuthors[ i ], selectedAuthors, dir )
+		).toStrictEqual( selectedAuthors );
+	} );
+
+	it( 'should leave the order alone for an item that is not in the list', () => {
+		expect(
+			moveItem( { value: 'nobody' }, selectedAuthors, 'down' )
+		).toStrictEqual( selectedAuthors );
+	} );
 } );
 
 describe( 'Utility - removeItem', () => {
