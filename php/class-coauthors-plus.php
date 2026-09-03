@@ -980,18 +980,37 @@ class CoAuthors_Plus {
 	}
 
 	/**
+	 * Whether a query's post type participates in the co-author taxonomy.
+	 *
+	 * The SQL filters below rewrite author queries to read co-author terms
+	 * instead of `post_author`. That rewrite only makes sense for post types
+	 * the `author` taxonomy is registered against, so each filter checks this
+	 * before touching the clause it was handed.
+	 *
+	 * An empty post type is treated as participating, because WordPress has
+	 * not narrowed the query to anything the taxonomy could exclude.
+	 *
+	 * @param WP_Query $query The query being filtered.
+	 * @return bool Whether the query's post type supports co-authors.
+	 */
+	protected function query_targets_coauthor_taxonomy( WP_Query $query ): bool {
+		$post_type = $query->query_vars['post_type'];
+
+		if ( 'any' === $post_type ) {
+			$post_type = get_post_types( array( 'exclude_from_search' => false ) );
+		}
+
+		return empty( $post_type ) || is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy );
+	}
+
+	/**
 	 * Modify the author query posts SQL to include posts co-authored
 	 */
 	public function posts_join_filter( $join, $query ) {
 		global $wpdb;
 
 		if ( $this->is_author_query( $query ) ) {
-			$post_type = $query->query_vars['post_type'];
-			if ( 'any' === $post_type ) {
-				$post_type = get_post_types( array( 'exclude_from_search' => false ) );
-			}
-
-			if ( ! empty( $post_type ) && ! is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy ) ) {
+			if ( ! $this->query_targets_coauthor_taxonomy( $query ) ) {
 				return $join;
 			}
 
@@ -1057,12 +1076,7 @@ class CoAuthors_Plus {
 			if ( ! empty( $author_ids ) && ( ! $query->is_author() || count( $author_ids ) > 1 ) ) {
 				return $this->posts_where_filter_multi_author( $where, $query );
 			}
-			$post_type = $query->query_vars['post_type'];
-			if ( 'any' === $post_type ) {
-				$post_type = get_post_types( array( 'exclude_from_search' => false ) );
-			}
-
-			if ( ! empty( $post_type ) && ! is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy ) ) {
+			if ( ! $this->query_targets_coauthor_taxonomy( $query ) ) {
 				return $where;
 			}
 
@@ -1227,12 +1241,7 @@ class CoAuthors_Plus {
 	protected function posts_where_filter_multi_author( string $where, WP_Query $query ): string {
 		global $wpdb;
 
-		$post_type = $query->query_vars['post_type'];
-		if ( 'any' === $post_type ) {
-			$post_type = get_post_types( array( 'exclude_from_search' => false ) );
-		}
-
-		if ( ! empty( $post_type ) && ! is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy ) ) {
+		if ( ! $this->query_targets_coauthor_taxonomy( $query ) ) {
 			return $where;
 		}
 
@@ -1288,11 +1297,7 @@ class CoAuthors_Plus {
 		global $wpdb;
 
 		if ( $this->is_author_query( $query ) ) {
-			$post_type = $query->query_vars['post_type'];
-			if ( 'any' === $post_type ) {
-				$post_type = get_post_types( array( 'exclude_from_search' => false ) );
-			}
-			if ( ! empty( $post_type ) && ! is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy ) ) {
+			if ( ! $this->query_targets_coauthor_taxonomy( $query ) ) {
 				return $groupby;
 			}
 
