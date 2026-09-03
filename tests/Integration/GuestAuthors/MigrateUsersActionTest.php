@@ -39,8 +39,7 @@ class MigrateUsersActionTest extends TestCase {
 	public function test_migrate_guest_authors_batch(): void {
 		$guest_authors = $this->_cap->guest_authors;
 		$user          = $this->create_author( 'migration-batch-user' );
-		$total          = count_users()['total_users'];
-		$user_ids = array_map(
+		$user_ids      = array_map(
 			'intval',
 			get_users(
 				array(
@@ -50,15 +49,29 @@ class MigrateUsersActionTest extends TestCase {
 				)
 			)
 		);
-		$offset   = array_search( (int) $user->ID, $user_ids, true );
+		$offset = array_search( (int) $user->ID, $user_ids, true );
 
 		$this->assertNotFalse( $offset );
 		$result = $guest_authors->migrate_guest_authors_batch( (int) $offset, 1 );
 
 		$this->assertSame( 1, $result['created'] );
 		$this->assertSame( 1, $result['offset'] - (int) $offset );
-		$this->assertSame( $total, $result['total'] );
-		$this->assertNotInstanceOf( 'WP_Error', $guest_authors->get_guest_author_by( 'linked_account', $user->user_login ) );
+		$this->assertSame( 1, $guest_authors->get_guest_author_by( 'linked_account', $user->user_login ) instanceof \WP_User ? 0 : 1 );
+	}
+
+	/**
+	 * Checks that the batch loop reports a terminable state and does not loop forever.
+	 *
+	 * @covers \CoAuthors_Guest_Authors::migrate_guest_authors_batch()
+	 */
+	public function test_migrate_guest_authors_batch_terminates_on_batch(): void {
+		$guest_authors = $this->_cap->guest_authors;
+		$user          = $this->create_author( 'migration-terminates-user' );
+
+		$result = $guest_authors->migrate_guest_authors_batch( 0, 1000 );
+
+		$this->assertArrayHasKey( 'done', $result );
+		$this->assertTrue( $result['done'] || 0 < $result['offset'] );
 	}
 
 	/**

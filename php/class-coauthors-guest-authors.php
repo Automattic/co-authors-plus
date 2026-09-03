@@ -529,14 +529,52 @@ class CoAuthors_Guest_Authors {
 				)
 			);
 		} elseif ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'migrate-users-to-guest-authors' === $_GET['page'] ) {
-			wp_enqueue_script( 'coauthors-plus-migrate-users', plugins_url( 'js/co-authors-plus-migrate-users.js', __DIR__ ), array( 'jquery' ), COAUTHORS_PLUS_VERSION, true );
+			$asset_file = dirname( COAUTHORS_PLUS_FILE ) . '/build/migrate-users.asset.php';
+
+			if ( file_exists( $asset_file ) ) {
+				$asset = require $asset_file;
+
+				wp_register_script(
+					'coauthors-plus-migrate-users',
+					plugins_url( 'build/migrate-users.js', COAUTHORS_PLUS_FILE ),
+					$asset['dependencies'],
+					$asset['version'],
+					true
+				);
+			} else {
+				wp_register_script(
+					'coauthors-plus-migrate-users',
+					plugins_url( 'build/migrate-users.js', COAUTHORS_PLUS_FILE ),
+					array(),
+					COAUTHORS_PLUS_VERSION,
+					true
+				);
+			}
+
+			wp_set_script_translations(
+				'coauthors-plus-migrate-users',
+				'co-authors-plus',
+				dirname( COAUTHORS_PLUS_FILE ) . '/languages'
+			);
+			wp_enqueue_script( 'coauthors-plus-migrate-users' );
 			wp_localize_script(
 				'coauthors-plus-migrate-users',
 				'coAuthorsMigrateUsers',
 				array(
-					'url'    => admin_url( 'admin-post.php' ),
-					'action' => 'cap_migrate_guest_authors',
-					'nonce'  => wp_create_nonce( 'cap_migrate_guest_authors' ),
+					'url'             => admin_url( 'admin-post.php' ),
+					'action'          => 'cap_migrate_guest_authors',
+					'nonce'           => wp_create_nonce( 'cap_migrate_guest_authors' ),
+					'createdMessage'  => __( 'Guest author profiles were created for all eligible users.', 'co-authors-plus' ),
+					'remainingMessage' => sprintf(
+						/* translators: %d: number of users left to process. */
+						_n(
+							'%d user remaining.',
+							'%d users remaining.',
+							1,
+							'co-authors-plus'
+						),
+						1
+					),
 				)
 			);
 		} elseif ( in_array( $pagenow, array( 'post.php', 'post-new.php' ) ) && $this->post_type === get_post_type() ) {
@@ -1540,8 +1578,11 @@ class CoAuthors_Guest_Authors {
 			<p><?php esc_html_e( 'Create guest author profiles for users that do not have one yet.', 'co-authors-plus' ); ?></p>
 			<p><strong><?php echo esc_html( number_format_i18n( $missing ) ); ?></strong> <?php esc_html_e( 'users are ready to migrate.', 'co-authors-plus' ); ?></p>
 			<button type="button" class="button button-primary" id="coauthors-migrate-users"><?php esc_html_e( 'Migrate all users', 'co-authors-plus' ); ?></button>
-			<div id="coauthors-migrate-users-progress" hidden><p><progress max="100" value="0"></progress> <span></span></p><p class="notice notice-error" hidden></p></div>
-			<div id="coauthors-migrate-users-result" hidden></div>
+			<div id="coauthors-migrate-users-progress" hidden>
+				<p><progress max="100" value="0" aria-label="<?php esc_attr_e( 'Migration progress', 'co-authors-plus' ); ?>"></progress> <span class="coauthors-migrate-users-progress-text" role="status" aria-live="polite"></span></p>
+				<p class="notice notice-error coauthors-migrate-users-error" role="alert" hidden><?php esc_html_e( 'Migration failed. Please try again.', 'co-authors-plus' ); ?></p>
+			</div>
+			<div id="coauthors-migrate-users-result" aria-live="polite" hidden></div>
 		</div>
 		<?php
 	}
@@ -1571,21 +1612,38 @@ class CoAuthors_Guest_Authors {
 	 * @return int Number of users without a guest author.
 	 */
 	public function get_users_missing_guest_author_count(): int {
-		$users = get_users(
-			array(
-				'fields'  => array( 'ID', 'user_login' ),
-				'orderby' => 'user_login',
-				'order'   => 'ASC',
+		global $wpdb;
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				"
+				SELECT COUNT(*) FROM {$wpdb->users} AS users
+				WHERE NOT EXISTS (
+					SELECT 1 FROM {$wpdb->postmeta} AS postmeta
+					INNER JOIN {$wpdb->posts} AS posts ON posts.ID = postmeta.post_id
+					WHERE postmeta.meta_key = %s
+					AND postmeta.meta_value = users.user_login
+					AND posts.post_type = %s
+				)
+				",
+				'cap-linked_account',
+				'guest-author'
 			)
 		);
-		$count = 0;
-		foreach ( $users as $user ) {
-			if ( ! $this->get_guest_author_by( 'linked_account', $user->user_login ) ) {
-				$count++;
-			}
-		}
+	}
 
-		return $count;
+	/**
+	 * Count all users via direct SQL so the query stays independent of any
+	 * short-circuited or filtered count logic.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @return int Number of users.
+	 */
+	public function count_users_via_wpdb(): int {
+		global $wpdb;
+
+		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" );
 	}
 
 	/**
@@ -1600,7 +1658,7 @@ class CoAuthors_Guest_Authors {
 	public function migrate_guest_authors_batch( int $offset, int $batch_size = 25 ): array {
 		$offset     = max( 0, $offset );
 		$batch_size = min( 100, max( 1, $batch_size ) );
-		$total      = count_users()['total_users'];
+		$total      = $this->count_users_via_wpdb();
 		$users      = get_users(
 			array(
 				'fields'  => 'ID',
@@ -1612,11 +1670,15 @@ class CoAuthors_Guest_Authors {
 		);
 		$created = 0;
 		$skipped = 0;
+		$failed  = 0;
 		foreach ( $users as $user_id ) {
-			if ( is_wp_error( $this->create_guest_author_from_user_id( $user_id ) ) ) {
+			$result = $this->create_guest_author_from_user_id( $user_id );
+			if ( ! is_wp_error( $result ) ) {
+				$created++;
+			} elseif ( 'duplicate-field' === $result->get_error_code() ) {
 				$skipped++;
 			} else {
-				$created++;
+				$failed++;
 			}
 		}
 		$next_offset = $offset + count( $users );
@@ -1625,7 +1687,8 @@ class CoAuthors_Guest_Authors {
 			'offset'     => $next_offset,
 			'created'    => $created,
 			'skipped'    => $skipped,
-			'done'       => $next_offset >= $total,
+			'failed'     => $failed,
+			'done'       => count( $users ) < $batch_size,
 			'remaining'  => max( 0, $total - $next_offset ),
 			'total'      => $total,
 			'batch_size' => $batch_size,
