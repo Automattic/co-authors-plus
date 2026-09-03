@@ -19,7 +19,13 @@ import { useSelect, useDispatch } from '@wordpress/data';
 /**
  * External dependencies
  */
-import { render, act } from '@testing-library/react';
+import {
+	fireEvent,
+	render,
+	act,
+	screen,
+	waitFor,
+} from '@testing-library/react';
 
 /**
  * Internal dependencies
@@ -50,19 +56,49 @@ jest.mock( '../hooks/use-coauthor-details', () => ( {
  * Capture the props handed to ComboboxControl so a test can drive the search
  * the way a user typing into the field would, without a real DOM widget.
  */
-let comboboxProps;
+let mockComboboxProps;
+let mockButtonProps = [];
+let mockModalProps;
+let mockTextControlProps = [];
 jest.mock( '@wordpress/components', () => ( {
 	ComboboxControl: ( props ) => {
-		comboboxProps = props;
+		mockComboboxProps = props;
 		return null;
 	},
 	Spinner: () => null,
+	Button: ( props ) => {
+		mockButtonProps.push( props );
+		return <button { ...props }>{ props.children }</button>;
+	},
+	Modal: ( props ) => {
+		mockModalProps = props;
+		return <div role="dialog">{ props.children }</div>;
+	},
+	TextControl: ( props ) => {
+		mockTextControlProps.push( props );
+		return (
+			<div>
+				<label htmlFor={ props.label }>{ props.label }</label>
+				<input
+					id={ props.label }
+					aria-label={ props.label }
+					value={ props.value }
+					onChange={ ( event ) =>
+						props.onChange( event.target.value )
+					}
+				/>
+			</div>
+		);
+	},
 } ) );
 
 describe( 'CoAuthors author search', () => {
 	beforeEach( () => {
 		jest.useFakeTimers();
-		comboboxProps = undefined;
+		mockComboboxProps = undefined;
+		mockButtonProps = [];
+		mockModalProps = undefined;
+		mockTextControlProps = [];
 
 		apiFetch.mockResolvedValue( [] );
 		useDispatch.mockReturnValue( { editPost: jest.fn() } );
@@ -98,7 +134,7 @@ describe( 'CoAuthors author search', () => {
 		await renderPanel();
 
 		act( () => {
-			comboboxProps.onFilterValueChange( 'ada' );
+			mockComboboxProps.onFilterValueChange( 'ada' );
 		} );
 
 		await act( async () => {
@@ -117,7 +153,7 @@ describe( 'CoAuthors author search', () => {
 
 		// The user types a query, queuing the debounced search.
 		act( () => {
-			comboboxProps.onFilterValueChange( 'ada' );
+			mockComboboxProps.onFilterValueChange( 'ada' );
 		} );
 
 		// A store dispatch re-renders the panel before the timer elapses. This
@@ -133,5 +169,97 @@ describe( 'CoAuthors author search', () => {
 			path: expect.stringContaining( 'q=ada' ),
 			method: 'GET',
 		} );
+	} );
+
+	it( 'opens the create modal with the last search query', async () => {
+		await renderPanel();
+
+		act( () => {
+			mockComboboxProps.onFilterValueChange( 'new guest' );
+		} );
+
+		await act( async () => {
+			jest.advanceTimersByTime( 500 );
+		} );
+
+		fireEvent.click(
+			screen.getByRole( 'button', { name: '+ Create new guest author' } )
+		);
+
+		expect( mockModalProps ).toBeDefined();
+		expect( screen.getByLabelText( 'Display name' ) ).toHaveValue(
+			'new guest'
+		);
+	} );
+
+	it( 'disables Create until a name is entered', async () => {
+		await renderPanel();
+		fireEvent.click(
+			screen.getByRole( 'button', { name: '+ Create new guest author' } )
+		);
+
+		expect(
+			screen.getByRole( 'button', { name: 'Create' } )
+		).toBeDisabled();
+
+		fireEvent.change( screen.getByLabelText( 'Display name' ), {
+			target: { value: 'New Guest' },
+		} );
+
+		expect(
+			screen.getByRole( 'button', { name: 'Create' } )
+		).not.toBeDisabled();
+	} );
+
+	it( 'creates a guest author and closes the modal', async () => {
+		await renderPanel();
+		fireEvent.click(
+			screen.getByRole( 'button', { name: '+ Create new guest author' } )
+		);
+
+		apiFetch.mockResolvedValueOnce( {
+			id: 42,
+			termId: 42,
+			displayName: 'New Guest',
+			userNicename: 'new-guest',
+			email: '',
+			userType: 'guest-author',
+		} );
+
+		fireEvent.change( screen.getByLabelText( 'Display name' ), {
+			target: { value: 'New Guest' },
+		} );
+		fireEvent.click( screen.getByRole( 'button', { name: 'Create' } ) );
+
+		await waitFor( () => {
+			expect( apiFetch ).toHaveBeenCalledWith( {
+				path: '/coauthors/v1/guest-authors',
+				method: 'POST',
+				data: { display_name: 'New Guest', user_email: '' },
+			} );
+		} );
+		expect( screen.queryByRole( 'dialog' ) ).not.toBeInTheDocument();
+	} );
+
+	it( 'shows a create error and keeps the modal open', async () => {
+		await renderPanel();
+		fireEvent.click(
+			screen.getByRole( 'button', { name: '+ Create new guest author' } )
+		);
+		fireEvent.change( screen.getByLabelText( 'Display name' ), {
+			target: { value: 'Existing Guest' },
+		} );
+		apiFetch.mockRejectedValueOnce( {
+			message: 'That login already exists.',
+		} );
+
+		fireEvent.click( screen.getByRole( 'button', { name: 'Create' } ) );
+
+		await waitFor( () => {
+			expect( screen.getByRole( 'alert' ) ).toHaveTextContent(
+				'That login already exists.'
+			);
+		} );
+		expect( screen.getByRole( 'dialog' ) ).toBeInTheDocument();
 	} );
 } );
