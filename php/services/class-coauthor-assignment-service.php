@@ -98,10 +98,16 @@ class Coauthor_Assignment_Service {
 	 * co-author already on the post is a no-op, which is what makes an import
 	 * safe to run twice.
 	 *
+	 * Whether the byline changed is decided here rather than taken from
+	 * add_coauthors(), whose return value does not mean what it appears to: it
+	 * returns false when replacing a byline that resolves to no WordPress user,
+	 * which is every byline made up only of guest authors without linked
+	 * accounts, having written the terms perfectly well.
+	 *
 	 * @param int    $post_id  Post ID.
 	 * @param string $nicename user_nicename to add.
 	 * @param int    $position Zero-based byline position.
-	 * @return bool Whether the post was changed.
+	 * @return bool Whether the byline was changed.
 	 */
 	public function add_at_position( int $post_id, string $nicename, int $position ): bool {
 		$nicenames = $this->nicenames_for_post( $post_id );
@@ -112,6 +118,8 @@ class Coauthor_Assignment_Service {
 
 		array_splice( $nicenames, min( $position, count( $nicenames ) ), 0, array( $nicename ) );
 
-		return $this->assign( $post_id, $nicenames );
+		$this->assign( $post_id, $nicenames );
+
+		return true;
 	}
 }

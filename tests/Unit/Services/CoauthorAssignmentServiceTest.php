@@ -124,6 +124,26 @@ final class CoauthorAssignmentServiceTest extends TestCase {
 	}
 
 	/**
+	 * add_coauthors() returns false when it replaces a byline that resolves to
+	 * no WordPress user, which is every byline of guest authors without linked
+	 * accounts, despite having written the terms. Reporting that as "unchanged"
+	 * made an import claim it had linked nothing while the terms were there.
+	 */
+	public function test_it_reports_a_change_even_when_add_coauthors_returns_false(): void {
+		list( $service, $coauthors_plus ) = $this->service();
+
+		Functions\when( 'wp_get_object_terms' )->justReturn( array() );
+		Functions\when( 'is_wp_error' )->justReturn( false );
+
+		$coauthors_plus->shouldReceive( 'add_coauthors' )
+			->once()
+			->with( 7, array( 'carol' ), false )
+			->andReturn( false );
+
+		$this->assertTrue( $service->add_at_position( 7, 'carol', 0 ) );
+	}
+
+	/**
 	 * Idempotency: this is what lets an import run twice without duplicating a
 	 * byline, so it must not reach add_coauthors() at all.
 	 */

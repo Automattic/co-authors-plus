@@ -179,6 +179,19 @@ PHP 8.4) rather than inferred from reading the source.
   other feature — guest-author terms are never cleaned up at all — would fail the dry
   scenario with an unrelated "dry run created a term" message.
 
+## CoAuthors_Plus::add_coauthors() return value
+
+- Its return value does not mean "the assignment succeeded". When `$append` is
+  false and none of the given co-authors resolves to a WordPress user, it
+  returns `false` after writing the author terms perfectly well
+  (php/class-coauthors-plus.php, the `false === $append && empty( $new_author )`
+  branch). A byline made up only of guest authors without linked accounts hits
+  this every time, which is the normal case for a guest-author migration.
+- Treating it as a success signal makes a caller report that it changed nothing
+  while the terms are visibly there. Decide "did the byline change" from the
+  byline itself, not from this return value. Pinned by
+  `Coauthor_Assignment_Service` and its regression test.
+
 ## (shared test environment — affects everyone's calibration)
 
 - Author taxonomy terms survive the Behat reset: `reset_database_state()` deletes
