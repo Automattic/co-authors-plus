@@ -641,21 +641,15 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 
 
 - Hardened 2026-09-02 after adversarial review: 6 scenarios for this command.
-- Bare (no `--specific-post-ids`) mode never sees skip metas on unpublished posts.
-  The lookup WP_Query at :315-323 sets only `meta_key` and `fields`, so it
-  inherits `post_type=post` and `post_status=publish`. Now pinned: a DRAFT post
-  given the skip meta by `create-author-terms-for-posts --post-statuses=draft` is
-  invisible to the bare delete, which prints nothing and exits 0 while the meta
-  remains. Same blind spot applies to pages and any other post type.
-- Bare mode also silently caps at `posts_per_page` (the site option, 10 by
-  default), with no warning and no summary. Pinned with 11 posts carrying the
-  meta: exactly 10 `Deleting postmeta key ...` lines are emitted (asserted as
-  match `{10}` plus not-match `{11}`) and 1 post still has the meta afterwards.
-  An operator who backfills 30 pages and then runs the bare delete gets no
-  output, exit 0, and nothing deleted. NB this is deliberately NOT pinned by
-  changing the `posts_per_page` option: the Behat reset clears posts, users,
-  transients and cache but not options, so an option change would leak into every
-  other feature sharing the tests database.
+- ~~Bare (no `--specific-post-ids`) mode never sees skip metas on unpublished
+  posts, nor on pages or other post types, and silently caps at
+  `posts_per_page` (10 by default) with no warning and no summary. An operator
+  who backfills 30 pages and then runs the bare delete gets no output, exit 0,
+  and nothing deleted.~~ **FIXED.** The lookup query set only `meta_key` and
+  `fields`, so it inherited `post_type=post`, `post_status=publish` and the
+  site's `posts_per_page`. It now passes `post_type=any`, `post_status=any` and
+  `posts_per_page=-1`, and both scenarios are re-pinned to the corrected
+  behaviour.
 - The "nothing to delete" scenario now asserts rc 0 and empty STDERR. On its own
   `STDOUT should be empty` is vacuous: the harness moves `Error:`/`Warning:` lines
   into STDERR whenever the exit code is non-zero, so an unregistered subcommand

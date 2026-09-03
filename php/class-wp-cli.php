@@ -311,18 +311,22 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @return void
 	 */
 	public function delete_postmeta_skipping_author_term_backfill( $args, $assoc_args ) {
+		global $wpdb;
+
 		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : [];
 
 		if ( empty( $specific_post_ids ) ) {
-			$query = new WP_Query(
-				[
-					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-					'meta_key' => self::SKIP_POST_FOR_BACKFILL_META_KEY,
-					'fields'   => 'ids',
-				]
+			// Read the meta table directly. A WP_Query here inherits
+			// post_type=post, post_status=publish and the site's
+			// posts_per_page, which silently hid the meta on pages, on drafts
+			// and on everything past the first page of results.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$specific_post_ids = $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s",
+					self::SKIP_POST_FOR_BACKFILL_META_KEY
+				)
 			);
-
-			$specific_post_ids = $query->get_posts();
 		}
 
 		foreach ( $specific_post_ids as $post_id ) {
