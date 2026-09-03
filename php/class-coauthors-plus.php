@@ -2196,7 +2196,9 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		wp_enqueue_script( 'jquery' );
+		// jquery-ui-sortable depends on jquery, and is enqueued without a group,
+		// so jQuery is still resolved into the head. Enqueuing it here as well
+		// added nothing.
 		wp_enqueue_script( 'jquery-ui-sortable' );
 		wp_enqueue_style( 'co-authors-plus-css', plugins_url( 'css/co-authors-plus.css', COAUTHORS_PLUS_FILE ), false, COAUTHORS_PLUS_VERSION );
 		wp_enqueue_script( 'co-authors-plus-js', plugins_url( 'js/co-authors-plus.js', COAUTHORS_PLUS_FILE ), array( 'jquery', 'jquery-ui-autocomplete' ), COAUTHORS_PLUS_VERSION, true );
