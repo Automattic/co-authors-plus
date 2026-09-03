@@ -172,6 +172,54 @@ describe( 'CoAuthors author search', () => {
 		} );
 	} );
 
+	it( 'offers the search results as formatted dropdown options', async () => {
+		await renderPanel();
+
+		apiFetch.mockResolvedValue( [
+			{
+				id: 5,
+				termId: 42,
+				displayName: 'Ada Lovelace',
+				userNicename: 'ada',
+				email: 'ada@example.com',
+				userType: 'wpuser',
+			},
+		] );
+
+		act( () => {
+			mockComboboxProps.onFilterValueChange( 'ada' );
+		} );
+
+		await act( async () => {
+			jest.advanceTimersByTime( 500 );
+		} );
+
+		expect( mockComboboxProps.options ).toStrictEqual( [
+			{
+				id: 5,
+				termId: 42,
+				label: 'Ada Lovelace | ada@example.com',
+				display: 'Ada Lovelace',
+				value: 'ada',
+				userType: 'wpuser',
+			},
+		] );
+	} );
+
+	it( 'empties the dropdown when the search matches nobody', async () => {
+		await renderPanel();
+
+		act( () => {
+			mockComboboxProps.onFilterValueChange( 'nobody' );
+		} );
+
+		await act( async () => {
+			jest.advanceTimersByTime( 500 );
+		} );
+
+		expect( mockComboboxProps.options ).toStrictEqual( [] );
+	} );
+
 	it( 'opens the create modal with the last search query', async () => {
 		await renderPanel();
 

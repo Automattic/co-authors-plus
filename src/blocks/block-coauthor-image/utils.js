@@ -100,11 +100,7 @@ export function getSizeKeysIntersection( media, imageDimensions ) {
 	const mediaKeys = Object.keys( media.media_details.sizes );
 	const sizeKeys = Object.keys( imageDimensions );
 
-	return Array.from(
-		new Set( [
-			...mediaKeys.filter( ( key ) => sizeKeys.includes( key ) ),
-		] )
-	);
+	return mediaKeys.filter( ( key ) => sizeKeys.includes( key ) );
 }
 
 /**

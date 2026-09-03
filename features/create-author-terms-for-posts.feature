@@ -469,7 +469,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And the return code should be 0
 		And STDERR should be empty
 
-	Scenario: The bare delete never sees skip postmeta on unpublished posts
+	Scenario: The bare delete removes skip postmeta from unpublished posts
 		When I run `wp post create --post_title="Orphan draft" --post_author=999 --porcelain`
 		And save STDOUT as {POST_ID}
 		And I run `wp co-authors-plus create-author-terms-for-posts --post-statuses=draft`
@@ -478,16 +478,18 @@ Feature: Missing author terms can be backfilled for targeted posts
 		Warning: Post Author ID 999 does not exist in wp_users table, inserting skip postmeta (`_cap_skip_backfill`).
 		"""
 		When I run `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill`
-		Then STDOUT should be empty
+		Then STDOUT should contain:
+		"""
+		Deleting postmeta key `_cap_skip_backfill` for Post ID {POST_ID}
+		"""
 		And the return code should be 0
-		And STDERR should be empty
-		When I run `wp post meta get {POST_ID} _cap_skip_backfill`
+		When I run `wp post meta list {POST_ID} --keys=_cap_skip_backfill --format=count`
 		Then STDOUT should be:
 		"""
-		nonexistent_post_author_id
+		0
 		"""
 
-	Scenario: The bare delete only handles the first page of posts carrying skip postmeta
+	Scenario: The bare delete reaches past the first page of results
 		When I run `wp eval 'for ( $i = 0; $i < 11; $i++ ) { $id = wp_insert_post( array( "post_title" => "Skipped $i", "post_status" => "publish", "post_author" => 1 ) ); add_post_meta( $id, "_cap_skip_backfill", "nonexistent_post_author_id", true ); }'`
 		And I run `wp post list --meta_key=_cap_skip_backfill --post_status=any --format=count`
 		Then STDOUT should be:
@@ -496,10 +498,9 @@ Feature: Missing author terms can be backfilled for targeted posts
 		"""
 		When I run `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill`
 		Then the return code should be 0
-		And STDOUT should match #(Deleting postmeta key[\s\S]*?){10}#
-		And STDOUT should not match #(Deleting postmeta key[\s\S]*?){11}#
+		And STDOUT should match #(Deleting postmeta key[\s\S]*?){11}#
 		When I run `wp post list --meta_key=_cap_skip_backfill --post_status=any --format=count`
 		Then STDOUT should be:
 		"""
-		1
+		0
 		"""

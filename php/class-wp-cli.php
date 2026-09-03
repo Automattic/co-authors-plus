@@ -134,7 +134,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			}
 
 			if ( $count && 0 === $count % 500 ) {
-				$this->stop_the_insanity();
+				\WP_CLI\Utils\wp_clear_object_cache();
 				sleep( 1 );
 			}
 
@@ -311,18 +311,22 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @return void
 	 */
 	public function delete_postmeta_skipping_author_term_backfill( $args, $assoc_args ) {
+		global $wpdb;
+
 		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : [];
 
 		if ( empty( $specific_post_ids ) ) {
-			$query = new WP_Query(
-				[
-					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-					'meta_key' => self::SKIP_POST_FOR_BACKFILL_META_KEY,
-					'fields'   => 'ids',
-				]
+			// Read the meta table directly. A WP_Query here inherits
+			// post_type=post, post_status=publish and the site's
+			// posts_per_page, which silently hid the meta on pages, on drafts
+			// and on everything past the first page of results.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$specific_post_ids = $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s",
+					self::SKIP_POST_FOR_BACKFILL_META_KEY
+				)
 			);
-
-			$specific_post_ids = $query->get_posts();
 		}
 
 		foreach ( $specific_post_ids as $post_id ) {
@@ -408,7 +412,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			}
 
 			$this->args['paged']++;
-			$this->stop_the_insanity();
+			\WP_CLI\Utils\wp_clear_object_cache();
 			$posts = new WP_Query( $this->args );
 		}
 
@@ -817,7 +821,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				$query_args['paged']++;
 			}
 
-			$this->stop_the_insanity();
+			\WP_CLI\Utils\wp_clear_object_cache();
 
 			$posts = new WP_Query( $query_args );
 		}
@@ -865,7 +869,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				}
 			}
 
-			$this->stop_the_insanity();
+			\WP_CLI\Utils\wp_clear_object_cache();
 
 			$this->args['paged']++;
 			$posts = new WP_Query( $this->args );
@@ -1068,7 +1072,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 					}
 				}
 
-				$this->stop_the_insanity();
+				\WP_CLI\Utils\wp_clear_object_cache();
 
 				$args['paged']++;
 				$posts = new WP_Query( $args );
@@ -1304,28 +1308,6 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		/* translators: Guest Author ID. */
 		WP_CLI::success( sprintf( esc_html__( '-- Created as guest author #%s', 'co-authors-plus' ), $guest_author_id ) );
-	}
-
-	/**
-	 * Clear all the caches for memory management.
-	 */
-	private function stop_the_insanity(): void {
-		global $wpdb, $wp_object_cache;
-
-		$wpdb->queries = array(); // or define( 'WP_IMPORTING', true );
-
-		if ( ! is_object( $wp_object_cache ) ) {
-			return;
-		}
-
-		$wp_object_cache->group_ops      = array();
-		$wp_object_cache->stats          = array();
-		$wp_object_cache->memcache_debug = array();
-		$wp_object_cache->cache          = array();
-
-		if ( is_callable( $wp_object_cache, '__remoteset' ) ) {
-			$wp_object_cache->__remoteset(); // important
-		}
 	}
 
 	/**
