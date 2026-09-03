@@ -161,7 +161,11 @@ class Endpoints {
 							'description'       => __( 'Display name for the new guest author.', 'co-authors-plus' ),
 							'type'              => 'string',
 							'required'          => true,
-							'sanitize_callback' => 'sanitize_text_field',
+							'sanitize_callback' => static function ( $value ) {
+								$value = preg_replace( '/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', (string) $value );
+
+								return sanitize_text_field( $value );
+							},
 						),
 						'user_email'   => array(
 							'description'       => __( 'Optional email address for the new guest author.', 'co-authors-plus' ),
