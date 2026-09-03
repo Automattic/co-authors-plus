@@ -207,32 +207,24 @@ PHP 8.4) rather than inferred from reading the source.
 
 (Calibrated against the live env 2026-09-01; re-verified green 2026-09-02 — 11 scenarios.)
 
-- The documented `--author-mapping=<file>` flag IS dead code: WP-CLI passes the
-  assoc arg under the hyphenated key `author-mapping`, but the method reads
-  `$this->args['author_mapping']` (underscore) after `wp_parse_args`
-  (php/class-wp-cli.php:537-546). The mapping file is never `require`d, and the
-  `author_mapping doesn't exist` error (line 553) is unreachable — even a
-  nonexistent file path is accepted silently. Confirmed: running with a valid
-  mapping fixture still emits `Warning: Undefined variable $authors_to_migrate`
-  (proof the file was not required) and reports an all-zero summary with rc 0.
-  The underscore spelling `--author_mapping` is rejected by WP-CLI synopsis
-  validation (`Error: Parameter errors:` / ` unknown --author_mapping parameter`).
-  Pinned via the three --author-mapping scenarios in features/reassign-terms.feature.
-- Re-calibrated 2026-09-02: WP-CLI's synopsis rejection also prints a third line,
-  `Did you mean '--author-mapping'?`, which the wp-env harness leaves on STDOUT
-  (it is neither `Error:`-prefixed nor indented, so the STDERR splitter stops the
-  error block before it). Now pinned exactly: STDERR is the two-line
-  `Error: Parameter errors:` block, STDOUT is the `Did you mean` suggestion.
-  Ironically WP-CLI names the working spelling of a flag that does nothing.
-- When neither a usable mapping nor `--old_term`/`--new_term` is supplied,
-  `$authors_to_migrate` is never defined, so the `foreach` at line 571 raises PHP
-  warnings on PHP 8+ — yet the command still prints the zero-count summary and
-  exits 0. Confirmed; each warning appears TWICE in combined output (once as a
-  timestamped `[date] PHP Warning:  ...` debug-log echo, once as the
-  `display_errors` copy `Warning: Undefined variable $authors_to_migrate in
-  .../php/class-wp-cli.php on line 571` and `Warning: foreach() argument must be
-  of type array|object, null given ... on line 571`). Pinned exactly (minus the
-  timestamped copies) in the no-args scenario.
+- ~~The documented `--author-mapping=<file>` flag IS dead code: WP-CLI passes
+  the assoc arg under the hyphenated key `author-mapping`, but the method reads
+  `$this->args['author_mapping']` (underscore) after `wp_parse_args`. The
+  mapping file is never `require`d, the `author_mapping doesn't exist` error is
+  unreachable, and even a nonexistent path is accepted silently.~~ **FIXED.**
+  The defaults and the read now use the hyphenated key WP-CLI actually
+  supplies, so the file is loaded, and a missing file reports an error and
+  exits non-zero.
+- The flag naming in this command was mixed: `--author-mapping` hyphenated
+  alongside `--old_term`/`--new_term` underscored, which is what invited the
+  key-mismatch bug above. `--old-term` and `--new-term` are now the documented
+  spellings; the underscored forms still work but report a deprecation notice.
+- ~~When neither a usable mapping nor `--old_term`/`--new_term` is supplied,
+  `$authors_to_migrate` is never defined, so the `foreach` raises PHP warnings
+  on PHP 8+ — yet the command still prints a zero-count summary and exits
+  0.~~ **FIXED.** The variable is initialised, a mapping file that does not
+  define `$cli_user_map` is reported, and the command now errors when it has
+  nothing to reassign rather than pretending to succeed.
 - The rename path (target term absent) sets the surviving term's slug AND name to
   the raw `--new_term` value with NO `cap-` prefix (lines 598-603), inconsistent
   with the plugin's `cap-<nicename>` slug convention. The old guest author profile
