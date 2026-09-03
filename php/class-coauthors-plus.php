@@ -144,15 +144,11 @@ class CoAuthors_Plus {
 		// REST API: Depending on user capabilities, hide author term description.
 		add_action( 'rest_prepare_author', array( $this, 'conditionally_hide_author_term_description' ) );
 
-		// Add Bulk Edit support on supported versions of WordPress.
-		global $wp_version;
-		if ( version_compare( $wp_version, '6.3', '>=' ) ) {
-			// Add Co-Author select field to the Bulk Edit actions form.
-			add_action( 'bulk_edit_custom_box', array( $this, '_action_bulk_edit_custom_box' ), 10, 2 );
+		// Add Co-Author select field to the Bulk Edit actions form.
+		add_action( 'bulk_edit_custom_box', array( $this, '_action_bulk_edit_custom_box' ), 10, 2 );
 
-			// Update Co-Authors when bulk editing posts.
-			add_action( 'bulk_edit_posts', array( $this, 'action_bulk_edit_update_coauthors' ), 10, 2 );
-		}
+		// Update Co-Authors when bulk editing posts.
+		add_action( 'bulk_edit_posts', array( $this, 'action_bulk_edit_update_coauthors' ), 10, 2 );
 	}
 
 	/**
