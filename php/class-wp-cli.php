@@ -134,7 +134,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			}
 
 			if ( $count && 0 === $count % 500 ) {
-				$this->stop_the_insanity();
+				\WP_CLI\Utils\wp_clear_object_cache();
 				sleep( 1 );
 			}
 
@@ -412,7 +412,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			}
 
 			$this->args['paged']++;
-			$this->stop_the_insanity();
+			\WP_CLI\Utils\wp_clear_object_cache();
 			$posts = new WP_Query( $this->args );
 		}
 
@@ -821,7 +821,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				$query_args['paged']++;
 			}
 
-			$this->stop_the_insanity();
+			\WP_CLI\Utils\wp_clear_object_cache();
 
 			$posts = new WP_Query( $query_args );
 		}
@@ -869,7 +869,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				}
 			}
 
-			$this->stop_the_insanity();
+			\WP_CLI\Utils\wp_clear_object_cache();
 
 			$this->args['paged']++;
 			$posts = new WP_Query( $this->args );
@@ -1072,7 +1072,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 					}
 				}
 
-				$this->stop_the_insanity();
+				\WP_CLI\Utils\wp_clear_object_cache();
 
 				$args['paged']++;
 				$posts = new WP_Query( $args );
@@ -1308,28 +1308,6 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		/* translators: Guest Author ID. */
 		WP_CLI::success( sprintf( esc_html__( '-- Created as guest author #%s', 'co-authors-plus' ), $guest_author_id ) );
-	}
-
-	/**
-	 * Clear all the caches for memory management.
-	 */
-	private function stop_the_insanity(): void {
-		global $wpdb, $wp_object_cache;
-
-		$wpdb->queries = array(); // or define( 'WP_IMPORTING', true );
-
-		if ( ! is_object( $wp_object_cache ) ) {
-			return;
-		}
-
-		$wp_object_cache->group_ops      = array();
-		$wp_object_cache->stats          = array();
-		$wp_object_cache->memcache_debug = array();
-		$wp_object_cache->cache          = array();
-
-		if ( is_callable( $wp_object_cache, '__remoteset' ) ) {
-			$wp_object_cache->__remoteset(); // important
-		}
 	}
 
 	/**
