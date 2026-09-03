@@ -32,10 +32,7 @@ class GuestAuthorPrefixHandlingTest extends TestCase {
 
 		$this->guest_authors = $this->_cap->guest_authors;
 
-		// The filter bails without an editing user and a valid nonce, both of
-		// which the guest author edit screen would have supplied.
 		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
-		$_POST['guest-author-nonce'] = wp_create_nonce( 'guest-author-nonce' );
 	}
 
 	public function tear_down() {
@@ -52,15 +49,25 @@ class GuestAuthorPrefixHandlingTest extends TestCase {
 	 * @return array The filtered post data.
 	 */
 	private function filter_post_data( int $guest_author_id, string $display_name ): array {
-		$_POST['cap-display_name'] = $display_name;
+		/*
+		 * Populate $_POST only for the duration of this call. The filter is
+		 * also reached through wp_insert_post() during create(), where a nonce
+		 * left lying around would make it engage with no form data behind it.
+		 */
+		$_POST['guest-author-nonce'] = wp_create_nonce( 'guest-author-nonce' );
+		$_POST['cap-display_name']   = $display_name;
 
-		return $this->guest_authors->manage_guest_author_filter_post_data(
-			array( 'post_type' => $this->guest_authors->post_type ),
-			array(
-				'ID'        => $guest_author_id,
-				'post_type' => $this->guest_authors->post_type,
-			)
-		);
+		try {
+			return $this->guest_authors->manage_guest_author_filter_post_data(
+				array( 'post_type' => $this->guest_authors->post_type ),
+				array(
+					'ID'        => $guest_author_id,
+					'post_type' => $this->guest_authors->post_type,
+				)
+			);
+		} finally {
+			unset( $_POST['guest-author-nonce'], $_POST['cap-display_name'] );
+		}
 	}
 
 	/**
