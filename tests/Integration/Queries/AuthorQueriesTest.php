@@ -348,4 +348,53 @@ class AuthorQueriesTest extends TestCase {
 		$this->assertStringContainsString( 'LEFT JOIN', $sql, 'Must use LEFT JOIN by default (post_author included).' );
 		$this->assertQueryReturns( array( $post->ID ), $query );
 	}
+
+	// -- GROUP BY dedup, review feedback on #1326 ----------------------------
+
+	/**
+	 * A single post co-authored by two of the queried authors must be returned
+	 * exactly once. The per-term taxonomy JOIN yields one row per matching term,
+	 * so this guards the GROUP BY deduplication in posts_groupby_filter().
+	 */
+	public function test_author_in_returns_a_shared_coauthored_post_only_once(): void {
+		$author1 = $this->create_author( 'dedup_a1' );
+		$author2 = $this->create_author( 'dedup_a2' );
+
+		$post = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+
+		// Both queried authors co-author the same post, so the JOIN produces one
+		// row per matching term. Without GROUP BY the post would appear twice.
+		$query = new WP_Query( array( 'author__in' => array( $author1->ID, $author2->ID ) ) );
+
+		$this->assertQueryReturns(
+			array( $post->ID ),
+			$query,
+			'A post shared by two queried co-authors must be returned once, not duplicated by the JOIN.'
+		);
+	}
+
+	/**
+	 * The GROUP BY deduplication must also hold on the INNER JOIN path taken when
+	 * `coauthors_plus_should_query_post_author` opts out of the post_author fallback.
+	 */
+	public function test_author_in_returns_a_shared_coauthored_post_only_once_when_post_author_excluded(): void {
+		$author1 = $this->create_author( 'dedup_inner_a1' );
+		$author2 = $this->create_author( 'dedup_inner_a2' );
+
+		$post = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+
+		add_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+
+		$query = new WP_Query( array( 'author__in' => array( $author1->ID, $author2->ID ) ) );
+
+		remove_all_filters( 'coauthors_plus_should_query_post_author' );
+
+		$this->assertQueryReturns(
+			array( $post->ID ),
+			$query,
+			'A shared co-authored post must be returned once on the INNER JOIN path too.'
+		);
+	}
 }
