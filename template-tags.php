@@ -273,10 +273,12 @@ function coauthors_posts_links( $between = null, $betweenLast = null, $before = 
  * falls back to a default link that is not their archive. Run the author_link filter
  * instead, which the plugin uses to resolve guest author links correctly.
  *
+ * Internal helper, not part of the public template tag API.
+ *
  * @param object $author Coauthor object.
  * @return string
  */
-function cap_get_coauthor_posts_url( $author ) {
+function coauthors__get_coauthor_posts_url( $author ) {
 	if ( isset( $author->type ) && 'guest-author' === $author->type ) {
 		$link = apply_filters( 'author_link', '', $author->ID, $author->user_nicename );
 		if ( ! empty( $link ) ) {
@@ -305,7 +307,7 @@ function coauthors_posts_links_single( $author ) {
 	}
 	$args        = array(
 		'before_html' => '',
-		'href'        => cap_get_coauthor_posts_url( $author ),
+		'href'        => coauthors__get_coauthor_posts_url( $author ),
 		'rel'         => 'author',
 		/* translators: %s: author display name */
 		'title'       => sprintf( __( 'Posts by %s', 'co-authors-plus' ), apply_filters( 'the_author', $author->display_name ) ),
@@ -726,7 +728,7 @@ function coauthors_wp_list_authors( $args = array() ) {
 			}
 		} else {
 			/* translators: %s: author display name */
-			$link = '<a href="' . esc_url( cap_get_coauthor_posts_url( $author ) ) . '" title="' . esc_attr( sprintf( __( 'Posts by %s', 'co-authors-plus' ), $name ) ) . '">' . esc_html( $name ) . '</a>';
+			$link = '<a href="' . esc_url( coauthors__get_coauthor_posts_url( $author ) ) . '" title="' . esc_attr( sprintf( __( 'Posts by %s', 'co-authors-plus' ), $name ) ) . '">' . esc_html( $name ) . '</a>';
 
 			if ( ( ! empty( $args['feed_image'] ) ) || ( ! empty( $args['feed'] ) ) ) {
 				$link .= ' ';
