@@ -265,21 +265,21 @@ class EndpointsTest extends TestCase {
 		$editor = $this->create_editor();
 		wp_set_current_user( $editor->ID );
 
-		$request = new \WP_REST_Request( 'POST' );
-		$request->set_url_params(
+		$request = new \WP_REST_Request( 'POST', '/coauthors/v1/guest-authors' );
+		$request->set_body_params(
 			array(
-				'display_name' => 'New Byline Person',
+				'display_name' => "Evil \nName\tWith\0Control",
 				'user_email'   => 'newbyline@example.com',
 			)
 		);
 
-		$response = $this->_api->create_guest_author( $request );
+		$response = rest_do_request( $request );
 
-		$this->assertInstanceOf( \WP_REST_Response::class, $response );
+		$this->assertSame( 200, $response->get_status() );
 		$data = $response->get_data();
 
-		$this->assertSame( 'New Byline Person', $data['displayName'] );
-		$this->assertSame( 'new-byline-person', $data['userNicename'] );
+		$this->assertSame( 'Evil Name WithControl', $data['displayName'] );
+		$this->assertSame( 'evil-name-withcontrol', $data['userNicename'] );
 		$this->assertSame( 'newbyline@example.com', $data['email'] );
 		$this->assertSame( 'guest-author', $data['userType'] );
 		$this->assertIsInt( $data['termId'] );
@@ -289,21 +289,38 @@ class EndpointsTest extends TestCase {
 	/**
 	 * @covers \CoAuthors\API\Endpoints::create_guest_author
 	 */
+	public function test_create_guest_author_rest_route_rejects_invalid_email(): void {
+		$editor = $this->create_editor();
+		wp_set_current_user( $editor->ID );
+
+		$request = new \WP_REST_Request( 'POST', '/coauthors/v1/guest-authors' );
+		$request->set_body_params(
+			array(
+				'display_name' => 'Invalid Email Author',
+				'user_email'   => 'not-an-email',
+			)
+		);
+
+		$response = rest_do_request( $request );
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'rest_invalid_param', $response->get_data()['code'] );
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::create_guest_author
+	 */
 	public function test_create_guest_author_rest_route_returns_error_on_blank_display_name(): void {
 		$editor = $this->create_editor();
 		wp_set_current_user( $editor->ID );
 
-		$request = new \WP_REST_Request( 'POST' );
-		$request->set_url_params(
-			array(
-				'display_name' => '   ',
-			)
-		);
+		$request = new \WP_REST_Request( 'POST', '/coauthors/v1/guest-authors' );
+		$request->set_body_params( array( 'display_name' => '   ' ) );
 
-		$response = $this->_api->create_guest_author( $request );
+		$response = rest_do_request( $request );
 
-		$this->assertInstanceOf( \WP_Error::class, $response );
-		$this->assertSame( 'field-required', $response->get_error_code() );
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'field-required', $response->get_data()['code'] );
 	}
 
 	/**
@@ -315,40 +332,18 @@ class EndpointsTest extends TestCase {
 
 		$this->create_guest_author( 'existing_guest' );
 
-		$request = new \WP_REST_Request( 'POST' );
-		$request->set_url_params(
+		$request = new \WP_REST_Request( 'POST', '/coauthors/v1/guest-authors' );
+		$request->set_body_params(
 			array(
 				'display_name' => 'Existing Guest',
 				'user_login'   => 'existing_guest',
 			)
 		);
 
-		$response = $this->_api->create_guest_author( $request );
+		$response = rest_do_request( $request );
 
-		$this->assertInstanceOf( \WP_Error::class, $response );
-		$this->assertSame( 'duplicate-field', $response->get_error_code() );
-		$this->assertSame( 409, $response->get_error_data( 'duplicate-field' )['status'] );
-	}
-
-	/**
-	 * @covers \CoAuthors\API\Endpoints::create_guest_author
-	 */
-	public function test_create_guest_author_rest_route_returns_400_status_on_blank_display_name(): void {
-		$editor = $this->create_editor();
-		wp_set_current_user( $editor->ID );
-
-		$request = new \WP_REST_Request( 'POST' );
-		$request->set_url_params(
-			array(
-				'display_name' => '   ',
-			)
-		);
-
-		$response = $this->_api->create_guest_author( $request );
-
-		$this->assertInstanceOf( \WP_Error::class, $response );
-		$this->assertSame( 'field-required', $response->get_error_code() );
-		$this->assertSame( 400, $response->get_error_data( 'field-required' )['status'] );
+		$this->assertSame( 409, $response->get_status() );
+		$this->assertSame( 'duplicate-field', $response->get_data()['code'] );
 	}
 
 	public function data_only_editor_role_can_edit_coauthors(): array {

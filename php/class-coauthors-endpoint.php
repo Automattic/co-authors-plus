@@ -158,14 +158,16 @@ class Endpoints {
 					'permission_callback' => array( $this, 'can_edit_coauthors' ),
 					'args'                => array(
 						'display_name' => array(
-							'description' => __( 'Display name for the new guest author.', 'co-authors-plus' ),
-							'type'        => 'string',
-							'required'    => true,
+							'description'       => __( 'Display name for the new guest author.', 'co-authors-plus' ),
+							'type'              => 'string',
+							'required'          => true,
+							'sanitize_callback' => 'sanitize_text_field',
 						),
 						'user_email'   => array(
 							'description'       => __( 'Optional email address for the new guest author.', 'co-authors-plus' ),
 							'type'              => 'string',
 							'required'          => false,
+							'sanitize_callback' => 'sanitize_text_field',
 							'validate_callback' => static function ( $value ) {
 								$email = trim( (string) $value );
 								if ( '' === $email ) {
@@ -175,9 +177,10 @@ class Endpoints {
 							},
 						),
 						'user_login'   => array(
-							'description' => __( 'Optional login/slug. Derived from display_name when empty.', 'co-authors-plus' ),
-							'type'        => 'string',
-							'required'    => false,
+							'description'       => __( 'Optional login/slug. Derived from display_name when empty.', 'co-authors-plus' ),
+							'type'              => 'string',
+							'required'          => false,
+							'sanitize_callback' => 'sanitize_text_field',
 						),
 					),
 				),
@@ -261,6 +264,14 @@ class Endpoints {
 	 * @return WP_REST_Response|WP_Error
 	 */
 	public function create_guest_author( $request ) {
+		if ( ! $this->coauthors->is_guest_authors_enabled() || ! isset( $this->coauthors->guest_authors ) ) {
+			return new WP_Error(
+				'guest-authors-disabled',
+				__( 'Guest authors are disabled.', 'co-authors-plus' ),
+				array( 'status' => 404 )
+			);
+		}
+
 		$display_name = trim( (string) $request->get_param( 'display_name' ) );
 		$user_email   = trim( (string) $request->get_param( 'user_email' ) );
 		$user_login   = trim( (string) $request->get_param( 'user_login' ) );
@@ -327,8 +338,6 @@ class Endpoints {
 			$status = 400;
 		} elseif ( 'duplicate-field' === $code ) {
 			$status = 409;
-		} elseif ( 'invalid-email' === $code || 'invalid-field' === $code ) {
-			$status = 400;
 		}
 
 		if ( 500 !== $status ) {
