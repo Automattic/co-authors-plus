@@ -112,10 +112,10 @@ export const addItemByValue = (
 	currAuthors,
 	dropDownAuthors
 ) => {
-	const newAuthorObj = dropDownAuthors.filter(
+	const newAuthorObj = dropDownAuthors.find(
 		( item ) => item.value === newAuthorValue
 	);
-	return [ ...currAuthors, newAuthorObj[ 0 ] ];
+	return [ ...currAuthors, newAuthorObj ];
 };
 
 /**
