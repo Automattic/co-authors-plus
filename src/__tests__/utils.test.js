@@ -95,6 +95,22 @@ describe( 'Utility - addItemByValue', () => {
 			addItemByValue( newAuthorValue, selectedAuthors, dropdownOptions )
 		).toStrictEqual( [ ...selectedAuthors, dropdownOptions[ 0 ] ] );
 	} );
+
+	it( 'should match on value rather than position', () => {
+		// The second dropdown option, to prove the lookup is not just taking
+		// the head of the list.
+		expect(
+			addItemByValue( 'claudette', selectedAuthors, dropdownOptions )
+		).toStrictEqual( [ ...selectedAuthors, dropdownOptions[ 1 ] ] );
+	} );
+
+	it( 'should append undefined when the value is not in the dropdown', () => {
+		// Characterisation, not endorsement: an unmatched value has always
+		// appended undefined, which buildCoauthorTermIds() then discards.
+		expect(
+			addItemByValue( 'nobody', selectedAuthors, dropdownOptions )
+		).toStrictEqual( [ ...selectedAuthors, undefined ] );
+	} );
 } );
 
 describe( 'Utility - buildCoauthorTermIds', () => {
