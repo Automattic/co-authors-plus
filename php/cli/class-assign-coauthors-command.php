@@ -116,8 +116,8 @@ class Assign_Coauthors_Command {
 					continue;
 				}
 
-				// Make sure this original author exists as a co-author. The
-				// meta value is tried as given and then as a slug, which is
+				// Make sure this original author exists as a co-author. The.
+				// meta value is tried as given and then as a slug, which is.
 				// how it is stored once an importer has been through it.
 				$coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $original_author );
 
