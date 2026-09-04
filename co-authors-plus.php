@@ -30,6 +30,7 @@ const COAUTHORS_PLUS_FILE = __FILE__;
 
 require_once __DIR__ . '/template-tags.php';
 
+require_once __DIR__ . '/php/class-prefix.php';
 require_once __DIR__ . '/php/class-coauthors-template-filters.php';
 require_once __DIR__ . '/php/class-coauthors-endpoint.php';
 require_once __DIR__ . '/php/integrations/amp.php';
@@ -52,6 +53,11 @@ if ( defined( 'WP_CLI' ) && WP_CLI ) {
 global $coauthors_plus;
 $coauthors_plus     = new CoAuthors_Plus();
 $coauthors_plus->register_hooks();
+
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	require_once __DIR__ . '/php/cli/register-commands.php';
+}
+
 $coauthors_endpoint = new CoAuthors\API\Endpoints( $coauthors_plus );
 $coauthors_endpoint->register_hooks();
 CoAuthors\Blocks::run();

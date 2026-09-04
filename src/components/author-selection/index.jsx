@@ -1,9 +1,4 @@
 /**
- * External dependencies.
- */
-import PropTypes from 'prop-types';
-
-/**
  * WordPress dependencies.
  */
 import { chevronUp, chevronDown, close } from '@wordpress/icons';
@@ -65,7 +60,10 @@ const AuthorsSelection = ( { selectedAuthors, updateAuthors } ) => {
 					<FlexItem className="cap-author-flex-item">
 						<span>{ display }</span>
 					</FlexItem>
-					<FlexItem justify="flex-end" className="cap-author-flex-item">
+					<FlexItem
+						justify="flex-end"
+						className="cap-author-flex-item"
+					>
 						<Flex>
 							<div className="cap-icon-button-stack">
 								<Button
@@ -112,20 +110,6 @@ const AuthorsSelection = ( { selectedAuthors, updateAuthors } ) => {
 			</div>
 		);
 	} );
-};
-
-AuthorsSelection.propTypes = {
-	selectedAuthors: PropTypes.arrayOf( [
-		PropTypes.shape( {
-			id: PropTypes.oneOfType( [ PropTypes.string, PropTypes.number ] ),
-			userNiceName: PropTypes.string,
-			login: PropTypes.string,
-			email: PropTypes.string,
-			displayName: PropTypes.string,
-			avatar: PropTypes.string,
-		} ),
-	] ).isRequired,
-	updateAuthors: PropTypes.func.isRequired,
 };
 
 export default AuthorsSelection;

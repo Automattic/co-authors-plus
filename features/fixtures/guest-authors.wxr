@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<rss version="2.0"
+	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
+	xmlns:content="http://purl.org/rss/1.0/modules/content/"
+	xmlns:wfw="http://wellformedweb.org/CommentAPI/"
+	xmlns:dc="http://purl.org/dc/elements/1.1/"
+	xmlns:wp="http://wordpress.org/export/1.2/">
+<channel>
+	<title>Guest Author Fixture</title>
+	<link>https://example.com</link>
+	<description>Minimal WXR fixture for create-guest-authors-from-wxr</description>
+	<pubDate>Mon, 01 Sep 2025 00:00:00 +0000</pubDate>
+	<language>en-US</language>
+	<wp:wxr_version>1.2</wp:wxr_version>
+	<wp:base_site_url>https://example.com</wp:base_site_url>
+	<wp:base_blog_url>https://example.com</wp:base_blog_url>
+	<wp:author>
+		<wp:author_id>101</wp:author_id>
+		<wp:author_login><![CDATA[wxr-jane]]></wp:author_login>
+		<wp:author_email><![CDATA[wxr-jane@example.com]]></wp:author_email>
+		<wp:author_display_name><![CDATA[WXR Jane]]></wp:author_display_name>
+		<wp:author_first_name><![CDATA[WXR]]></wp:author_first_name>
+		<wp:author_last_name><![CDATA[Jane]]></wp:author_last_name>
+	</wp:author>
+	<wp:author>
+		<wp:author_id>102</wp:author_id>
+		<wp:author_login><![CDATA[wxr-bob]]></wp:author_login>
+		<wp:author_email><![CDATA[wxr-bob@example.com]]></wp:author_email>
+		<wp:author_display_name><![CDATA[WXR Bob]]></wp:author_display_name>
+		<wp:author_first_name><![CDATA[WXR]]></wp:author_first_name>
+		<wp:author_last_name><![CDATA[Bob]]></wp:author_last_name>
+	</wp:author>
+</channel>
+</rss>

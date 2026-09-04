@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 WP_CLI::add_command( 'co-authors-plus', 'CoAuthorsPlus_Command' );
 
+use CoAuthors\Prefix;
+
 class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 	const SKIP_POST_FOR_BACKFILL_META_KEY = '_cap_skip_backfill';
@@ -134,7 +136,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 			}
 
 			if ( $count && 0 === $count % 500 ) {
-				$this->stop_the_insanity();
+				\WP_CLI\Utils\wp_clear_object_cache();
 				sleep( 1 );
 			}
 
@@ -311,18 +313,22 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	 * @return void
 	 */
 	public function delete_postmeta_skipping_author_term_backfill( $args, $assoc_args ) {
+		global $wpdb;
+
 		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : [];
 
 		if ( empty( $specific_post_ids ) ) {
-			$query = new WP_Query(
-				[
-					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-					'meta_key' => self::SKIP_POST_FOR_BACKFILL_META_KEY,
-					'fields'   => 'ids',
-				]
+			// Read the meta table directly. A WP_Query here inherits
+			// post_type=post, post_status=publish and the site's
+			// posts_per_page, which silently hid the meta on pages, on drafts
+			// and on everything past the first page of results.
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
+			$specific_post_ids = $wpdb->get_col(
+				$wpdb->prepare(
+					"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s",
+					self::SKIP_POST_FOR_BACKFILL_META_KEY
+				)
 			);
-
-			$specific_post_ids = $query->get_posts();
 		}
 
 		foreach ( $specific_post_ids as $post_id ) {
@@ -335,452 +341,6 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				WP_CLI::error( '👎' );
 			}
 		}
-	}
-
-	/**
-	 * Subcommand to assign co-authors to a post based on a given meta key
-	 *
-	 * @since 3.0
-	 *
-	 * @subcommand assign-coauthors
-	 * @synopsis [--meta_key=<key>] [--post_type=<ptype>] [--append_coauthors]
-	 */
-	public function assign_coauthors( $args, $assoc_args ): void {
-		global $coauthors_plus;
-
-		$defaults   = array(
-			'meta_key'         => '_original_import_author',
-			'post_type'        => 'post',
-			'order'            => 'ASC',
-			'orderby'          => 'ID',
-			'posts_per_page'   => 100,
-			'paged'            => 1,
-			'append_coauthors' => false,
-		);
-		$this->args = wp_parse_args( $assoc_args, $defaults );
-
-		// For global use and not a part of WP_Query
-		$append_coauthors = $this->args['append_coauthors'];
-		unset( $this->args['append_coauthors'] );
-
-		$posts_total              = 0;
-		$posts_already_associated = 0;
-		$posts_missing_coauthor   = 0;
-		$posts_associated         = 0;
-		$missing_coauthors        = array();
-
-		$posts = new WP_Query( $this->args );
-		while ( $posts->post_count ) {
-
-			foreach ( $posts->posts as $single_post ) {
-				$posts_total++;
-
-				// See if the value in the post meta field is the same as any of the existing co-authors.
-				$original_author    = get_post_meta( $single_post->ID, $this->args['meta_key'], true );
-				$existing_coauthors = get_coauthors( $single_post->ID );
-				$already_associated = false;
-				foreach ( $existing_coauthors as $existing_coauthor ) {
-					if ( $original_author == $existing_coauthor->user_login ) {
-						$already_associated = true;
-						break;
-					}
-				}
-				if ( $already_associated ) {
-					$posts_already_associated++;
-					WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' already has "' . $original_author . '" associated as a co-author' );
-					continue;
-				}
-
-				// Make sure this original author exists as a co-author
-				if ( ( ! $coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $original_author ) ) &&
-					( ! $coauthor = $coauthors_plus->get_coauthor_by( 'user_login', sanitize_title( $original_author ) ) ) ) {
-					$posts_missing_coauthor++;
-					$missing_coauthors[] = $original_author;
-					WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' does not have "' . $original_author . '" associated as a co-author but there is not a co-author profile' );
-					continue;
-				}
-
-				// Assign the co-author to the post.
-				$coauthors_plus->add_coauthors( $single_post->ID, array( $coauthor->user_nicename ), $append_coauthors );
-				WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' has been assigned "' . $original_author . '" as the author' );
-				$posts_associated++;
-				clean_post_cache( $single_post->ID );
-			}
-
-			$this->args['paged']++;
-			$this->stop_the_insanity();
-			$posts = new WP_Query( $this->args );
-		}
-
-		WP_CLI::log( 'All done! Here are your results:' );
-		if ( $posts_already_associated ) {
-			WP_CLI::log( "- {$posts_already_associated} posts already had the co-author assigned" );
-		}
-		if ( $posts_missing_coauthor ) {
-			WP_CLI::log( "- {$posts_missing_coauthor} posts reference co-authors that don't exist. These are:" );
-			WP_CLI::log( '  ' . implode( ', ', array_unique( $missing_coauthors ) ) );
-		}
-		if ( $posts_associated ) {
-			WP_CLI::log( "- {$posts_associated} posts now have the proper co-author" );
-		}
-
-	}
-
-	/**
-	 * Assign posts associated with a WordPress user to a co-author.
-	 *
-	 * Identify the source author by either `--user_login` or `--user_id`.
-	 * `--user_id` is useful when the underlying WordPress user has been
-	 * deleted, so a login lookup is no longer possible but `post_author`
-	 * still references the original ID.
-	 *
-	 * @since 3.0
-	 *
-	 * @subcommand assign-user-to-coauthor
-	 * @synopsis [--user_login=<user-login>] [--user_id=<user-id>] --coauthor=<co-author> [--append_coauthors]
-	 */
-	public function assign_user_to_coauthor( $args, $assoc_args ): void {
-		global $coauthors_plus, $wpdb;
-
-		$defaults   = array(
-			'user_login'       => '',
-			'user_id'          => '',
-			'coauthor'         => '',
-			'append_coauthors' => false,
-		);
-		$assoc_args = wp_parse_args( $assoc_args, $defaults );
-
-		$has_login = '' !== $assoc_args['user_login'];
-		$has_id    = '' !== $assoc_args['user_id'];
-
-		if ( $has_login === $has_id ) {
-			WP_CLI::error( __( 'Please specify exactly one of --user_login or --user_id.', 'co-authors-plus' ) );
-		}
-
-		if ( $has_login ) {
-			$user = get_user_by( 'login', $assoc_args['user_login'] );
-			if ( ! $user ) {
-				WP_CLI::error( __( 'Please specify a valid user_login.', 'co-authors-plus' ) );
-			}
-			$user_id = (int) $user->ID;
-		} else {
-			$user_id = (int) $assoc_args['user_id'];
-			if ( $user_id <= 0 ) {
-				WP_CLI::error( __( 'Please specify a positive integer for user_id.', 'co-authors-plus' ) );
-			}
-		}
-
-		$coauthor = $coauthors_plus->get_coauthor_by( 'login', $assoc_args['coauthor'] );
-
-		if ( ! $coauthor ) {
-			WP_CLI::error( __( 'Please specify a valid co-author login', 'co-authors-plus' ) );
-		}
-
-		$post_types = implode( "','", $coauthors_plus->supported_post_types() );
-		// phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared,WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching,PluginCheck.Security.DirectDB.UnescapedDBParameter
-		$posts    = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author=%d AND post_type IN ('{$post_types}')", $user_id ) );
-		$affected = 0;
-		foreach ( $posts as $post_id ) {
-			$coauthors = cap_get_coauthor_terms_for_post( $post_id );
-			if ( ! empty( $coauthors ) && ! $assoc_args['append_coauthors'] ) {
-				WP_CLI::log(
-					sprintf(
-						/* translators: 1: Post ID, 2: Comma-separated list of co-author slugs. */
-						__( 'Skipping - Post #%1$d already has co-authors assigned: %2$s', 'co-authors-plus' ),
-						$post_id,
-						implode( ', ', wp_list_pluck( $coauthors, 'slug' ) )
-					)
-				);
-				continue;
-			}
-
-			$coauthors_plus->add_coauthors( $post_id, array( $coauthor->user_login ), $assoc_args['append_coauthors'] );
-			/* translators: 1: Co-author login, 2: Post ID */
-			WP_CLI::log( sprintf( __( "Updating - Adding %1\$s's byline to post #%2\$d", 'co-authors-plus' ), $coauthor->user_login, $post_id ) );
-			$affected++;
-			if ( $affected && 0 === $affected % 100 ) {
-				sleep( 2 );
-			}
-		}
-
-		$success_message = sprintf(
-			/* translators: Count of posts. */
-			_n(
-				'All done! %d post was affected.',
-				'All done! %d posts were affected.',
-				$affected,
-				'co-authors-plus'
-			),
-			number_format_i18n( $affected )
-		);
-		WP_CLI::success( $success_message );
-
-	}
-
-	/**
-	 * Subcommand to reassign co-authors based on some given format
-	 * This will look for terms with slug 'x' and rename to term with slug and name 'y'
-	 * This subcommand can be helpful for cleaning up after an import if the usernames
-	 * for authors have changed. During the import process, 'author' terms will be
-	 * created with the old user_login value. We can use this to migrate to the new user_login
-	 *
-	 * @todo support reassigning by CSV
-	 *
-	 * @since 3.0
-	 *
-	 * @subcommand reassign-terms
-	 * @synopsis [--author-mapping=<file>] [--old_term=<slug>] [--new_term=<slug>]
-	 */
-	public function reassign_terms( $args, $assoc_args ): void {
-		global $coauthors_plus;
-
-		$defaults   = array(
-			'author_mapping' => null,
-			'old_term'       => null,
-			'new_term'       => null,
-		);
-		$this->args = wp_parse_args( $assoc_args, $defaults );
-
-		$author_mapping = $this->args['author_mapping'];
-		$old_term       = $this->args['old_term'];
-		$new_term       = $this->args['new_term'];
-
-		// Get the reassignment data
-		if ( $author_mapping && is_file( $author_mapping ) ) {
-			require_once $author_mapping;
-			$authors_to_migrate = $cli_user_map;
-		} elseif ( $author_mapping ) {
-			WP_CLI::error( "author_mapping doesn't exist: " . $author_mapping );
-			exit;
-		}
-
-		// Alternate reassigment approach
-		if ( $old_term && $new_term ) {
-			$authors_to_migrate = array(
-				$old_term => $new_term,
-			);
-		}
-
-		// For each author to migrate, check whether the term exists,
-		// whether the target term exists, and only do the migration if both are met
-		$results = (object) array(
-			'old_term_missing' => 0,
-			'new_term_exists'  => 0,
-			'success'          => 0,
-		);
-		foreach ( $authors_to_migrate as $old_user => $new_user ) {
-
-			if ( is_numeric( $new_user ) ) {
-				$new_user = get_user_by( 'id', $new_user )->user_login;
-			}
-
-			// The old user should exist as a term
-			$old_term = $coauthors_plus->get_author_term( $coauthors_plus->get_coauthor_by( 'login', $old_user ) );
-			if ( ! $old_term ) {
-				WP_CLI::log( "Error: Term '{$old_user}' doesn't exist, skipping" );
-				$results->old_term_missing++;
-				continue;
-			}
-
-			// If the new user exists as a term already, we want to reassign all posts to that
-			// new term and delete the original
-			// Otherwise, simply rename the old term
-			$new_term = $coauthors_plus->get_author_term( $coauthors_plus->get_coauthor_by( 'login', $new_user ) );
-			if ( is_object( $new_term ) ) {
-				WP_CLI::log( "Success: There's already a '{$new_user}' term for '{$old_user}'. Reassigning {$old_term->count} posts and then deleting the term" );
-				$args = array(
-					'default'       => $new_term->term_id,
-					'force_default' => true,
-				);
-				wp_delete_term( $old_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
-				$results->new_term_exists++;
-			} else {
-				$args = array(
-					'slug' => $new_user,
-					'name' => $new_user,
-				);
-				wp_update_term( $old_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
-				WP_CLI::log( "Success: Converted '{$old_user}' term to '{$new_user}'" );
-				$results->success++;
-			}
-			clean_term_cache( $old_term->term_id, $coauthors_plus->coauthor_taxonomy );
-		}
-
-		WP_CLI::log( 'Reassignment complete. Here are your results:' );
-		WP_CLI::log( "- $results->success authors were successfully reassigned terms" );
-		WP_CLI::log( "- $results->new_term_exists authors had their old term merged to their new term" );
-		WP_CLI::log( "- $results->old_term_missing authors were missing old terms" );
-
-	}
-
-	/**
-	 * Change a term from representing one user_login value to another
-	 * If the term represents a guest author, the post_name will be changed
-	 * in addition to the term slug/name
-	 *
-	 * @since 3.0.1
-	 *
-	 * @subcommand rename-coauthor
-	 * @synopsis --from=<user-login> --to=<user-login>
-	 */
-	public function rename_coauthor( $args, $assoc_args ): void {
-		global $coauthors_plus, $wpdb;
-
-		$defaults   = array(
-			'from' => null,
-			'to'   => null,
-		);
-		$assoc_args = array_merge( $defaults, $assoc_args );
-
-		$to_userlogin          = $assoc_args['to'];
-		$to_userlogin_prefixed = 'cap-' . $to_userlogin;
-
-		$orig_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $assoc_args['from'] );
-		if ( ! $orig_coauthor ) {
-			WP_CLI::error( "No co-author found for {$assoc_args['from']}" );
-		}
-
-		if ( ! $to_userlogin ) {
-			WP_CLI::error( '--to param must not be empty' );
-		}
-
-		if ( $coauthors_plus->get_coauthor_by( 'user_login', $to_userlogin ) ) {
-			WP_CLI::error( 'New user_login value conflicts with existing co-author' );
-		}
-
-		$orig_term = $coauthors_plus->get_author_term( $orig_coauthor );
-
-		WP_CLI::log( "Renaming {$orig_term->name} to {$to_userlogin}" );
-		$rename_args = array(
-			'name' => $to_userlogin,
-			'slug' => $to_userlogin_prefixed,
-		);
-		wp_update_term( $orig_term->term_id, $coauthors_plus->coauthor_taxonomy, $rename_args );
-
-		if ( 'guest-author' == $orig_coauthor->type ) {
-			$wpdb->update( $wpdb->posts, array( 'post_name' => $to_userlogin_prefixed ), array( 'ID' => $orig_coauthor->ID ) );
-			clean_post_cache( $orig_coauthor->ID );
-			update_post_meta( $orig_coauthor->ID, 'cap-user_login', $to_userlogin );
-			$coauthors_plus->guest_authors->delete_guest_author_cache( $orig_coauthor->ID );
-			WP_CLI::log( 'Updated guest author profile value too' );
-		}
-
-		WP_CLI::success( 'All done!' );
-	}
-
-	/**
-	 * Swap one co-author with another on all posts for which they are a co-author. Unlike rename-coauthor,
-	 * this leaves the original co-author term intact and works when the 'to' user already has a co-author term.
-	 *
-	 * @subcommand swap-coauthors
-	 * @synopsis --from=<user-login> --to=<user-login> [--post_type=<ptype>] [--dry=<dry>]
-	 */
-	public function swap_coauthors( $args, $assoc_args ): void {
-		global $coauthors_plus, $wpdb;
-
-		$defaults = array(
-			'from'      => null,
-			'to'        => null,
-			'post_type' => 'post',
-			'dry'       => false,
-		);
-
-		$assoc_args = array_merge( $defaults, $assoc_args );
-
-		$dry = $assoc_args['dry'];
-
-		$from_userlogin = $assoc_args['from'];
-		$to_userlogin   = $assoc_args['to'];
-
-		$from_userlogin_prefixed = 'cap-' . $from_userlogin;
-		$to_userlogin_prefixed   = 'cap-' . $to_userlogin;
-
-		$orig_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $from_userlogin );
-
-		if ( ! $orig_coauthor ) {
-			WP_CLI::error( "No co-author found for $from_userlogin" );
-		}
-
-		if ( ! $to_userlogin ) {
-			WP_CLI::error( '--to param must not be empty' );
-		}
-
-		$to_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $to_userlogin );
-
-		if ( ! $to_coauthor ) {
-			WP_CLI::error( "No co-author found for $to_userlogin" );
-		}
-
-		WP_CLI::log( "Swapping authorship from {$from_userlogin} to {$to_userlogin}" );
-
-		$query_args = array(
-			'post_type'      => $assoc_args['post_type'],
-			'order'          => 'ASC',
-			'orderby'        => 'ID',
-			'posts_per_page' => 100,
-			'paged'          => 1,
-			'tax_query'      => array(
-				array(
-					'taxonomy' => $coauthors_plus->coauthor_taxonomy,
-					'field'    => 'slug',
-					'terms'    => array( $from_userlogin_prefixed ),
-				),
-			),
-		);
-
-		$posts = new WP_Query( $query_args );
-
-		$posts_total = 0;
-
-		WP_CLI::log( "Found $posts->found_posts posts to update." );
-
-		while ( $posts->post_count ) {
-			foreach ( $posts->posts as $post ) {
-				$coauthors = get_coauthors( $post->ID );
-
-				if ( ! is_array( $coauthors ) || ! count( $coauthors ) ) {
-					continue;
-				}
-
-				$coauthors = wp_list_pluck( $coauthors, 'user_login' );
-
-				$posts_total++;
-
-				if ( ! $dry ) {
-					// Remove the $from_userlogin from $coauthors
-					foreach ( $coauthors as $index => $user_login ) {
-						if ( $from_userlogin === $user_login ) {
-							unset( $coauthors[ $index ] );
-
-							break;
-						}
-					}
-
-					// Add the 'to' author on
-					$coauthors[] = $to_userlogin;
-
-					// By not passing $append = false as the 3rd param, we replace all existing co-authors.
-					$coauthors_plus->add_coauthors( $post->ID, $coauthors );
-
-					WP_CLI::log( $posts_total . ': Post #' . $post->ID . ' has been assigned "' . $to_userlogin . '" as a co-author' );
-
-					clean_post_cache( $post->ID );
-				} else {
-					WP_CLI::log( $posts_total . ': Post #' . $post->ID . ' will be assigned "' . $to_userlogin . '" as a co-author' );
-				}
-			}
-
-			// In dry mode, we must manually advance the page
-			if ( $dry ) {
-				$query_args['paged']++;
-			}
-
-			$this->stop_the_insanity();
-
-			$posts = new WP_Query( $query_args );
-		}
-
-		WP_CLI::success( 'All done!' );
 	}
 
 	/**
@@ -823,7 +383,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 				}
 			}
 
-			$this->stop_the_insanity();
+			\WP_CLI\Utils\wp_clear_object_cache();
 
 			$this->args['paged']++;
 			$posts = new WP_Query( $this->args );
@@ -832,46 +392,87 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 	}
 
 	/**
-	 * Migrate author terms without prefixes to ones with prefixes
-	 * Pre-3.0, all author terms didn't have a 'cap-' prefix, which means
-	 * they can easily collide with terms in other taxonomies
+	 * List the co-authors assigned to a post.
 	 *
-	 * @since 3.0
+	 * ## OPTIONS
 	 *
-	 * @subcommand migrate-author-terms
+	 * <post_id>
+	 * : ID of the post to list co-authors for.
+	 *
+	 * [--field=<field>]
+	 * : Print the value of a single field for each co-author.
+	 *
+	 * [--fields=<fields>]
+	 * : Limit the output to specific fields. Defaults to all fields.
+	 *
+	 * [--format=<format>]
+	 * : Render output in a particular format.
+	 * ---
+	 * default: table
+	 * options:
+	 *   - table
+	 *   - csv
+	 *   - json
+	 *   - yaml
+	 *   - count
+	 * ---
+	 *
+	 * ## AVAILABLE FIELDS
+	 *
+	 * These fields are available for each co-author:
+	 *
+	 * * ID
+	 * * display_name
+	 * * user_nicename
+	 * * user_email
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # List the co-authors of a post as a table.
+	 *     $ wp co-authors-plus list-authors 123
+	 *
+	 *     # Print just the co-author IDs, one per line.
+	 *     $ wp co-authors-plus list-authors 123 --field=ID
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param array $args Positional arguments.
+	 * @param array $assoc_args Associative arguments.
+	 *
+	 * @subcommand list-authors
+	 * @synopsis <post_id> [--field=<field>] [--fields=<fields>] [--format=<format>]
 	 */
-	public function migrate_author_terms( $args, $assoc_args ): void {
-		global $coauthors_plus;
+	public function list_authors( $args, $assoc_args ): void {
+		$post_id = absint( $args[0] ?? 0 );
 
-		$author_terms = get_terms( array(
-			'taxonomy'   => $coauthors_plus->coauthor_taxonomy,
-			'hide_empty' => false,
-		) );
-		WP_CLI::log( 'Now migrating up to ' . count( $author_terms ) . ' terms' );
-		foreach ( $author_terms as $author_term ) {
-			// Term is already prefixed. We're good.
-			if ( preg_match( '#^cap\-#', $author_term->slug, $matches ) ) {
-				WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) is already prefixed, skipping" );
-				continue;
-			}
-			// A prefixed term was accidentally created, and the old term needs to be merged into the new (WordPress.com VIP)
-			if ( $prefixed_term = get_term_by( 'slug', 'cap-' . $author_term->slug, $coauthors_plus->coauthor_taxonomy ) ) {
-				WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) has a new term too: $prefixed_term->slug ($prefixed_term->term_id). Merging" );
-				$args = array(
-					'default'       => $author_term->term_id,
-					'force_default' => true,
-				);
-				wp_delete_term( $prefixed_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
-			}
-
-			// Term isn't prefixed, doesn't have a sibling, and should be updated
-			WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) isn't prefixed, adding one" );
-			$args = array(
-				'slug' => 'cap-' . $author_term->slug,
-			);
-			wp_update_term( $author_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
+		if ( ! $post_id || ! get_post( $post_id ) ) {
+			WP_CLI::error( 'Please specify a valid post_id.' );
 		}
-		WP_CLI::success( 'All done! Grab a cold one (Affogatto)' );
+
+		$coauthors = get_coauthors( $post_id );
+
+		if ( empty( $coauthors ) ) {
+			WP_CLI::log( 'No co-authors found for post #' . $post_id );
+			return;
+		}
+
+		$fields = array( 'ID', 'display_name', 'user_nicename', 'user_email' );
+
+		$items = array_map(
+			static function ( $coauthor ) use ( $fields ) {
+				$item = array();
+
+				foreach ( $fields as $field ) {
+					$item[ $field ] = $coauthor->$field ?? '';
+				}
+
+				return $item;
+			},
+			$coauthors
+		);
+
+		$formatter = new \WP_CLI\Formatter( $assoc_args, $fields );
+		$formatter->display_items( $items );
 	}
 
 	/**
@@ -942,7 +543,7 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 					}
 				}
 
-				$this->stop_the_insanity();
+				\WP_CLI\Utils\wp_clear_object_cache();
 
 				$args['paged']++;
 				$posts = new WP_Query( $args );
@@ -950,34 +551,6 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 		}
 
 		WP_CLI::success( 'All done' );
-	}
-
-	/**
-	 * Remove author terms from revisions, which we've been adding since the dawn of time
-	 *
-	 * @since 3.0.1
-	 *
-	 * @subcommand remove-terms-from-revisions
-	 */
-	public function remove_terms_from_revisions(): void {
-		global $wpdb;
-
-		$ids = $wpdb->get_col( "SELECT ID FROM $wpdb->posts WHERE post_type='revision' AND post_status='inherit'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WP-CLI one-time maintenance command.
-
-		WP_CLI::log( 'Found ' . count( $ids ) . ' revisions to look through' );
-		$affected = 0;
-		foreach ( $ids as $post_id ) {
-
-			$terms = cap_get_coauthor_terms_for_post( $post_id );
-			if ( empty( $terms ) ) {
-				continue;
-			}
-
-			WP_CLI::log( "#{$post_id}: Removing " . implode( ',', wp_list_pluck( $terms, 'slug' ) ) );
-			wp_set_post_terms( $post_id, array(), 'author' );
-			$affected++;
-		}
-		WP_CLI::log( "All done! {$affected} revisions had author terms removed" );
 	}
 
 	/**
@@ -1178,28 +751,6 @@ class CoAuthorsPlus_Command extends WP_CLI_Command {
 
 		/* translators: Guest Author ID. */
 		WP_CLI::success( sprintf( esc_html__( '-- Created as guest author #%s', 'co-authors-plus' ), $guest_author_id ) );
-	}
-
-	/**
-	 * Clear all the caches for memory management.
-	 */
-	private function stop_the_insanity(): void {
-		global $wpdb, $wp_object_cache;
-
-		$wpdb->queries = array(); // or define( 'WP_IMPORTING', true );
-
-		if ( ! is_object( $wp_object_cache ) ) {
-			return;
-		}
-
-		$wp_object_cache->group_ops      = array();
-		$wp_object_cache->stats          = array();
-		$wp_object_cache->memcache_debug = array();
-		$wp_object_cache->cache          = array();
-
-		if ( is_callable( $wp_object_cache, '__remoteset' ) ) {
-			$wp_object_cache->__remoteset(); // important
-		}
 	}
 
 	/**

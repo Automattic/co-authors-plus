@@ -32,20 +32,21 @@
 		"test:unit:watch": "wp-scripts test-unit-js --watch"
 	},
 	"dependencies": {
-		"@wordpress/api-fetch": "^7.48.1",
-		"@wordpress/components": "^35.0.1",
+		"@wordpress/api-fetch": "^7.54.0",
+		"@wordpress/components": "^40.0.0",
 		"@wordpress/data": "^10.36.0",
 		"@wordpress/element": "^8.0.1",
 		"@wordpress/i18n": "^6.9.0"
 	},
 	"devDependencies": {
-		"@playwright/test": "^1.61.0",
-		"@wordpress/e2e-test-utils-playwright": "^1.48.1",
-		"@wordpress/icons": "^14.0.1",
-		"@wordpress/scripts": "^32.4.1",
+		"@playwright/test": "^1.62.1",
+		"@testing-library/dom": "^10.4.1",
+		"@testing-library/react": "^16.3.3",
+		"@wordpress/e2e-test-utils-playwright": "^1.54.0",
+		"@wordpress/icons": "^15.5.0",
+		"@wordpress/scripts": "^34.2.0",
 		"classnames": "^2.5.1",
 		"prettier": "npm:wp-prettier@^2.2.1-beta-1",
-		"prop-types": "^15.8.1",
 		"version-bump-prompt": "^6.1.0"
 	},
 	"keywords": []

@@ -3,6 +3,8 @@
  * @package Automattic\CoAuthorsPlus
  */
 
+use CoAuthors\Prefix;
+
 class CoAuthors_Plus {
 
 	// Name for the taxonomy we're using to store relationships
@@ -154,15 +156,11 @@ class CoAuthors_Plus {
 		// REST API: Depending on user capabilities, hide author term description.
 		add_action( 'rest_prepare_author', array( $this, 'conditionally_hide_author_term_description' ) );
 
-		// Add Bulk Edit support on supported versions of WordPress.
-		global $wp_version;
-		if ( version_compare( $wp_version, '6.3', '>=' ) ) {
-			// Add Co-Author select field to the Bulk Edit actions form.
-			add_action( 'bulk_edit_custom_box', array( $this, '_action_bulk_edit_custom_box' ), 10, 2 );
+		// Add Co-Author select field to the Bulk Edit actions form.
+		add_action( 'bulk_edit_custom_box', array( $this, '_action_bulk_edit_custom_box' ), 10, 2 );
 
-			// Update Co-Authors when bulk editing posts.
-			add_action( 'bulk_edit_posts', array( $this, 'action_bulk_edit_update_coauthors' ), 10, 2 );
-		}
+		// Update Co-Authors when bulk editing posts.
+		add_action( 'bulk_edit_posts', array( $this, 'action_bulk_edit_update_coauthors' ), 10, 2 );
 	}
 
 	/**
@@ -277,6 +275,15 @@ class CoAuthors_Plus {
 			'query_var'    => false,
 			'rewrite'      => false,
 			'public'       => false,
+
+			/*
+			 * 'sort' and the 'term_order' args are what make byline order work, so
+			 * do not drop them. 'sort' => true makes wp_set_object_terms() write
+			 * wp_term_relationships.term_order in the order the slugs are passed,
+			 * and 'args' forces every wp_get_object_terms() call for this taxonomy
+			 * to read back in that order. Without the pair, bylines come back in an
+			 * arbitrary order. See AddCoauthorsTest for the round-trip coverage.
+			 */
 			'sort'         => true,
 			'args'         => array( 'orderby' => 'term_order' ),
 			'show_ui'      => false,
@@ -981,18 +988,37 @@ class CoAuthors_Plus {
 	}
 
 	/**
+	 * Whether a query's post type participates in the co-author taxonomy.
+	 *
+	 * The SQL filters below rewrite author queries to read co-author terms
+	 * instead of `post_author`. That rewrite only makes sense for post types
+	 * the `author` taxonomy is registered against, so each filter checks this
+	 * before touching the clause it was handed.
+	 *
+	 * An empty post type is treated as participating, because WordPress has
+	 * not narrowed the query to anything the taxonomy could exclude.
+	 *
+	 * @param WP_Query $query The query being filtered.
+	 * @return bool Whether the query's post type supports co-authors.
+	 */
+	protected function query_targets_coauthor_taxonomy( WP_Query $query ): bool {
+		$post_type = $query->query_vars['post_type'];
+
+		if ( 'any' === $post_type ) {
+			$post_type = get_post_types( array( 'exclude_from_search' => false ) );
+		}
+
+		return empty( $post_type ) || is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy );
+	}
+
+	/**
 	 * Modify the author query posts SQL to include posts co-authored
 	 */
 	public function posts_join_filter( $join, $query ) {
 		global $wpdb;
 
 		if ( $this->is_author_query( $query ) ) {
-			$post_type = $query->query_vars['post_type'];
-			if ( 'any' === $post_type ) {
-				$post_type = get_post_types( array( 'exclude_from_search' => false ) );
-			}
-
-			if ( ! empty( $post_type ) && ! is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy ) ) {
+			if ( ! $this->query_targets_coauthor_taxonomy( $query ) ) {
 				return $join;
 			}
 
@@ -1032,6 +1058,17 @@ class CoAuthors_Plus {
 		global $wpdb;
 
 		if ( $this->is_author_query( $query ) ) {
+			/*
+			 * Start from a clean slate. having_terms is instance state handed from
+			 * this filter to posts_join_filter() and posts_groupby_filter() within a
+			 * single query, but nothing reset it between queries: every early return
+			 * below left the previous query's terms in place, and the JOIN and
+			 * GROUP BY filters then applied them to a query whose WHERE clause had
+			 * been left alone. The result was a silent, arbitrary HAVING that dropped
+			 * exactly those posts carrying some other co-author's term. See #1371.
+			 */
+			$this->having_terms = '';
+
 			// Route to the multi-author path when author IDs are explicitly provided:
 			//
 			// • author__in (any count): WordPress does NOT set is_author for author__in,
@@ -1047,12 +1084,7 @@ class CoAuthors_Plus {
 			if ( ! empty( $author_ids ) && ( ! $query->is_author() || count( $author_ids ) > 1 ) ) {
 				return $this->posts_where_filter_multi_author( $where, $query );
 			}
-			$post_type = $query->query_vars['post_type'];
-			if ( 'any' === $post_type ) {
-				$post_type = get_post_types( array( 'exclude_from_search' => false ) );
-			}
-
-			if ( ! empty( $post_type ) && ! is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy ) ) {
+			if ( ! $this->query_targets_coauthor_taxonomy( $query ) ) {
 				return $where;
 			}
 
@@ -1217,12 +1249,7 @@ class CoAuthors_Plus {
 	protected function posts_where_filter_multi_author( string $where, WP_Query $query ): string {
 		global $wpdb;
 
-		$post_type = $query->query_vars['post_type'];
-		if ( 'any' === $post_type ) {
-			$post_type = get_post_types( array( 'exclude_from_search' => false ) );
-		}
-
-		if ( ! empty( $post_type ) && ! is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy ) ) {
+		if ( ! $this->query_targets_coauthor_taxonomy( $query ) ) {
 			return $where;
 		}
 
@@ -1278,11 +1305,7 @@ class CoAuthors_Plus {
 		global $wpdb;
 
 		if ( $this->is_author_query( $query ) ) {
-			$post_type = $query->query_vars['post_type'];
-			if ( 'any' === $post_type ) {
-				$post_type = get_post_types( array( 'exclude_from_search' => false ) );
-			}
-			if ( ! empty( $post_type ) && ! is_object_in_taxonomy( $post_type, $this->coauthor_taxonomy ) ) {
+			if ( ! $this->query_targets_coauthor_taxonomy( $query ) ) {
 				return $groupby;
 			}
 
@@ -1686,10 +1709,23 @@ class CoAuthors_Plus {
 			$author             = $this->get_coauthor_by( $field, $author_name );
 			$coauthor_objects[] = $author;
 			$term               = $this->update_author_term( $author );
-			if ( is_object( $term ) ) {
+
+			// A WP_Error is an object too, and its ->slug would blank the author.
+			if ( is_object( $term ) && ! is_wp_error( $term ) ) {
 				$author_name = $term->slug;
 			}
 		}
+
+		// Break the reference, so later writes cannot alias the last element.
+		unset( $author_name );
+
+		/*
+		 * The author taxonomy is registered with 'sort' => true (see
+		 * action_init_late()), and this is a non-append call, so
+		 * wp_set_object_terms() writes wp_term_relationships.term_order in the
+		 * order the slugs are passed here. That is what makes the byline order
+		 * round-trip: the read path orders by term_order ASC.
+		 */
 		wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
 
 		// If the original post_author is no longer assigned,
@@ -2127,11 +2163,11 @@ class CoAuthors_Plus {
 		$found_users = array();
 		foreach ( $found_terms as $found_term ) {
 			$found_user = $this->get_coauthor_by( 'user_nicename', $found_term->slug );
-			if ( ! $found_user && 0 === strpos( $found_term->slug, 'cap-cap-' ) ) {
-				// Account for guest author terms that start with 'cap-'.
-				// e.g. "Cap Ri" -> "cap-cap-ri".
-				$cap_slug   = substr( $found_term->slug, 4, strlen( $found_term->slug ) );
-				$found_user = $this->get_coauthor_by( 'user_nicename', $cap_slug );
+			$unprefixed = Prefix::strip_slug_prefix( $found_term->slug );
+			if ( ! $found_user && Prefix::slug_has_prefix( $unprefixed ) ) {
+				// A doubled prefix means the guest author's own user_nicename
+				// starts with 'cap-'. e.g. "Cap Ri" -> "cap-cap-ri".
+				$found_user = $this->get_coauthor_by( 'user_nicename', $unprefixed );
 			}
 			if ( ! empty( $found_user ) ) {
 				$found_users[ $found_user->user_login ] = $found_user;
@@ -2172,7 +2208,9 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		wp_enqueue_script( 'jquery' );
+		// jquery-ui-sortable depends on jquery, and is enqueued without a group,
+		// so jQuery is still resolved into the head. Enqueuing it here as well
+		// added nothing.
 		wp_enqueue_script( 'jquery-ui-sortable' );
 		wp_enqueue_style( 'co-authors-plus-css', plugins_url( 'css/co-authors-plus.css', COAUTHORS_PLUS_FILE ), false, COAUTHORS_PLUS_VERSION );
 		wp_enqueue_script( 'co-authors-plus-js', plugins_url( 'js/co-authors-plus.js', COAUTHORS_PLUS_FILE ), array( 'jquery', 'jquery-ui-autocomplete' ), COAUTHORS_PLUS_VERSION, true );
@@ -2394,7 +2432,7 @@ class CoAuthors_Plus {
 		}
 
 		// See if the prefixed term is available, otherwise default to just the nicename
-		$term = get_term_by( 'slug', 'cap-' . $coauthor->user_nicename, $this->coauthor_taxonomy );
+		$term = get_term_by( 'slug', Prefix::prefix_slug( $coauthor->user_nicename ), $this->coauthor_taxonomy );
 		if ( ! $term ) {
 			$term = get_term_by( 'slug', $coauthor->user_nicename, $this->coauthor_taxonomy );
 		}
@@ -2428,7 +2466,7 @@ class CoAuthors_Plus {
 				wp_update_term( $term->term_id, $this->coauthor_taxonomy, array( 'description' => $term_description ) );
 			}
 		} else {
-			$coauthor_slug = 'cap-' . $coauthor->user_nicename;
+			$coauthor_slug = Prefix::prefix_slug( $coauthor->user_nicename );
 			$args          = array(
 				'slug'        => $coauthor_slug,
 				'description' => $term_description,
@@ -2720,7 +2758,7 @@ class CoAuthors_Plus {
 		}
 
 		$term       = $this->get_author_term( $guest_author );
-		$guest_term = get_term_by( 'slug', 'cap-' . $guest_author->user_nicename, $this->coauthor_taxonomy );
+		$guest_term = get_term_by( 'slug', Prefix::prefix_slug( $guest_author->user_nicename ), $this->coauthor_taxonomy );
 
 		if ( is_object( $guest_term )
 			&& ! empty( $guest_author->linked_account )

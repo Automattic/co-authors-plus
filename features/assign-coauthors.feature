@@ -1,0 +1,299 @@
+Feature: Co-authors can be assigned to posts from a post meta value
+
+	Background:
+		Given a WP installation with the Co-Authors Plus plugin
+
+	Scenario: Report every outcome in one run and ignore posts the query cannot reach
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp post create --post_title="Fresh" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_1}
+		And I run `wp post meta update {POST_ID_1} _original_import_author author1`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Already" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_2}
+		And I run `wp post meta update {POST_ID_2} _original_import_author author1`
+		And I run `wp post create --post_title="Ghost" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_3}
+		And I run `wp post meta update {POST_ID_3} _original_import_author ghostwriter`
+		And I run `wp post create --post_title="No meta" --post_status=publish --porcelain`
+		And save STDOUT as {NO_META_ID}
+		And I run `wp post create --post_title="Draft import" --post_status=draft --porcelain`
+		And save STDOUT as {DRAFT_ID}
+		And I run `wp post meta update {DRAFT_ID} _original_import_author author1`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID_1} has been assigned "author1" as the author
+		2: Post #{POST_ID_2} already has "author1" associated as a co-author
+		3: Post #{POST_ID_3} does not have "ghostwriter" associated as a co-author but there is not a co-author profile
+		All done! Here are your results:
+		- 1 posts already had the co-author assigned
+		- 1 posts reference co-authors that don't exist. These are:
+		  ghostwriter
+		- 1 posts now have the proper co-author
+		"""
+		When I run `wp term list author --object_ids={POST_ID_1} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		"""
+		When I run `wp term list author --object_ids={NO_META_ID} --format=count`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+		When I run `wp term list author --object_ids={DRAFT_ID} --format=count`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+
+	Scenario: Assign a co-author from the default meta key and re-run safely
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp post create --post_title="Imported post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post meta update {POST_ID} _original_import_author author1`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} has been assigned "author1" as the author
+		All done! Here are your results:
+		- 1 posts now have the proper co-author
+		"""
+		When I run the previous command again
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} already has "author1" associated as a co-author
+		All done! Here are your results:
+		- 1 posts already had the co-author assigned
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		"""
+		When I run `wp post get {POST_ID} --field=post_author`
+		Then STDOUT should be:
+		"""
+		{AUTHOR1_ID}
+		"""
+
+	Scenario: Assign a co-author from a custom --meta_key
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And I run `wp post create --post_title="Custom key post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post meta update {POST_ID} author author1`
+		And I run `wp co-authors-plus assign-coauthors --meta_key=author`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} has been assigned "author1" as the author
+		All done! Here are your results:
+		- 1 posts now have the proper co-author
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		"""
+
+	Scenario: Do not backfill the author term for a post whose author already matches
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Own post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		"""
+		When I run `wp post term remove {POST_ID} author cap-author1 --by=slug`
+		And I run `wp post meta update {POST_ID} _original_import_author author1`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} already has "author1" associated as a co-author
+		All done! Here are your results:
+		- 1 posts already had the co-author assigned
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --format=count`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+
+	Scenario: Report missing co-author profiles once each in the summary
+		When I run `wp post create --post_title="Ghost post one" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_1}
+		And I run `wp post meta update {POST_ID_1} _original_import_author ghostwriter`
+		And I run `wp post create --post_title="Ghost post two" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_2}
+		And I run `wp post meta update {POST_ID_2} _original_import_author ghostwriter`
+		And I run `wp post create --post_title="Phantom post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_3}
+		And I run `wp post meta update {POST_ID_3} _original_import_author phantom`
+		And I run `wp post create --post_title="Blank import" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID_4}
+		And I run `wp eval 'update_post_meta( {POST_ID_4}, "_original_import_author", "" );'`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID_1} does not have "ghostwriter" associated as a co-author but there is not a co-author profile
+		2: Post #{POST_ID_2} does not have "ghostwriter" associated as a co-author but there is not a co-author profile
+		3: Post #{POST_ID_3} does not have "phantom" associated as a co-author but there is not a co-author profile
+		4: Post #{POST_ID_4} does not have "" associated as a co-author but there is not a co-author profile
+		All done! Here are your results:
+		- 4 posts reference co-authors that don't exist. These are:
+		  ghostwriter, phantom,
+		"""
+		When I run `wp term list author --object_ids={POST_ID_1},{POST_ID_2},{POST_ID_3},{POST_ID_4} --format=count`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+
+	Scenario: Replace existing co-authors by default
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp user create author2 author2@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR2_ID}
+		And I run `wp post create --post_title="Imported post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post meta update {POST_ID} _original_import_author author1`
+		And I run `wp co-authors-plus assign-coauthors`
+		And I run `wp post meta update {POST_ID} _original_import_author author2`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} has been assigned "author2" as the author
+		All done! Here are your results:
+		- 1 posts now have the proper co-author
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author2
+		"""
+		When I run `wp post get {POST_ID} --field=post_author`
+		Then STDOUT should be:
+		"""
+		{AUTHOR2_ID}
+		"""
+
+	Scenario: Append to existing co-authors with --append_coauthors
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp user create author2 author2@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR2_ID}
+		And I run `wp post create --post_title="Imported post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post meta update {POST_ID} _original_import_author author1`
+		And I run `wp co-authors-plus assign-coauthors`
+		And I run `wp post meta update {POST_ID} _original_import_author author2`
+		And I run `wp co-authors-plus assign-coauthors --append_coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} has been assigned "author2" as the author
+		All done! Here are your results:
+		- 1 posts now have the proper co-author
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		cap-author2
+		"""
+		When I run `wp post get {POST_ID} --field=post_author`
+		Then STDOUT should be:
+		"""
+		{AUTHOR1_ID}
+		"""
+		When I run `wp user create author3 author3@example.com --role=author --porcelain`
+		And I run `wp post meta update {POST_ID} _original_import_author author3`
+		And I run `wp co-authors-plus assign-coauthors --append_coauthors=false`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} has been assigned "author3" as the author
+		All done! Here are your results:
+		- 1 posts now have the proper co-author
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		cap-author2
+		cap-author3
+		"""
+
+	Scenario: Process only the given --post_type
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And I run `wp post create --post_type=page --post_title="A page" --post_status=publish --porcelain`
+		And save STDOUT as {PAGE_ID}
+		And I run `wp post meta update {PAGE_ID} _original_import_author author1`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		All done! Here are your results:
+		"""
+		When I run `wp co-authors-plus assign-coauthors --post_type=page`
+		Then STDOUT should be:
+		"""
+		1: Post #{PAGE_ID} has been assigned "author1" as the author
+		All done! Here are your results:
+		- 1 posts now have the proper co-author
+		"""
+		When I run `wp term list author --object_ids={PAGE_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		"""
+
+	Scenario: Fall back to a sanitised meta value, re-assigning on every run
+		When I run `wp user create author-one author-one@example.com --role=author --porcelain`
+		And I run `wp post create --post_title="Display name import" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post meta update {POST_ID} _original_import_author "Author One"`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} has been assigned "Author One" as the author
+		All done! Here are your results:
+		- 1 posts now have the proper co-author
+		"""
+		When I run the previous command again
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} has been assigned "Author One" as the author
+		All done! Here are your results:
+		- 1 posts now have the proper co-author
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author-one
+		"""
+
+	Scenario: Assign an unlinked guest author from the meta value
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=jane@example.com --first_name=Jane --last_name=Doe --website=https://example.com/jane --description="Jane writes about testing"`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Imported post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post meta update {POST_ID} _original_import_author jane-doe`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_ID} has been assigned "jane-doe" as the author
+		All done! Here are your results:
+		- 1 posts now have the proper co-author
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-jane-doe
+		"""
+		When I run `wp post get {POST_ID} --field=post_author`
+		Then STDOUT should be:
+		"""
+		{AUTHOR1_ID}
+		"""
