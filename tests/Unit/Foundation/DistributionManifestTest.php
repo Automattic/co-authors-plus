@@ -41,7 +41,6 @@ final class DistributionManifestTest extends TestCase {
 		'languages',
 		'php',
 		'template-tags.php',
-		'upgrade.php',
 	);
 
 	/**
