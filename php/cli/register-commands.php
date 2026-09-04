@@ -12,6 +12,10 @@
 
 declare( strict_types=1 );
 
+use Automattic\CoAuthorsPlus\CLI\Migrate_Author_Terms_Command;
+use Automattic\CoAuthorsPlus\CLI\Reassign_Terms_Command;
+use Automattic\CoAuthorsPlus\CLI\Remove_Terms_From_Revisions_Command;
+use Automattic\CoAuthorsPlus\CLI\Rename_Coauthor_Command;
 use Automattic\CoAuthorsPlus\CLI\Assign_Coauthors_Command;
 use Automattic\CoAuthorsPlus\CLI\Assign_User_To_Coauthor_Command;
 use Automattic\CoAuthorsPlus\CLI\Export_Coauthors_Command;
@@ -32,6 +36,10 @@ require_once __DIR__ . '/../services/class-coauthor-assignment-service.php';
 require_once __DIR__ . '/../services/class-guest-author-service.php';
 require_once __DIR__ . '/../services/class-coauthor-export-service.php';
 require_once __DIR__ . '/../services/class-coauthor-import-service.php';
+require_once __DIR__ . '/class-migrate-author-terms-command.php';
+require_once __DIR__ . '/class-reassign-terms-command.php';
+require_once __DIR__ . '/class-remove-terms-from-revisions-command.php';
+require_once __DIR__ . '/class-rename-coauthor-command.php';
 require_once __DIR__ . '/class-assign-coauthors-command.php';
 require_once __DIR__ . '/class-assign-user-to-coauthor-command.php';
 require_once __DIR__ . '/class-export-coauthors-command.php';
@@ -62,6 +70,26 @@ add_action(
 				$coauthors_plus,
 				new Coauthor_Export_Service( $coauthors_plus, $guest_authors, $assignments )
 			)
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus migrate-author-terms',
+			new Migrate_Author_Terms_Command( $coauthors_plus )
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus reassign-terms',
+			new Reassign_Terms_Command( $coauthors_plus )
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus remove-terms-from-revisions',
+			new Remove_Terms_From_Revisions_Command()
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus rename-coauthor',
+			new Rename_Coauthor_Command( $coauthors_plus )
 		);
 
 		WP_CLI::add_command(
