@@ -109,7 +109,7 @@ add_action(
 
 		WP_CLI::add_command(
 			'co-authors-plus remove-terms-from-revisions',
-			new Remove_Terms_From_Revisions_Command()
+			new Remove_Terms_From_Revisions_Command( $coauthors_plus )
 		);
 
 		WP_CLI::add_command(
