@@ -42,7 +42,6 @@
 	<rule ref="WordPress.Files.FileName.InvalidClassFileName">
 		<exclude-pattern>php/class-coauthors-iterator.php</exclude-pattern>
 		<exclude-pattern>php/class-coauthors-endpoint.php</exclude-pattern>
-		<exclude-pattern>php/class-wp-cli.php</exclude-pattern>
 		<exclude-pattern>php/integrations/yoast.php</exclude-pattern>
 	</rule>
 

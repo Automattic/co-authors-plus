@@ -12,21 +12,27 @@
 
 declare( strict_types=1 );
 
+use Automattic\CoAuthorsPlus\CLI\Assign_Coauthors_Command;
+use Automattic\CoAuthorsPlus\CLI\Command_Namespace;
+use Automattic\CoAuthorsPlus\CLI\Assign_User_To_Coauthor_Command;
+use Automattic\CoAuthorsPlus\CLI\Create_Author_Command;
+use Automattic\CoAuthorsPlus\CLI\Create_Author_Terms_For_Posts_Command;
+use Automattic\CoAuthorsPlus\CLI\Create_Guest_Authors_Command;
+use Automattic\CoAuthorsPlus\CLI\Create_Guest_Authors_From_Csv_Command;
+use Automattic\CoAuthorsPlus\CLI\Create_Guest_Authors_From_Wxr_Command;
+use Automattic\CoAuthorsPlus\CLI\Create_Terms_For_Posts_Command;
+use Automattic\CoAuthorsPlus\CLI\Delete_Skip_Backfill_Postmeta_Command;
+use Automattic\CoAuthorsPlus\CLI\Export_Coauthors_Command;
+use Automattic\CoAuthorsPlus\CLI\Guest_Author_Creator;
+use Automattic\CoAuthorsPlus\CLI\Import_Coauthors_Command;
+use Automattic\CoAuthorsPlus\CLI\List_Authors_Command;
+use Automattic\CoAuthorsPlus\CLI\List_Posts_Without_Terms_Command;
 use Automattic\CoAuthorsPlus\CLI\Migrate_Author_Terms_Command;
 use Automattic\CoAuthorsPlus\CLI\Reassign_Terms_Command;
 use Automattic\CoAuthorsPlus\CLI\Remove_Terms_From_Revisions_Command;
 use Automattic\CoAuthorsPlus\CLI\Rename_Coauthor_Command;
-use Automattic\CoAuthorsPlus\CLI\Create_Author_Command;
-use Automattic\CoAuthorsPlus\CLI\Create_Guest_Authors_Command;
-use Automattic\CoAuthorsPlus\CLI\Create_Guest_Authors_From_Csv_Command;
-use Automattic\CoAuthorsPlus\CLI\Create_Guest_Authors_From_Wxr_Command;
-use Automattic\CoAuthorsPlus\CLI\List_Authors_Command;
-use Automattic\CoAuthorsPlus\CLI\Guest_Author_Creator;
-use Automattic\CoAuthorsPlus\CLI\Assign_Coauthors_Command;
-use Automattic\CoAuthorsPlus\CLI\Assign_User_To_Coauthor_Command;
-use Automattic\CoAuthorsPlus\CLI\Export_Coauthors_Command;
-use Automattic\CoAuthorsPlus\CLI\Import_Coauthors_Command;
 use Automattic\CoAuthorsPlus\CLI\Swap_Coauthors_Command;
+use Automattic\CoAuthorsPlus\CLI\Update_Author_Terms_Command;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Assignment_Service;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Export_Service;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Import_Service;
@@ -52,6 +58,12 @@ require_once __DIR__ . '/class-create-guest-authors-command.php';
 require_once __DIR__ . '/class-create-guest-authors-from-csv-command.php';
 require_once __DIR__ . '/class-create-guest-authors-from-wxr-command.php';
 require_once __DIR__ . '/class-list-authors-command.php';
+require_once __DIR__ . '/class-create-author-terms-for-posts-command.php';
+require_once __DIR__ . '/class-create-terms-for-posts-command.php';
+require_once __DIR__ . '/class-delete-skip-backfill-postmeta-command.php';
+require_once __DIR__ . '/class-list-posts-without-terms-command.php';
+require_once __DIR__ . '/class-update-author-terms-command.php';
+require_once __DIR__ . '/class-command-namespace.php';
 require_once __DIR__ . '/class-assign-coauthors-command.php';
 require_once __DIR__ . '/class-assign-user-to-coauthor-command.php';
 require_once __DIR__ . '/class-export-coauthors-command.php';
@@ -129,6 +141,35 @@ add_action(
 			'co-authors-plus list-authors',
 			new List_Authors_Command()
 		);
+
+		WP_CLI::add_command(
+			'co-authors-plus create-author-terms-for-posts',
+			new Create_Author_Terms_For_Posts_Command( $coauthors_plus )
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus create-terms-for-posts',
+			new Create_Terms_For_Posts_Command( $coauthors_plus )
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus delete-postmeta-that-skip-author-term-backfill',
+			new Delete_Skip_Backfill_Postmeta_Command()
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus list-posts-without-terms',
+			new List_Posts_Without_Terms_Command( $coauthors_plus )
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus update-author-terms',
+			new Update_Author_Terms_Command( $coauthors_plus )
+		);
+
+		// Declares the namespace the subcommands sit in, so `wp co-authors-plus`
+		// has a description of its own.
+		WP_CLI::add_command( 'co-authors-plus', Command_Namespace::class );
 
 		WP_CLI::add_command(
 			'co-authors-plus assign-coauthors',
