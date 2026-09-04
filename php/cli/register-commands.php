@@ -12,6 +12,8 @@
 
 declare( strict_types=1 );
 
+use Automattic\CoAuthorsPlus\CLI\Assign_Coauthors_Command;
+use Automattic\CoAuthorsPlus\CLI\Assign_User_To_Coauthor_Command;
 use Automattic\CoAuthorsPlus\CLI\Export_Coauthors_Command;
 use Automattic\CoAuthorsPlus\CLI\Import_Coauthors_Command;
 use Automattic\CoAuthorsPlus\CLI\Swap_Coauthors_Command;
@@ -30,6 +32,8 @@ require_once __DIR__ . '/../services/class-coauthor-assignment-service.php';
 require_once __DIR__ . '/../services/class-guest-author-service.php';
 require_once __DIR__ . '/../services/class-coauthor-export-service.php';
 require_once __DIR__ . '/../services/class-coauthor-import-service.php';
+require_once __DIR__ . '/class-assign-coauthors-command.php';
+require_once __DIR__ . '/class-assign-user-to-coauthor-command.php';
 require_once __DIR__ . '/class-export-coauthors-command.php';
 require_once __DIR__ . '/class-import-coauthors-command.php';
 require_once __DIR__ . '/class-swap-coauthors-command.php';
@@ -58,6 +62,16 @@ add_action(
 				$coauthors_plus,
 				new Coauthor_Export_Service( $coauthors_plus, $guest_authors, $assignments )
 			)
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus assign-coauthors',
+			new Assign_Coauthors_Command( $coauthors_plus )
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus assign-user-to-coauthor',
+			new Assign_User_To_Coauthor_Command( $coauthors_plus )
 		);
 
 		WP_CLI::add_command(
