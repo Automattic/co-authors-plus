@@ -354,10 +354,16 @@ PHP 8.4) rather than inferred from reading the source.
 
 (Calibrated against the live env 2026-09-01; re-verified green 2026-09-02 — 7 scenarios.)
 
-- The taxonomy is hardcoded as `'author'` in the `wp_set_post_terms` call
-  (php/class-wp-cli.php:977) instead of `$coauthors_plus->coauthor_taxonomy`, and
-  revisions are read via direct SQL on `post_type='revision' AND
-  post_status='inherit'` (line 965).
+- ~~The taxonomy is hardcoded as `'author'` in the `wp_set_post_terms` call
+  instead of `$coauthors_plus->coauthor_taxonomy`.~~ **FIXED.** The read side
+  went through the configured taxonomy while the write named `author`
+  directly, so on a site that had changed the property the command found the
+  terms, logged a removal for each revision, counted them, and cleared nothing
+  — reporting success for work it had not done. A unit guard now reads the
+  command sources and fails if any of them names the taxonomy directly, since
+  covering it live would mean registering a taxonomy under another name before
+  init. Revisions are still read via direct SQL on `post_type='revision' AND
+  post_status='inherit'`.
 - All output is `WP_CLI::log` — there is no `WP_CLI::success` and the exit code is
   always 0. Count lines never pluralise: "Found 1 revisions to look through",
   "1 revisions had author terms removed". Confirmed.

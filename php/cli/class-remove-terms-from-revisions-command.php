@@ -9,17 +9,31 @@ declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\CLI;
 
+use CoAuthors_Plus;
 use WP_CLI;
 
 /**
  * Strips author terms from revisions, which were assigned them for years.
  *
- * Moved here from CoAuthorsPlus_Command unchanged, including its use of a
- * hardcoded taxonomy name rather than the configured one; correcting that
- * changes behaviour and belongs in its own change. Behaviour is pinned by
- * features/remove-terms-from-revisions.feature.
+ * Behaviour is pinned by features/remove-terms-from-revisions.feature.
  */
 class Remove_Terms_From_Revisions_Command {
+
+	/**
+	 * Plugin instance.
+	 *
+	 * @var CoAuthors_Plus
+	 */
+	private $coauthors_plus;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param CoAuthors_Plus $coauthors_plus Plugin instance.
+	 */
+	public function __construct( CoAuthors_Plus $coauthors_plus ) {
+		$this->coauthors_plus = $coauthors_plus;
+	}
 
 	/**
 	 * Remove author terms from revisions.
@@ -53,7 +67,7 @@ class Remove_Terms_From_Revisions_Command {
 			}
 
 			WP_CLI::log( "#{$post_id}: Removing " . implode( ',', wp_list_pluck( $terms, 'slug' ) ) );
-			wp_set_post_terms( $post_id, array(), 'author' );
+			wp_set_post_terms( $post_id, array(), $this->coauthors_plus->coauthor_taxonomy );
 			$affected++;
 		}
 		WP_CLI::log( "All done! {$affected} revisions had author terms removed" );
