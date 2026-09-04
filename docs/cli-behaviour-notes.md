@@ -677,14 +677,38 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 
 - The command only ever prints CSV-ish lines; there is no summary and no
   success message, and an empty result prints nothing (exit 0). Pinned.
-- Post titles go through `addslashes()` (php/class-wp-cli.php:818), so an
-  apostrophe renders as `\'` in the output — PHP-style escaping inside
-  CSV-style quoting. Pinned.
-- Only `publish` posts are inspected (WP_Query default status with no logged-in
-  user), so drafts without terms are silently excluded. Pinned.
-- `$assoc_args` is merged straight into the WP_Query args (wp_parse_args at
-  :807), so ANY WP_Query var (e.g. `--year=`) is accepted, not just the
-  documented `--post_type`. Noted; not pinned.
+- ~~Post titles go through `addslashes()`, so an apostrophe renders as `\'` in
+  the output — PHP-style escaping inside CSV-style quoting.~~ **FIXED.** Every
+  field is wrapped in `"` and joined with `,`, which is CSV, and CSV escapes an
+  embedded quote by doubling it rather than with a backslash. A title containing
+  a quote therefore produced a line no CSV parser could read back, and
+  apostrophes and backslashes were mangled for no reason at all — neither needs
+  escaping in CSV. `addslashes()` is replaced by doubling `"`, and it appeared
+  nowhere else in the plugin. Two scenarios now pin it: an apostrophe printed
+  literally, and a quoted title round-tripping as `""`.
+- ~~Only `publish` posts are inspected (WP_Query default status with no logged-in
+  user), so drafts without terms are silently excluded.~~ **FIXED.** The query
+  now passes `post_status => 'any'`. This is the command whose entire purpose is
+  finding posts that lack author terms, and drafts are exactly where they go
+  missing, so the omission defeated the diagnostic. There was also no way to work
+  around it: the synopsis declares only `[--post_type]`, and WP-CLI treats an
+  undeclared argument as fatal, so `--post_status=draft` exited 1. `'any'` still
+  excludes trashed and auto-draft posts, which a new scenario pins so the
+  boundary cannot drift. No opt-in flag was added: this is a read-only
+  diagnostic, so a narrow default buys no safety, and the two comparable fixes in
+  this catalogue (`update-author-terms` and
+  `delete-postmeta-that-skip-author-term-backfill`) both widened rather than
+  adding a flag.
+- ~~`$assoc_args` is merged straight into the WP_Query args, so ANY WP_Query var
+  (e.g. `--year=`) is accepted, not just the documented `--post_type`.~~ **NEVER
+  TRUE**, rather than fixed. The pre-split code already declared
+  `@synopsis [--post_type=<ptype>]`, and WP-CLI rejects an undeclared associative
+  argument as a fatal parameter error, so `--year` has never reached
+  `wp_parse_args`. The entry was reasoned from reading the merge without
+  accounting for WP-CLI's synopsis gate, and it was explicitly "Noted; not
+  pinned" — the note's own methodology gave it away. The vestigial `'year' => ''`
+  default it described has been deleted. Worth treating the other "not pinned"
+  entries with the same suspicion, since they are the ones never executed.
 
 
 - Hardened 2026-09-02 after adversarial review: 7 scenarios.
@@ -706,7 +730,8 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   so the ordering regex keys on the post titles rather than on saved IDs.
 - The draft scenario now asserts the draft genuinely has no author term before the
   command runs, so its empty output can only be explained by the post_status
-  filter.
+  filter. (Since the post_status fix it asserts the draft IS listed, and the
+  no-author-term check still rules out the other explanation.)
 ## update-author-terms
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
