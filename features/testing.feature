@@ -53,6 +53,14 @@
       """
     And STDOUT should contain:
       """
+      export-coauthors
+      """
+    And STDOUT should contain:
+      """
+      import-coauthors
+      """
+    And STDOUT should contain:
+      """
       list-authors
       """
     And STDOUT should contain:
