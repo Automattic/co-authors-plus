@@ -3,6 +3,8 @@
  * @package Automattic\CoAuthorsPlus
  */
 
+use CoAuthors\Prefix;
+
 class CoAuthors_Plus {
 
 	// Name for the taxonomy we're using to store relationships
@@ -2151,11 +2153,11 @@ class CoAuthors_Plus {
 		$found_users = array();
 		foreach ( $found_terms as $found_term ) {
 			$found_user = $this->get_coauthor_by( 'user_nicename', $found_term->slug );
-			if ( ! $found_user && str_starts_with( $found_term->slug, 'cap-cap-' ) ) {
-				// Account for guest author terms that start with 'cap-'.
-				// e.g. "Cap Ri" -> "cap-cap-ri".
-				$cap_slug   = substr( $found_term->slug, 4, strlen( $found_term->slug ) );
-				$found_user = $this->get_coauthor_by( 'user_nicename', $cap_slug );
+			$unprefixed = Prefix::strip_slug_prefix( $found_term->slug );
+			if ( ! $found_user && Prefix::slug_has_prefix( $unprefixed ) ) {
+				// A doubled prefix means the guest author's own user_nicename
+				// starts with 'cap-'. e.g. "Cap Ri" -> "cap-cap-ri".
+				$found_user = $this->get_coauthor_by( 'user_nicename', $unprefixed );
 			}
 			if ( ! empty( $found_user ) ) {
 				$found_users[ $found_user->user_login ] = $found_user;
@@ -2420,7 +2422,7 @@ class CoAuthors_Plus {
 		}
 
 		// See if the prefixed term is available, otherwise default to just the nicename
-		$term = get_term_by( 'slug', 'cap-' . $coauthor->user_nicename, $this->coauthor_taxonomy );
+		$term = get_term_by( 'slug', Prefix::prefix_slug( $coauthor->user_nicename ), $this->coauthor_taxonomy );
 		if ( ! $term ) {
 			$term = get_term_by( 'slug', $coauthor->user_nicename, $this->coauthor_taxonomy );
 		}
@@ -2454,7 +2456,7 @@ class CoAuthors_Plus {
 				wp_update_term( $term->term_id, $this->coauthor_taxonomy, array( 'description' => $term_description ) );
 			}
 		} else {
-			$coauthor_slug = 'cap-' . $coauthor->user_nicename;
+			$coauthor_slug = Prefix::prefix_slug( $coauthor->user_nicename );
 			$args          = array(
 				'slug'        => $coauthor_slug,
 				'description' => $term_description,
@@ -2705,7 +2707,7 @@ class CoAuthors_Plus {
 		}
 
 		$term       = $this->get_author_term( $guest_author );
-		$guest_term = get_term_by( 'slug', 'cap-' . $guest_author->user_nicename, $this->coauthor_taxonomy );
+		$guest_term = get_term_by( 'slug', Prefix::prefix_slug( $guest_author->user_nicename ), $this->coauthor_taxonomy );
 
 		if ( is_object( $guest_term )
 			&& ! empty( $guest_author->linked_account )

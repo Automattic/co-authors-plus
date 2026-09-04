@@ -6,6 +6,8 @@
  * to give them access to the dashboard through a WP_User account
  */
 
+use CoAuthors\Prefix;
+
 class CoAuthors_Guest_Authors {
 
 	public $labels;
@@ -927,10 +929,18 @@ class CoAuthors_Guest_Authors {
 		if ( ! $slug ) {
 			wp_die( esc_html__( 'Guest authors cannot be created without display names.', 'co-authors-plus' ) );
 		}
+		/*
+		 * Deliberately the meta key rule, not the slug rule: this has always
+		 * prefixed case-insensitively, so a user_login of 'Cap Ri' yields the
+		 * post_name 'cap-cap-ri' while 'CAP-ri' yields 'cap-ri'. Changing that
+		 * would change the byline of guest authors created afterwards, so it
+		 * needs a decision and an upgrade path rather than a quiet fix.
+		 * See https://github.com/Automattic/co-authors-plus/issues/1397.
+		 */
 		$post_data['post_name'] = $this->get_post_meta_key( $slug );
 
 		// Guest authors can't be created with the same user_login as a user
-		$user_nicename = str_replace( 'cap-', '', $slug );
+		$user_nicename = Prefix::strip_slug_prefix( $slug );
 		$user          = get_user_by( 'slug', $user_nicename );
 		if ( $user
 			&& is_user_member_of_blog( $user->ID, get_current_blog_id() )
@@ -1243,11 +1253,7 @@ class CoAuthors_Guest_Authors {
 	 */
 	public function get_post_meta_key( $key ) {
 
-		if ( ! str_starts_with( strtolower( $key ), 'cap-' ) ) {
-			$key = 'cap-' . $key;
-		}
-
-		return $key;
+		return Prefix::ensure_meta_key_prefix( $key );
 	}
 
 	/**
@@ -1264,9 +1270,7 @@ class CoAuthors_Guest_Authors {
 			case 'post_name':
 				$key = 'user_nicename';
 
-				if ( str_starts_with( $value, 'cap-' ) ) {
-					$value = substr( $value, 4 );
-				}
+				$value = Prefix::strip_slug_prefix( $value );
 
 				break;
 
@@ -1331,7 +1335,7 @@ class CoAuthors_Guest_Authors {
 		}
 
 		// If one of the guest author meta values has changed, we'll need to invalidate all keys
-		if ( false !== strpos( $meta_key, 'cap-' ) && get_post_meta( $object_id, $meta_key, true ) !== $meta_value ) {
+		if ( Prefix::meta_key_has_prefix( $meta_key ) && get_post_meta( $object_id, $meta_key, true ) !== $meta_value ) {
 			$this->delete_guest_author_cache( $object_id );
 		}
 
@@ -1410,6 +1414,7 @@ class CoAuthors_Guest_Authors {
 		// Create the primary post object
 		$new_post = array(
 			'post_title' => $args['display_name'],
+			// The meta key rule, deliberately. See manage_guest_author_filter_post_data().
 			'post_name'  => sanitize_title( $this->get_post_meta_key( $args['user_login'] ) ),
 			'post_type'  => $this->post_type,
 		);
