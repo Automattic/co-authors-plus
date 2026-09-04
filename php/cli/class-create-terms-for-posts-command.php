@@ -12,13 +12,12 @@ namespace Automattic\CoAuthorsPlus\CLI;
 use CoAuthors_Plus;
 use WP_CLI;
 use WP_Query;
+use WP_Term;
 
 /**
  * Adds a missing author term to every supported post.
  *
- * Moved here from CoAuthorsPlus_Command unchanged, but for a global that was
- * declared and never read. Behaviour is pinned by
- * features/create-terms-for-posts.feature.
+ * Behaviour is pinned by features/create-terms-for-posts.feature.
  */
 class Create_Terms_For_Posts_Command {
 
@@ -59,8 +58,7 @@ class Create_Terms_For_Posts_Command {
 	public function __invoke( array $args, array $assoc_args ): void {
 		$coauthors_plus = $this->coauthors_plus;
 
-		// Cache these to prevent repeated lookups.
-		$authors      = array();
+		// Cache this to prevent repeated lookups.
 		$author_terms = array();
 
 		$args = array(
@@ -89,18 +87,23 @@ class Create_Terms_For_Posts_Command {
 				}
 
 				if ( ! empty( $terms ) ) {
-					WP_CLI::log( "{$count}/{$posts->found_posts}) Skipping - Post #{$single_post->ID} '{$single_post->post_title}' already has these terms: " . implode( ', ', wp_list_pluck( $terms, 'name' ) ) );
+					WP_CLI::log( "{$count}/{$total_posts}) Skipping - Post #{$single_post->ID} '{$single_post->post_title}' already has these terms: " . implode( ', ', wp_list_pluck( $terms, 'slug' ) ) );
 					continue;
 				}
 
-				$author                               = ( ! empty( $authors[ $single_post->post_author ] ) ) ? $authors[ $single_post->post_author ] : get_user_by( 'id', $single_post->post_author );
-				$authors[ $single_post->post_author ] = $author;
-
-				$author_term                               = ( ! empty( $author_terms[ $single_post->post_author ] ) ) ? $author_terms[ $single_post->post_author ] : $coauthors_plus->update_author_term( $author );
+				$author_term                               = $author_terms[ $single_post->post_author ] ?? $coauthors_plus->update_author_term( get_user_by( 'id', $single_post->post_author ) );
 				$author_terms[ $single_post->post_author ] = $author_term;
 
+				// update_author_term() returns false for a missing user and a WP_Error if the
+				// term cannot be created. Both used to be dereferenced, setting no term while
+				// still counting the post as done.
+				if ( ! $author_term instanceof WP_Term ) {
+					WP_CLI::warning( "{$count}/{$total_posts}) Skipping - Post #{$single_post->ID} '{$single_post->post_title}' has no author term for user ID {$single_post->post_author}." );
+					continue;
+				}
+
 				wp_set_post_terms( $single_post->ID, array( $author_term->slug ), $coauthors_plus->coauthor_taxonomy );
-				WP_CLI::log( "{$count}/{$total_posts}) Added - Post #{$single_post->ID} '{$single_post->post_title}' now has an author term for: " . $author->user_nicename );
+				WP_CLI::log( "{$count}/{$total_posts}) Added - Post #{$single_post->ID} '{$single_post->post_title}' now has this author term: {$author_term->slug}" );
 				$affected++;
 			}//end foreach
 
@@ -112,11 +115,6 @@ class Create_Terms_For_Posts_Command {
 			$args['paged']++;
 			$posts = new WP_Query( $args );
 		}//end while
-		WP_CLI::log( 'Updating author terms with new counts' );
-		foreach ( $authors as $author ) {
-			$coauthors_plus->update_author_term( $author );
-		}
-
 		WP_CLI::success( "Done! Of {$total_posts} posts, {$affected} now have author terms." );
 	}
 }

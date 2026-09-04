@@ -492,37 +492,44 @@ PHP 8.4) rather than inferred from reading the source.
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
 
-- When a post's `post_author` user does not exist, `update_author_term()` returns
-  `false` and the command dereferences it anyway (php/class-wp-cli.php:131-132).
-  Confirmed live: `Warning: Attempt to read property "slug" on false in .../php/class-wp-cli.php on line 131`
-  and the same for `"user_nicename"` on line 132 (PHP 8.4 says "on false", not
-  "on bool"). Each warning appears TWICE in combined output: once as a
-  timestamped debug-log line (`[date] PHP Warning: ...`) and once as a plain
-  `Warning: ...` display line. No `trim(): Passing null` deprecation from
-  `wp_set_object_terms()` was observed. The post is still logged as
-  `Added - Post #N ... now has an author term for: ` (trailing empty author),
-  counted in `$affected`, and the final message claims
-  `Success: Done! Of 1 posts, 1 now have author terms.` even though NO term was
-  set (verified: `wp term list author --object_ids=N --format=count` is 0).
-  Pinned with `should contain:` + the count state assertion.
-- `Updating author terms with new counts` is misleading: `update_author_term()`
-  only refreshes the term description; it never recalculates counts
-  (`update_author_term_post_count()` is not called here).
+- ~~When a post's `post_author` user does not exist, `update_author_term()` returns
+  `false` and the command dereferences it anyway, emitting PHP warnings for `slug`
+  and `user_nicename`. The post is still logged as `Added ... now has an author term
+  for: ` with a trailing empty author, counted in `$affected`, and the run claims
+  `Of 1 posts, 1 now have author terms.` though NO term was set.~~ **FIXED.** The
+  resolved term is checked with `! $author_term instanceof WP_Term`, which covers
+  both failure modes — `false` for a missing user, and a `WP_Error` if the term
+  cannot be created — and the post is skipped with a warning naming the post and the
+  user ID. The summary counts it honestly, so the state assertion (`0` terms) now
+  agrees with the reported figure instead of contradicting it. The memo also moved
+  from `! empty()` to `??`, so a failed lookup is cached too and an orphaned author
+  is resolved once per run rather than once per post.
+- ~~`Updating author terms with new counts` is misleading: `update_author_term()`
+  only refreshes the term description; it never recalculates counts.~~ **FIXED, and
+  the original diagnosis here was wrong.** Counts *are* recalculated — CAP registers
+  `_update_users_posts_count` as the taxonomy's `update_count_callback`, and core
+  fires it from `wp_set_object_terms()`, so setting the term on each post already
+  maintains the count. The real defect was that the whole trailing pass was
+  REDUNDANT: it looped over authors that had every one been through
+  `update_author_term()` moments earlier in the same run, with a description derived
+  from user fields that cannot have changed meanwhile, so `wp_update_term()` never
+  fired. A second pass doing nothing, announced by a message describing something
+  else. Both are deleted. A new scenario forces a term count to 5, runs the command,
+  and asserts the count comes back to 1 — verified live, which is what confirmed the
+  write path maintains it and the deletion is safe.
 - The command walks every supported post type (post AND page by default), unlike
   `create-author-terms-for-posts` which defaults to `post` only. Pinned in the
   "Pages are inspected by default" scenario.
 - Never-pluralised grammar: `Of 1 posts, 1 now have author terms.`
-- The unused global `$wp_post_types` is imported at :89.
-- The two per-post log lines use DIFFERENT identifiers for the same term: the
-  "Skipping" line prints term NAMES (`already has these terms: admin`) while the
-  "Added" line prints the user's `user_nicename` (`... an author term for:
-  writer`) — neither shows the `cap-` prefixed slug that is actually stored.
-  Confirmed 2026-09-02 and pinned in "The author term reflects the post author
-  rather than always being admin" (log says `writer`, stored slug is
-  `cap-writer`).
-- The "Skipping" line uses `{$posts->found_posts}` as the denominator while the
-  "Added" line uses `$total_posts` (:118 vs :129). They are equal today only
-  because `found_posts` is re-read from an identical query each page.
+- ~~The two per-post log lines use DIFFERENT identifiers for the same term: the
+  "Skipping" line prints term NAMES while the "Added" line prints the user's
+  `user_nicename` — neither shows the `cap-` prefixed slug that is actually
+  stored.~~ **FIXED.** Both lines now print the slug, so the log names the thing
+  the command wrote and an operator can paste it straight into `wp term list`.
+- ~~The "Skipping" line uses `{$posts->found_posts}` as the denominator while the
+  "Added" line uses `$total_posts`. They are equal today only because
+  `found_posts` is re-read from an identical query each page.~~ **FIXED.** Both use
+  `$total_posts`. No output change today; it removes a latent divergence.
 
 - Hardened 2026-09-02 after adversarial review: 9 scenarios, all green.
 - Drafts, pending and private posts are INVISIBLE to this command. The WP_Query at
@@ -544,9 +551,15 @@ PHP 8.4) rather than inferred from reading the source.
   `$author_terms[ ... ]`, :123-127) is now exercised with two distinct authors in
   "Each post gets an author term for its own author", so hoisting the lookup out
   of the loop can no longer pass.
-- The orphan-author "Added" line is now pinned with an end-anchored regex
-  (`... now has an author term for: ?$`) instead of a substring, so a refactor
-  that substituted a placeholder nicename would fail.
+- The orphan-author scenario was pinned with an end-anchored regex on the empty
+  trailing nicename. That is gone with the bug: the scenario now pins the whole of
+  STDOUT exactly, since a skipped post produces a short and fully predictable run.
+- STILL OPEN: drafts, pending and private posts remain invisible, and the docblock
+  still overclaims. The sibling `create-author-terms-for-posts` exposes
+  `--post-statuses`; adding the same flag here (defaulting to `publish`, so no
+  silent scope change on a command that WRITES) is the natural fix, kept separate
+  from the corrections above because it adds public interface rather than fixing
+  behaviour.
 
 ## create-author-terms-for-posts
 

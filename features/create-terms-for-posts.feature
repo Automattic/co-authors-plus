@@ -9,7 +9,6 @@ Feature: Author terms can be created for all posts
 		Then STDOUT should be:
 		"""
 		Now inspecting or updating 0 total posts.
-		Updating author terms with new counts
 		Success: Done! Of 0 posts, 0 now have author terms.
 		"""
 
@@ -25,10 +24,9 @@ Feature: Author terms can be created for all posts
 		"""
 		Now inspecting or updating 2 total posts.
 		No co-authors found for post #{POST_A}.
-		1/2) Added - Post #{POST_A} 'First post' now has an author term for: admin
+		1/2) Added - Post #{POST_A} 'First post' now has this author term: cap-admin
 		No co-authors found for post #{POST_B}.
-		2/2) Added - Post #{POST_B} 'Second post' now has an author term for: admin
-		Updating author terms with new counts
+		2/2) Added - Post #{POST_B} 'Second post' now has this author term: cap-admin
 		Success: Done! Of 2 posts, 2 now have author terms.
 		"""
 		When I run `wp term list author --object_ids={POST_A} --field=slug`
@@ -40,9 +38,8 @@ Feature: Author terms can be created for all posts
 		Then STDOUT should be:
 		"""
 		Now inspecting or updating 2 total posts.
-		1/2) Skipping - Post #{POST_A} 'First post' already has these terms: admin
-		2/2) Skipping - Post #{POST_B} 'Second post' already has these terms: admin
-		Updating author terms with new counts
+		1/2) Skipping - Post #{POST_A} 'First post' already has these terms: cap-admin
+		2/2) Skipping - Post #{POST_B} 'Second post' already has these terms: cap-admin
 		Success: Done! Of 2 posts, 0 now have author terms.
 		"""
 
@@ -56,10 +53,9 @@ Feature: Author terms can be created for all posts
 		Then STDOUT should be:
 		"""
 		Now inspecting or updating 2 total posts.
-		1/2) Skipping - Post #{POST_A} 'First post' already has these terms: admin
+		1/2) Skipping - Post #{POST_A} 'First post' already has these terms: cap-admin
 		No co-authors found for post #{POST_B}.
-		2/2) Added - Post #{POST_B} 'Second post' now has an author term for: admin
-		Updating author terms with new counts
+		2/2) Added - Post #{POST_B} 'Second post' now has this author term: cap-admin
 		Success: Done! Of 2 posts, 1 now have author terms.
 		"""
 		When I run `wp term list author --object_ids={POST_B} --field=slug`
@@ -77,8 +73,7 @@ Feature: Author terms can be created for all posts
 		"""
 		Now inspecting or updating 1 total posts.
 		No co-authors found for post #{PAGE_ID}.
-		1/1) Added - Post #{PAGE_ID} 'About page' now has an author term for: admin
-		Updating author terms with new counts
+		1/1) Added - Post #{PAGE_ID} 'About page' now has this author term: cap-admin
 		Success: Done! Of 1 posts, 1 now have author terms.
 		"""
 		When I run `wp term list author --object_ids={PAGE_ID} --field=slug`
@@ -98,8 +93,7 @@ Feature: Author terms can be created for all posts
 		"""
 		Now inspecting or updating 1 total posts.
 		No co-authors found for post #{POST_ID}.
-		1/1) Added - Post #{POST_ID} 'Writer post' now has an author term for: writer
-		Updating author terms with new counts
+		1/1) Added - Post #{POST_ID} 'Writer post' now has this author term: cap-writer
 		Success: Done! Of 1 posts, 1 now have author terms.
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
@@ -108,31 +102,20 @@ Feature: Author terms can be created for all posts
 		cap-writer
 		"""
 
-	Scenario: A post whose author does not exist is reported as updated even though no term is set
+	# The post is still reported, but as skipped rather than done, and the summary
+	# no longer counts a post that came away with no term.
+	Scenario: A post whose author does not exist is skipped with a warning
 		When I run `wp post create --post_title="Orphan post" --post_status=publish --post_author=999 --porcelain`
 		And save STDOUT as {POST_ID}
 		And I run `wp co-authors-plus create-terms-for-posts`
-		Then STDOUT should contain:
+		Then STDOUT should be:
 		"""
 		Now inspecting or updating 1 total posts.
-		"""
-		And STDOUT should contain:
-		"""
 		No co-authors found for post #{POST_ID}.
+		Warning: 1/1) Skipping - Post #{POST_ID} 'Orphan post' has no author term for user ID 999.
+		Success: Done! Of 1 posts, 0 now have author terms.
 		"""
-		And STDOUT should contain:
-		"""
-		Warning: Attempt to read property "slug" on false
-		"""
-		And STDOUT should contain:
-		"""
-		Warning: Attempt to read property "user_nicename" on false
-		"""
-		And STDOUT should match #^1/1\) Added - Post \#\d+ 'Orphan post' now has an author term for: ?$#m
-		And STDOUT should contain:
-		"""
-		Success: Done! Of 1 posts, 1 now have author terms.
-		"""
+		And the return code should be 0
 		When I run `wp term list author --object_ids={POST_ID} --format=count`
 		Then STDOUT should be:
 		"""
@@ -155,10 +138,9 @@ Feature: Author terms can be created for all posts
 		"""
 		Now inspecting or updating 2 total posts.
 		No co-authors found for post #{POST_A}.
-		1/2) Added - Post #{POST_A} 'Alpha post' now has an author term for: alpha
+		1/2) Added - Post #{POST_A} 'Alpha post' now has this author term: cap-alpha
 		No co-authors found for post #{POST_B}.
-		2/2) Added - Post #{POST_B} 'Beta post' now has an author term for: beta
-		Updating author terms with new counts
+		2/2) Added - Post #{POST_B} 'Beta post' now has this author term: cap-beta
 		Success: Done! Of 2 posts, 2 now have author terms.
 		"""
 		When I run `wp term list author --object_ids={POST_A} --field=slug`
@@ -183,7 +165,6 @@ Feature: Author terms can be created for all posts
 		Then STDOUT should be:
 		"""
 		Now inspecting or updating 0 total posts.
-		Updating author terms with new counts
 		Success: Done! Of 0 posts, 0 now have author terms.
 		"""
 		When I run `wp term list author --object_ids={DRAFT_ID} --format=count`
@@ -212,12 +193,32 @@ Feature: Author terms can be created for all posts
 		Then STDOUT should be:
 		"""
 		Now inspecting or updating 1 total posts.
-		1/1) Skipping - Post #{POST_ID} 'Ghostwritten post' already has these terms: writer
-		Updating author terms with new counts
+		1/1) Skipping - Post #{POST_ID} 'Ghostwritten post' already has these terms: cap-writer
 		Success: Done! Of 1 posts, 0 now have author terms.
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
 		"""
 		cap-writer
+		"""
+
+	# Guards the removal of the "Updating author terms with new counts" pass. The
+	# count is recalculated by the taxonomy's update_count_callback when the term is
+	# set, so a second pass over the authors was never what maintained it.
+	Scenario: Setting an author term recalculates that term's count
+		When I run `wp post create --post_title="First post" --post_status=publish --post_author=1 --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post term remove {POST_ID} author --all`
+		And I run `wp eval '$t = get_term_by( "slug", "cap-admin", "author" ); global $wpdb; $wpdb->update( $wpdb->term_taxonomy, array( "count" => 5 ), array( "term_taxonomy_id" => $t->term_taxonomy_id ) );'`
+		And I run `wp term list author --field=count`
+		Then STDOUT should be:
+		"""
+		5
+		"""
+		When I run `wp co-authors-plus create-terms-for-posts`
+		Then the return code should be 0
+		When I run `wp term list author --field=count`
+		Then STDOUT should be:
+		"""
+		1
 		"""
