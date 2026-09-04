@@ -63,13 +63,13 @@ class List_Posts_Without_Terms_Command {
 	 * @return void
 	 */
 	public function __invoke( array $args, array $assoc_args ): void {
-		$coauthors_plus = $this->coauthors_plus;
-
 		$defaults   = array(
 			'post_type'         => 'post',
+			// Without this the query defaults to publish, hiding the drafts this
+			// command exists to find. 'any' still excludes trash and auto-drafts.
+			'post_status'       => 'any',
 			'order'             => 'ASC',
 			'orderby'           => 'ID',
-			'year'              => '',
 			'posts_per_page'    => 300,
 			'paged'             => 1,
 			'no_found_rows'     => true,
@@ -86,11 +86,13 @@ class List_Posts_Without_Terms_Command {
 				if ( empty( $terms ) ) {
 					$saved = array(
 						$single_post->ID,
-						addslashes( $single_post->post_title ),
+						$single_post->post_title,
 						get_permalink( $single_post->ID ),
 						$single_post->post_date,
 					);
-					WP_CLI::log( '"' . implode( '","', $saved ) . '"' );
+					// Every field is quoted, so CSV needs an embedded quote doubled.
+					// addslashes() backslash-escaped it instead, which no CSV parser reads.
+					WP_CLI::log( '"' . implode( '","', str_replace( '"', '""', $saved ) ) . '"' );
 				}
 			}
 

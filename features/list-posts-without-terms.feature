@@ -68,16 +68,28 @@ Feature: Posts without author terms can be listed
 		"{PAGE_ID}","About page","
 		"""
 
-	Scenario: Post titles are passed through addslashes
+	Scenario: An apostrophe in a post title is printed literally
 		When I run `wp post create --post_title="No Man's Sky" --post_status=publish --porcelain`
 		And save STDOUT as {POST_ID}
 		And I run `wp co-authors-plus list-posts-without-terms`
 		Then STDOUT should contain:
 		"""
-		"{POST_ID}","No Man\'s Sky","
+		"{POST_ID}","No Man's Sky","
 		"""
 
-	Scenario: Draft posts are not listed even though they have no author terms
+	# Every field is quoted, so a quote inside one has to be doubled for the line to
+	# survive a CSV parser. addslashes() backslash-escaped it, which nothing reads.
+	Scenario: A double quote in a post title is doubled, as CSV requires
+		When I run `wp post create --post_title='He said "hi"' --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp co-authors-plus list-posts-without-terms`
+		Then STDOUT should contain:
+		"""
+		"{POST_ID}","He said ""hi""","
+		"""
+		And the return code should be 0
+
+	Scenario: Draft posts without author terms are listed
 		When I run `wp post create --post_title="Draft post" --porcelain`
 		And save STDOUT as {POST_ID}
 		And I run `wp term list author --object_ids={POST_ID} --format=count`
@@ -86,6 +98,22 @@ Feature: Posts without author terms can be listed
 		0
 		"""
 		When I run `wp co-authors-plus list-posts-without-terms`
+		Then STDOUT should contain:
+		"""
+		"{POST_ID}","Draft post","
+		"""
+		And the return code should be 0
+		And STDERR should be empty
+
+	# 'any' is deliberately not 'every status': a binned post is not a post missing
+	# its author term, and listing it would be noise in the diagnostic.
+	Scenario: Trashed posts are not listed
+		When I run `wp post create --post_title="Binned post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post delete {POST_ID}`
+		And I run `wp co-authors-plus list-posts-without-terms`
 		Then STDOUT should be empty
 		And the return code should be 0
 		And STDERR should be empty
+		When I run `wp post delete {POST_ID} --force`
+		Then the return code should be 0
