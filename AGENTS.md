@@ -21,7 +21,6 @@ Multiple byline management for WordPress, supporting both WordPress users and gu
 co-authors-plus/
 ├── co-authors-plus.php                # Main plugin file (includes, globals, bootstrap)
 ├── template-tags.php                  # Template tag functions (coauthors(), get_coauthors(), etc.)
-├── upgrade.php                        # Database upgrade functions
 ├── php/
 │   ├── class-coauthors-plus.php       # Main plugin class (taxonomy, meta boxes, AJAX)
 │   ├── class-coauthors-guest-authors.php  # Guest author CPT management
