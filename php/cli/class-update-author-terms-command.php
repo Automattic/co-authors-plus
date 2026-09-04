@@ -17,8 +17,7 @@ use WP_Query;
 /**
  * Refreshes author term counts and descriptions.
  *
- * Moved here from CoAuthorsPlus_Command unchanged. Behaviour is pinned by
- * features/update-author-terms.feature.
+ * Behaviour is pinned by features/update-author-terms.feature.
  */
 class Update_Author_Terms_Command {
 
@@ -41,8 +40,7 @@ class Update_Author_Terms_Command {
 	/**
 	 * Refresh every author term's description and post count.
 	 *
-	 * Also creates any author term missing for an existing user or published guest
-	 * author.
+	 * Also creates any author term missing for an existing user or guest author.
 	 *
 	 * ## EXAMPLES
 	 *
@@ -69,7 +67,7 @@ class Update_Author_Terms_Command {
 			$coauthor  = $coauthors_plus->get_coauthor_by( 'user_nicename', $author_term->slug );
 			$coauthors_plus->update_author_term( $coauthor );
 			$coauthors_plus->update_author_term_post_count( $author_term );
-			wp_cache_delete( $author_term->term_id, $coauthors_plus->coauthor_taxonomy );
+			clean_term_cache( $author_term->term_id, $coauthors_plus->coauthor_taxonomy );
 			$new_count = get_term_by( 'id', $author_term->term_id, $coauthors_plus->coauthor_taxonomy )->count;
 			WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) changed from {$old_count} to {$new_count} and the description was refreshed" );
 		}
@@ -89,6 +87,8 @@ class Update_Author_Terms_Command {
 				'order'             => 'ASC',
 				'orderby'           => 'ID',
 				'post_type'         => $coauthors_plus->guest_authors->post_type,
+				// Guest authors are inserted as drafts, so the default 'publish' would hide them.
+				'post_status'       => 'any',
 				'posts_per_page'    => 100,
 				'paged'             => 1,
 				'update_meta_cache' => false,

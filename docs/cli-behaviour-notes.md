@@ -711,28 +711,38 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
 
-- The `changed from A to B` message NEVER shows the corrected count. Confirmed
-  live: with a term count forced to 5 (real count 1), the command prints
-  `Term cap-admin (N) changed from 5 to 5 and the description was refreshed`,
-  yet a fresh process then reads count 1 from the DB. Cause:
-  `update_author_term_post_count()` writes the correct count via a direct
-  `$wpdb->update`, but the command re-reads the term after
-  `wp_cache_delete( $term_id, 'author' )` — the wrong cache group (core caches
-  terms in the `terms` group) — so `get_term_by( 'id', ... )` returns the stale
-  cached object and `$new_count` always equals `$old_count`. Pinned: misleading
-  `5 to 5` message plus the state assertion that the DB count really is 1.
+- ~~The `changed from A to B` message NEVER shows the corrected count, because
+  the command re-read the term after `wp_cache_delete( $term_id, 'author' )` —
+  the wrong cache group, since core caches terms in the `terms` group — so
+  `get_term_by( 'id', ... )` returned the stale cached object and `$new_count`
+  always equalled `$old_count`.~~ **FIXED.** `update_author_term_post_count()`
+  writes the corrected count via a direct `$wpdb->update`, which leaves core's
+  term cache stale. The command now invalidates it with
+  `clean_term_cache( $term_id, $taxonomy )`, matching what `reassign-terms`
+  already does. The scenario that pinned `changed from 5 to 5` now pins
+  `changed from 5 to 1`, alongside the existing assertion that the DB count is 1.
+  Note the fix belongs in the command rather than in
+  `update_author_term_post_count()`: core's `wp_update_term_count_now()` calls
+  `clean_term_cache()` after the `update_count_callback`, so the method is
+  correctly invalidated on its normal path and only this direct caller was
+  affected.
 - `Term X (N) changed from A to B and the description was refreshed` is printed
   even when NO co-author matches the term slug: `update_author_term( false )`
   returns false and `update_author_term_post_count()` returns a silent WP_Error,
   so nothing is refreshed at all. Confirmed and pinned in the orphan-term
   scenario (`changed from 0 to 0`).
-- The guest author pass queries the `guest-author` CPT with WP_Query's default
+- ~~The guest author pass queries the `guest-author` CPT with WP_Query's default
   post_status (`publish`), but guest author posts created via
   `CoAuthors_Guest_Authors::create()` (and hence `create-guest-authors`) are
-  DRAFTS (`wp_insert_post` default). Confirmed live: the pass reports
-  `Now inspecting or updating 0 Guest Authors.` even when guest authors exist;
-  publishing the guest-author post makes it visible and its term is created.
-  Pinned in the drafts-invisible and published-guest-author scenarios.
+  DRAFTS (`wp_insert_post` default), so the pass reported
+  `Now inspecting or updating 0 Guest Authors.` even when guest authors
+  existed.~~ **FIXED.** The query now passes `post_status => 'any'`, so the pass
+  sees drafts — which is the ordinary case, not the exception — while still
+  excluding trashed and auto-draft profiles. The whole guest-author half of the
+  command was previously dead on any site whose profiles were created by the CLI
+  or programmatically. A new scenario covers a term being created for a *draft*
+  guest author, mirroring the published one; the drafts-invisible scenario now
+  pins `Now inspecting or updating 1 Guest Authors.`
 - `wp term list author --field=slug` returns name-ascending order (`cap-admin`
   before `cap-ghost`/`cap-guest-one`) — confirmed, relied on by exact
   assertions.

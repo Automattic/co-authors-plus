@@ -37,7 +37,7 @@ Feature: Author terms can be recounted and recreated
 		1
 		"""
 
-	Scenario: A stale term count is corrected in the database but the log reports the stale value
+	Scenario: A stale term count is corrected and the log reports the corrected value
 		When I run `wp post create --post_title="A post" --post_status=publish --post_author=1 --porcelain`
 		And I run `wp term list author --slug=cap-admin --field=term_id`
 		And save STDOUT as {TERM_ID}
@@ -51,7 +51,7 @@ Feature: Author terms can be recounted and recreated
 		Then STDOUT should be:
 		"""
 		Now updating 1 terms
-		Term cap-admin ({TERM_ID}) changed from 5 to 5 and the description was refreshed
+		Term cap-admin ({TERM_ID}) changed from 5 to 1 and the description was refreshed
 		Now inspecting or updating 0 Guest Authors.
 		Success: All done
 		"""
@@ -113,7 +113,7 @@ Feature: Author terms can be recounted and recreated
 		cap-zsub
 		"""
 
-	Scenario: Guest authors created via the CLI are drafts and invisible to the guest author pass
+	Scenario: Guest authors created via the CLI are drafts and are still inspected by the guest author pass
 		When I run `wp co-authors-plus create-guest-authors`
 		And I run `wp post list --post_type=guest-author --fields=post_name,post_status --format=csv`
 		Then STDOUT should be:
@@ -128,7 +128,7 @@ Feature: Author terms can be recounted and recreated
 		"""
 		Now updating 1 terms
 		Term cap-admin ({TERM_ID}) changed from 0 to 0 and the description was refreshed
-		Now inspecting or updating 0 Guest Authors.
+		Now inspecting or updating 1 Guest Authors.
 		Success: All done
 		"""
 
@@ -138,6 +138,35 @@ Feature: Author terms can be recounted and recreated
 		And I run `wp post update {GA_ID} --post_status=publish`
 		And I run `wp eval 'foreach ( get_terms( array( "taxonomy" => "author", "hide_empty" => false ) ) as $t ) { wp_delete_term( $t->term_id, "author" ); }'`
 		When I run `wp co-authors-plus update-author-terms`
+		Then STDOUT should be:
+		"""
+		Now updating 0 terms
+		Created author term for admin
+		Now inspecting or updating 1 Guest Authors.
+		Created author term for Guest Author guest-one
+		Success: All done
+		"""
+		When I run `wp term list author --field=slug --orderby=slug --order=asc`
+		Then STDOUT should be:
+		"""
+		cap-admin
+		cap-guest-one
+		"""
+
+	# Guest authors are inserted as drafts, so this is the ordinary case rather than
+	# the exception. Before the post_status fix the pass reported 0 guest authors
+	# and the term below was never created.
+	Scenario: An author term is created for a draft guest author without one
+		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Guest One", "user_login" => "guest-one" ) );'`
+		And save STDOUT as {GA_ID}
+		And I run `wp post list --post_type=guest-author --fields=post_status --format=csv`
+		Then STDOUT should be:
+		"""
+		post_status
+		draft
+		"""
+		When I run `wp eval 'foreach ( get_terms( array( "taxonomy" => "author", "hide_empty" => false ) ) as $t ) { wp_delete_term( $t->term_id, "author" ); }'`
+		And I run `wp co-authors-plus update-author-terms`
 		Then STDOUT should be:
 		"""
 		Now updating 0 terms
