@@ -238,11 +238,15 @@ PHP 8.4) rather than inferred from reading the source.
   0.~~ **FIXED.** The variable is initialised, a mapping file that does not
   define `$cli_user_map` is reported, and the command now errors when it has
   nothing to reassign rather than pretending to succeed.
-- The rename path (target term absent) sets the surviving term's slug AND name to
-  the raw `--new_term` value with NO `cap-` prefix (lines 598-603), inconsistent
-  with the plugin's `cap-<nicename>` slug convention. The old guest author profile
-  keeps its original `user_login`/`post_name`, so term and profile drift apart.
-  Confirmed (term list shows `newuser,newuser` next to `admin,cap-admin`).
+- ~~The rename path (target term absent) sets the surviving term's slug AND name to
+  the raw `--new-term` value with NO `cap-` prefix, inconsistent with the plugin's
+  `cap-<nicename>` slug convention.~~ **FIXED.** The slug is now
+  `Prefix::prefix_slug( $new_user )` while the name stays raw, matching what
+  `rename-coauthor` already does. Note this does NOT make a second run idempotent,
+  and deliberately so: the command never touches the guest-author profile, so
+  `post_name` still holds the old login and the entry below about the second run
+  reporting a missing term still stands. Renaming the profile too is
+  `rename-coauthor`'s job.
 - "Error: Term 'x' doesn't exist, skipping" is emitted via `WP_CLI::log` to STDOUT
   and the exit code stays 0 (line 580), so scripted callers cannot detect the miss
   from the exit code. Confirmed.
@@ -267,27 +271,32 @@ PHP 8.4) rather than inferred from reading the source.
   $authors_to_migrate`, rc 0, all-zero summary. The `if ( $old_term && $new_term )`
   guard at :557 has no else branch and there is no validation of the pair. Pinned in
   the no-args scenario.
-- NEW (silent false success): the rename branch ignores `wp_update_term()`'s return
-  value (:598-606). When the target slug is already taken by an unrelated author
-  term, `wp_update_term()` returns `WP_Error( 'duplicate_term_slug' )`, nothing is
-  renamed, and the command still logs `Success: Converted 'olduser' term to
-  'newuser'` and counts `- 1 authors were successfully reassigned terms`. Confirmed:
-  `cap-olduser` survives untouched next to the pre-existing `newuser` term. Pinned in
-  "A target slug already taken by another term still reports success".
-- NEW (unresolved numeric `--new_term`): `--new_term=999999` with no such user makes
-  `get_user_by( 'id', ... )` return false, and PHP 8.4 emits `Warning: Attempt to
-  read property "user_login" on false` (:574). `$new_user` becomes null, the rename
-  branch calls `wp_update_term()` with a null name/slug, and that WP_Error is
-  discarded too. rc stays 0 and the summary still prints. Nothing is renamed —
-  the scenario asserts the unchanged term list, so the pin holds whichever way a
-  refactor resolves this.
-- NEW (data loss): `--old_term=x --new_term=x` takes the MERGE branch, because both
-  lookups return the same term object. `wp_delete_term( $id, 'author', array(
+- ~~NEW (silent false success): the rename branch ignores `wp_update_term()`'s
+  return value. When the target slug is already taken by an unrelated author term it
+  returns `WP_Error( 'duplicate_term_slug' )`, nothing is renamed, and the command
+  still logs `Success: Converted ...` and counts it a success.~~ **FIXED.** The
+  return is checked and a failed rename reports a warning naming the term and the
+  underlying reason, and is not counted. The scenario's fixture term had to move to
+  slug `cap-newuser` to keep provoking the collision, since the prefix fix above
+  changed what the rename targets — worth knowing, because had the prefix fix landed
+  second this scenario would have started passing while proving nothing. Core owns
+  the duplicate-slug wording, so only CAP's half of the message is pinned.
+- ~~NEW (unresolved numeric `--new-term`): `--new-term=999999` with no such user
+  makes `get_user_by( 'id', ... )` return false, PHP 8.4 emits `Warning: Attempt to
+  read property "user_login" on false`, `$new_user` becomes null, and the rename
+  branch calls `wp_update_term()` with a null name/slug whose WP_Error is discarded
+  too.~~ **FIXED.** The lookup result is checked and the row is skipped with a
+  warning naming the ID, so no null ever reaches core. rc stays 0, which is
+  consistent with the other skip paths — see the open note about exit codes below.
+- ~~NEW (data loss): `--old-term=x --new-term=x` takes the MERGE branch, because
+  both lookups return the same term object. `wp_delete_term( $id, 'author', array(
   'default' => $id, 'force_default' => true ) )` reassigns the term's posts to the
   term that is about to be deleted, so those posts end up with NO author term at all
-  while the summary reports `- 1 authors had their old term merged to their new
-  term`. Confirmed. Pinned in "Reassigning a term to itself deletes the term and
-  orphans its posts".
+  while the summary reports a successful merge.~~ **FIXED.** The merge branch now
+  compares `term_id` and skips with a warning. Comparing the two *inputs* would not
+  have been enough: two different spellings can resolve to the same co-author, so the
+  guard has to be on the resolved term. The scenario now asserts the post keeps
+  `cap-olduser` and the term survives.
 - The docblock (:518-525) advertises cleaning up after an import that created
   'author' terms under the OLD user_login, but the old-term lookup goes through
   `get_coauthor_by( 'login', ... )` -> `get_author_term()`, which returns null for a
