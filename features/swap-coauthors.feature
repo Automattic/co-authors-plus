@@ -13,9 +13,10 @@ Feature: One co-author can be swapped with another on their posts
 
 	Scenario: Error on a missing required --from parameter
 		When I try `wp co-authors-plus swap-coauthors --to=admin`
-		Then STDERR should contain:
+		Then STDERR should be:
 		"""
-		missing --from parameter
+		Error: Parameter errors:
+		 missing --from parameter (The co-author to swap out.)
 		"""
 		And the return code should be 1
 
