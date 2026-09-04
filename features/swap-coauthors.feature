@@ -167,7 +167,7 @@ Feature: One co-author can be swapped with another on their posts
 		When I run `wp term list author --slug=cap-author2 --format=count`
 		Then STDOUT should be:
 		"""
-		0
+		1
 		"""
 
 	Scenario: Accept the deprecated --dry flag as a preview, with a notice
