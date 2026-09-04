@@ -46,10 +46,6 @@ require_once __DIR__ . '/php/blocks/class-blocks.php';
 // REST APIs for Blocks
 require_once __DIR__ . '/php/api/endpoints/class-coauthors-controller.php';
 
-if ( defined( 'WP_CLI' ) && WP_CLI ) {
-	require_once __DIR__ . '/php/class-wp-cli.php';
-}
-
 global $coauthors_plus;
 $coauthors_plus     = new CoAuthors_Plus();
 $coauthors_plus->register_hooks();

@@ -66,12 +66,30 @@ final class ClearObjectCacheTest extends TestCase {
 	 * The hand-rolled version blanked $wp_object_cache->cache and friends
 	 * unconditionally, which creates dynamic properties on any drop-in whose
 	 * class does not allow them, and never reached wp_cache_flush_runtime().
+	 *
+	 * The commands used to share one class and now have one each, so this reads
+	 * the whole command directory rather than a single file.
 	 */
 	public function test_the_plugin_does_not_reimplement_the_cache_flush(): void {
-		$source = (string) file_get_contents( $this->path( 'php/class-wp-cli.php' ) );
+		$sources = glob( $this->path( 'php/cli' ) . '/class-*.php' );
 
-		$this->assertStringNotContainsString( 'stop_the_insanity', $source );
-		$this->assertStringNotContainsString( 'memcache_debug', $source );
-		$this->assertStringContainsString( '\WP_CLI\Utils\wp_clear_object_cache();', $source );
+		$this->assertNotEmpty( $sources, 'The command classes must be readable for this check to mean anything.' );
+
+		$combined = '';
+
+		foreach ( $sources as $source ) {
+			$contents = (string) file_get_contents( $source );
+
+			$this->assertStringNotContainsString( 'stop_the_insanity', $contents, basename( $source ) );
+			$this->assertStringNotContainsString( 'memcache_debug', $contents, basename( $source ) );
+
+			$combined .= $contents;
+		}
+
+		$this->assertStringContainsString(
+			'\WP_CLI\Utils\wp_clear_object_cache();',
+			$combined,
+			'The long-running commands should still flush the object cache between batches.'
+		);
 	}
 }
