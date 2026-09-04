@@ -87,7 +87,7 @@ class Swap_Coauthors_Command {
 			'post_type' => 'post',
 		);
 
-		// Read the preview flags before defaults are merged in, so that an
+		// Read the preview flags before defaults are merged in, so that an.
 		// absent flag stays absent and can be told apart from an explicit one.
 		$dry = (bool) \WP_CLI\Utils\get_flag_value( $assoc_args, 'dry-run', false );
 
@@ -118,17 +118,17 @@ class Swap_Coauthors_Command {
 			WP_CLI::error( "No co-author found for $to_userlogin" );
 		}
 
-		// Work from the resolved logins rather than the raw input. Co-author
-		// lookups are not case sensitive, so "--from=Alice" can resolve to the
-		// co-author stored as "alice"; comparing the raw value against the
-		// stored one would then never match, the term would never be removed,
+		// Work from the resolved logins rather than the raw input. Co-author.
+		// lookups are not case sensitive, so "--from=Alice" can resolve to the.
+		// co-author stored as "alice"; comparing the raw value against the.
+		// stored one would then never match, the term would never be removed,.
 		// and the drain loop below would never end.
 		$from_userlogin = $orig_coauthor->user_login;
 		$to_userlogin   = $to_coauthor->user_login;
 
 		$from_userlogin_prefixed = Prefix::prefix_slug( $from_userlogin );
 
-		// Swapping a co-author with themselves would remove the term and add it
+		// Swapping a co-author with themselves would remove the term and add it.
 		// straight back, so the loop below would never drain.
 		if ( $from_userlogin === $to_userlogin ) {
 			WP_CLI::error( '--from and --to must be different co-authors' );
@@ -160,9 +160,9 @@ class Swap_Coauthors_Command {
 		$previous_first_post_id = null;
 
 		while ( $posts->post_count ) {
-			// Outside preview mode this loop re-runs the same query and relies
-			// on each post losing the "from" term to make progress. If a page
-			// comes back unchanged, that has not happened, so stop rather than
+			// Outside preview mode this loop re-runs the same query and relies.
+			// on each post losing the "from" term to make progress. If a page.
+			// comes back unchanged, that has not happened, so stop rather than.
 			// spin forever.
 			$first_post_id = $posts->posts[0]->ID;
 
