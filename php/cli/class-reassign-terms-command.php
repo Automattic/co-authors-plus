@@ -9,15 +9,14 @@ declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\CLI;
 
+use CoAuthors\Prefix;
 use CoAuthors_Plus;
 use WP_CLI;
 
 /**
  * Renames or merges author terms, so an import can be tidied up afterwards.
  *
- * Moved here from CoAuthorsPlus_Command unchanged, save for the scratch
- * property holding its parsed arguments becoming a local. Behaviour is pinned
- * by features/reassign-terms.feature.
+ * Behaviour is pinned by features/reassign-terms.feature.
  */
 class Reassign_Terms_Command {
 
@@ -141,7 +140,12 @@ class Reassign_Terms_Command {
 		foreach ( $authors_to_migrate as $old_user => $new_user ) {
 
 			if ( is_numeric( $new_user ) ) {
-				$new_user = get_user_by( 'id', $new_user )->user_login;
+				$new_user_object = get_user_by( 'id', (int) $new_user );
+				if ( ! $new_user_object ) {
+					WP_CLI::warning( "No user has the ID {$new_user}, skipping '{$old_user}'" );
+					continue;
+				}
+				$new_user = $new_user_object->user_login;
 			}
 
 			// The old user should exist as a term.
@@ -157,22 +161,35 @@ class Reassign_Terms_Command {
 			// Otherwise, simply rename the old term.
 			$new_term = $coauthors_plus->get_author_term( $coauthors_plus->get_coauthor_by( 'login', $new_user ) );
 			if ( is_object( $new_term ) ) {
+				// Both logins can resolve to the same term. Merging would hand the posts
+				// to the very term about to be deleted, leaving them with none at all.
+				if ( (int) $new_term->term_id === (int) $old_term->term_id ) {
+					WP_CLI::warning( "Term '{$old_user}' is already '{$new_user}', skipping" );
+					continue;
+				}
+
 				WP_CLI::log( "Success: There's already a '{$new_user}' term for '{$old_user}'. Reassigning {$old_term->count} posts and then deleting the term" );
-				$args = array(
+				$term_args = array(
 					'default'       => $new_term->term_id,
 					'force_default' => true,
 				);
-				wp_delete_term( $old_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
+				wp_delete_term( $old_term->term_id, $coauthors_plus->coauthor_taxonomy, $term_args );
 				$results->new_term_exists++;
 			} else {
-				$args = array(
-					'slug' => $new_user,
+				// Every other author term is stored prefixed, so a rename must be too.
+				$term_args = array(
+					'slug' => Prefix::prefix_slug( $new_user ),
 					'name' => $new_user,
 				);
-				wp_update_term( $old_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
+				$updated   = wp_update_term( $old_term->term_id, $coauthors_plus->coauthor_taxonomy, $term_args );
+				if ( is_wp_error( $updated ) ) {
+					WP_CLI::warning( "Could not convert '{$old_user}' term to '{$new_user}': " . $updated->get_error_message() );
+					continue;
+				}
+
 				WP_CLI::log( "Success: Converted '{$old_user}' term to '{$new_user}'" );
 				$results->success++;
-			}
+			}//end if
 			clean_term_cache( $old_term->term_id, $coauthors_plus->coauthor_taxonomy );
 		}//end foreach
 
