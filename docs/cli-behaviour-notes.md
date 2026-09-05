@@ -76,13 +76,17 @@ PHP 8.4) rather than inferred from reading the source.
   NB `wp post meta update <id> <key> ""` does NOT store an empty string — WP-CLI
   replies `Success: Value passed for custom field '<key>' is unchanged.` and writes
   nothing — so the fixture uses `wp eval 'update_post_meta( ..., "" );'`.
-- Assigning an unlinked guest author sets the author term but leaves
-  `wp_posts.post_author` on the previous user: `add_coauthors()` bails at
-  php/class-coauthors-plus.php:1705-1709 and returns false AFTER
-  `wp_set_post_terms()` has run, and `assign_coauthors()` ignores that return value,
-  still logging `has been assigned` and counting the post as successfully associated.
-  Pinned in "Assign an unlinked guest author from the meta value": term becomes
-  `cap-jane-doe`, `post_author` stays the author1 user ID. Note the value handed to
+- ~~Assigning an unlinked guest author sets the author term but leaves
+  `wp_posts.post_author` on the previous user, and the command ignores
+  `add_coauthors()`'s return value, still logging `has been assigned` and counting
+  the post as successfully associated with no mention of the discrepancy.~~
+  **FIXED** in the caller, not in `add_coauthors()`. The per-post line is unchanged
+  because it was true — the byline really was assigned — but the summary now counts
+  the posts whose `post_author` could not follow. That column is what the admin
+  posts list, `WP_Query`'s `author` parameter and many themes read, so an operator
+  who is not told about it will see the old author still attributed. The scenario
+  already asserted the unchanged `post_author` in state; the command now says it
+  aloud. Note the value handed to
   `add_coauthors()` is `$coauthor->user_nicename`, which for a guest author is
   `sanitize_title( user_login )` (`jane-doe`, NOT the `cap-`-prefixed post_name); the
   prefix is re-added inside `get_post_meta_key()` during the nicename lookup, so a
@@ -152,13 +156,12 @@ PHP 8.4) rather than inferred from reading the source.
   `save_post` hook gives it one) is silently skipped and is not even counted in
   `Found N posts to update.`. There is no `--post_status` flag to opt in. Pinned in
   the same scenario; `assign-coauthors` has the identical restriction.
-- Swapping TO an unlinked guest author leaves `wp_posts.post_author` pointing at the
-  previous WP user indefinitely: `wp_set_post_terms()` has already run by the time
-  `add_coauthors()` bails at php/class-coauthors-plus.php:1705-1709 and returns false,
-  and `swap_coauthors()` ignores that return value — so the byline changes, the log
-  still says `has been assigned` and the command still reports `Success: All done!`.
-  Pinned in "Swap to a guest author with no linked account" (term becomes
-  `cap-jane-doe`, `post_author` stays the author1 user ID).
+- ~~Swapping TO an unlinked guest author leaves `wp_posts.post_author` pointing at
+  the previous WP user indefinitely, and the command ignores `add_coauthors()`'s
+  return value — so the byline changes, the log still says `has been assigned` and
+  the command still reports `Success: All done!`.~~ **FIXED** in the caller, exactly
+  as for `assign-coauthors` above, and deliberately with the same wording so the two
+  commands report the condition identically.
 - NOT a bug — an adversarial-review claim tested live on 2026-09-02 and REJECTED:
   logins whose `user_nicename` differs from the raw login, e.g. `john.doe` (nicename
   `john-doe`, term `cap-john-doe`), ARE swapped correctly even though the tax_query
@@ -191,6 +194,24 @@ PHP 8.4) rather than inferred from reading the source.
   while the terms are visibly there. Decide "did the byline change" from the
   byline itself, not from this return value. Pinned by
   `Coauthor_Assignment_Service` and its regression test.
+- **Decision, and the reason the semantics were left alone.** The obvious tidy-up is
+  to make the return mean "the assignment succeeded". It was rejected: this is
+  de-facto public PHP API, called by the classic metabox, both REST write paths,
+  bulk edit and user-deletion reassignment, and `Coauthor_Assignment_Service`'s
+  regression test pins the current meaning. Instead the two CLI callers that
+  misreported it — `assign-coauthors` and `swap-coauthors` — now read it for what it
+  actually says, which is whether `post_author` was synced, and report that
+  separately from whether the byline changed. Any future caller should do the same;
+  the return is a `post_author` signal, not a success signal, and the method is
+  behaving correctly within its own contract.
+- The two summary lines this added are pluralised with `_n()` from the outset,
+  following `assign-user-to-coauthor`, and both branches are covered by scenarios —
+  one post and two. The general pluralisation sweep across the older strings is
+  still deferred to its own pass, but that is a reason to leave existing strings
+  alone, not a licence to add new broken ones. Note the new strings use `%s` rather
+  than the precedent's `%d`: `number_format_i18n()` returns a thousands-separated
+  string, and `%d` truncates `1,234` to `1`. The precedent has that bug; it is
+  logged here rather than fixed in passing, since it belongs to another command.
 
 ## (shared test environment — affects everyone's calibration)
 

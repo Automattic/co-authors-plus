@@ -92,6 +92,7 @@ class Assign_Coauthors_Command {
 		$posts_already_associated = 0;
 		$posts_missing_coauthor   = 0;
 		$posts_associated         = 0;
+		$posts_keeping_author     = 0;
 		$missing_coauthors        = array();
 
 		$posts = new WP_Query( $parsed_args );
@@ -132,10 +133,16 @@ class Assign_Coauthors_Command {
 					continue;
 				}
 
-				// Assign the co-author to the post.
-				$coauthors_plus->add_coauthors( $single_post->ID, array( $coauthor->user_nicename ), $append_coauthors );
+				// Assign the co-author to the post. The byline is written either way; a
+				// false return means only that post_author could not be pointed at a
+				// WordPress user, which is the norm for a guest author with no account.
+				$post_author_synced = $coauthors_plus->add_coauthors( $single_post->ID, array( $coauthor->user_nicename ), $append_coauthors );
 				WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' has been assigned "' . $original_author . '" as the author' );
 				$posts_associated++;
+
+				if ( ! $post_author_synced ) {
+					$posts_keeping_author++;
+				}
 				clean_post_cache( $single_post->ID );
 			}//end foreach
 
@@ -154,6 +161,20 @@ class Assign_Coauthors_Command {
 		}
 		if ( $posts_associated ) {
 			WP_CLI::log( "- {$posts_associated} posts now have the proper co-author" );
+		}
+		if ( $posts_keeping_author ) {
+			WP_CLI::log(
+				'- ' . sprintf(
+					/* translators: Count of posts. */
+					_n(
+						'%s post kept its original post_author, because no co-author assigned to it has a WordPress account',
+						'%s posts kept their original post_author, because no co-author assigned to them has a WordPress account',
+						$posts_keeping_author,
+						'co-authors-plus'
+					),
+					number_format_i18n( $posts_keeping_author )
+				)
+			);
 		}
 	}
 }
