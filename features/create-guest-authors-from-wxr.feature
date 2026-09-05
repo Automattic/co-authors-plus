@@ -35,14 +35,17 @@ Feature: Guest authors can be created from the author nodes of a WXR file
 		Error: Please specify a valid WXR file with the --file arg.
 		"""
 
-	Scenario: Fatal error when the wordpress-importer plugin is not installed
+	Scenario: A clean error when the wordpress-importer plugin is not installed
 		Given I run `wp plugin uninstall wordpress-importer --deactivate`
 		When I try `wp co-authors-plus create-guest-authors-from-wxr --file=features/fixtures/guest-authors.wxr`
 		Then the return code should be 1
-		# The container path and PHP's exact wording belong to the runtime, not to CAP,
-		# so only the require_once of the importer's parsers.php is pinned.
-		And STDERR should match #require_once\(.*/wordpress-importer/parsers\.php\)#
-		And STDOUT should match #Failed opening required '.*/wordpress-importer/parsers\.php'#
+		# Previously a PHP fatal from the unguarded require_once, which told an operator
+		# to read a stack trace to discover a missing dependency.
+		And STDOUT should be empty
+		And STDERR should be:
+		"""
+		Error: This command needs the WordPress Importer plugin. Install it with `wp plugin install wordpress-importer`.
+		"""
 		When I run `wp post list --post_type=guest-author --format=count`
 		Then STDOUT should be:
 		"""

@@ -445,6 +445,28 @@ PHP 8.4) rather than inferred from reading the source.
   new scenario with two prefixed terms and one bare one exercises the count
   properly; the file previously never held more than two terms.
 
+- ~~A missing wordpress-importer plugin gives an uncaught PHP fatal from the
+  unguarded `require_once`, so an operator is handed a stack trace and WordPress's
+  generic critical-error line instead of being told which dependency to install.~~
+  **FIXED.** The path is checked first and reported with `WP_CLI::error()`. The
+  scenario that pinned the fatal now pins the clean error, and it discriminates: the
+  fixture genuinely uninstalls the plugin, so the guard's failure branch is executed
+  rather than assumed.
+- The importer path also moved from `WP_CONTENT_DIR . '/plugins'` to
+  `WP_PLUGIN_DIR`, which is the constant WordPress provides for exactly this and
+  respects a relocated plugin directory. **Stated plainly: no test discriminates
+  this.** In the default environment the two constants resolve to the same path, and
+  the scenario matches the path with a wildcard, so it passes either way. It ships on
+  the reasoning that a site with `WP_PLUGIN_DIR` set elsewhere would otherwise be
+  told the importer is missing when it is merely somewhere else.
+- STILL OPEN: `Failed to read WXR file.` remains unreachable. A file that is not a
+  WXR still fatals inside wordpress-importer 0.9.6's parser fallback chain rather
+  than returning a `WP_Error`, and the crash happens inside `parse()` before any
+  return value exists to check. Turning that into a clean error means validating the
+  file before handing it over, which is a larger piece of work than a guard. The
+  scenario pinning the fatal records the current behaviour and says why the branch
+  cannot fire.
+
 ## remove-terms-from-revisions
 
 (Calibrated against the live env 2026-09-01; re-verified green 2026-09-02 — 7 scenarios.)

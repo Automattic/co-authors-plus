@@ -72,7 +72,16 @@ class Create_Guest_Authors_From_Wxr_Command {
 		}
 
 		if ( ! class_exists( 'WXR_Parser' ) ) {
-			require_once WP_CONTENT_DIR . '/plugins/wordpress-importer/parsers.php';
+			// WP_PLUGIN_DIR rather than WP_CONTENT_DIR . '/plugins', so a site with a
+			// relocated plugin directory is not told the importer is missing when it is
+			// simply somewhere else.
+			$parser_path = WP_PLUGIN_DIR . '/wordpress-importer/parsers.php';
+
+			if ( ! file_exists( $parser_path ) ) {
+				WP_CLI::error( 'This command needs the WordPress Importer plugin. Install it with `wp plugin install wordpress-importer`.' );
+			}
+
+			require_once $parser_path;
 		}
 
 		$parser      = new WXR_Parser();
