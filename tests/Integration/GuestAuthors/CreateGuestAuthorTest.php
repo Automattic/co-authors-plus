@@ -150,9 +150,10 @@ class CreateGuestAuthorTest extends TestCase {
 	/**
 	 * Checks that creating a guest author via the create() method works end-to-end.
 	 *
-	 * Guest author posts have empty title/content (their data lives in post meta),
-	 * so this also guards that core does not reject them as "empty" — which holds
-	 * because the post type supports none of editor/title/excerpt.
+	 * Note: create() copies the display name into post_title, so the post it
+	 * inserts is never empty and core's "empty content" check cannot fire on
+	 * this path. The guard against re-adding title/editor/excerpt post type
+	 * support lives in test_empty_guest_author_post_is_not_rejected_as_empty().
 	 *
 	 * @covers CoAuthors_Guest_Authors::create()
 	 */
@@ -175,5 +176,41 @@ class CreateGuestAuthorTest extends TestCase {
 		$guest_author = $guest_author_obj->get_guest_author_by( 'ID', $guest_author_id );
 		$this->assertInstanceOf( \stdClass::class, $guest_author );
 		$this->assertEquals( 'Test Empty Content Author', $guest_author->display_name );
+	}
+
+	/**
+	 * A completely empty guest author post must not be rejected by core.
+	 *
+	 * Core's wp_insert_post() only refuses a post whose title, content and excerpt
+	 * are all empty when the post type supports all three of 'title',
+	 * 'editor' and 'excerpt' (the $maybe_empty check). The guest-author post
+	 * type deliberately supports only 'thumbnail', so a meta-only post with
+	 * nothing in those fields always saves — which is why the old
+	 * filter_wp_insert_post_empty_content() escape hatch could be deleted.
+	 *
+	 * This is the tripwire for that reasoning: if title, editor and excerpt
+	 * support are ever all re-added to the guest-author post type,
+	 * wp_insert_post() starts returning WP_Error( 'empty_content' ) here and
+	 * this test fails, flagging that empty guest author posts would again be
+	 * rejected without a replacement for the deleted filter.
+	 *
+	 * @covers CoAuthors_Guest_Authors::register_hooks()
+	 */
+	public function test_empty_guest_author_post_is_not_rejected_as_empty(): void {
+
+		global $coauthors_plus;
+
+		$post_id = wp_insert_post(
+			array(
+				'post_type'    => $coauthors_plus->guest_authors->post_type,
+				'post_title'   => '',
+				'post_content' => '',
+				'post_excerpt' => '',
+			),
+			true
+		);
+
+		$this->assertIsInt( $post_id, 'An empty guest-author post should insert, not be rejected as empty content.' );
+		$this->assertGreaterThan( 0, $post_id );
 	}
 }

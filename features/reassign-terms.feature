@@ -132,6 +132,38 @@ Feature: Author terms can be reassigned between co-authors
 		cap-newuser
 		"""
 
+	# The self-reassignment guard compares resolved term IDs, not the raw inputs:
+	# here the same co-author is named two ways, so an implementation comparing
+	# input strings would take the merge path and delete the term onto itself.
+	Scenario: A numeric --new-term resolving to the old term's own user is skipped as a self-reassignment
+		When I run `wp user create olduser olduser@example.com --role=author --porcelain`
+		And save STDOUT as {OLDUSER_ID}
+		And I run `wp co-authors-plus create-guest-authors`
+		And I run `wp post create --post_title="Owned post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post term add {POST_ID} author cap-olduser`
+		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term={OLDUSER_ID}`
+		Then the return code should be 0
+		And STDOUT should be:
+		"""
+		Warning: Term 'olduser' is already 'olduser', skipping
+		Reassignment complete. Here are your results:
+		- 0 authors were successfully reassigned terms
+		- 0 authors had their old term merged to their new term
+		- 0 authors were missing old terms
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-olduser
+		"""
+		When I run `wp term list author --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-admin
+		cap-olduser
+		"""
+
 	Scenario: A numeric --new-term for an unknown user id is skipped
 		When I run `wp user create olduser olduser@example.com --role=author`
 		And I run `wp co-authors-plus create-guest-authors`

@@ -42,6 +42,11 @@ class BlockCoAuthorsTemplateTest extends TestCase {
 	 * A parsed block whose inner content carries the line breaks and padding
 	 * the render pipeline is expected to strip.
 	 *
+	 * The newline between the two spans is deliberate: trim() only touches the
+	 * string's edges, so an interior line break is only removed by the
+	 * str_replace() step of the pipeline. Removing that step must fail these
+	 * tests.
+	 *
 	 * `core/null` is what get_block_as_template() substitutes for the real
 	 * block name, so rendering concatenates the inner content rather than
 	 * dispatching to a render callback.
@@ -54,12 +59,15 @@ class BlockCoAuthorsTemplateTest extends TestCase {
 			'attrs'        => array(),
 			'innerBlocks'  => array(),
 			'innerHTML'    => '',
-			'innerContent' => array( "\n\t<span>Byline</span>\n" ),
+			'innerContent' => array( "\n\t<span>By</span>\n<span>line</span>\n" ),
 		);
 	}
 
 	/**
 	 * Each author is wrapped, its line breaks removed and its edges trimmed.
+	 *
+	 * The expected markup has no newline between the spans and no leading tab:
+	 * the interior newline proves the str_replace() step, the edges prove trim().
 	 */
 	public function test_renders_each_author_trimmed_and_wrapped(): void {
 		$blocks = Block_CoAuthors::render_coauthors_blocks_with_template(
@@ -68,7 +76,7 @@ class BlockCoAuthorsTemplateTest extends TestCase {
 		);
 
 		$this->assertSame(
-			array( '<div class="wp-block-co-authors-plus-coauthor"><span>Byline</span></div>' ),
+			array( '<div class="wp-block-co-authors-plus-coauthor"><span>By</span><span>line</span></div>' ),
 			$blocks
 		);
 	}

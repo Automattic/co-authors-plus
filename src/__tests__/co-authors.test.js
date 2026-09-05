@@ -187,6 +187,31 @@ describe( 'CoAuthors author search', () => {
 	it( 'empties the dropdown when the search matches nobody', async () => {
 		await renderPanel();
 
+		// A first search fills the dropdown, so the emptying below is a real
+		// state change rather than [] staying [].
+		apiFetch.mockResolvedValue( [
+			{
+				id: 5,
+				termId: 42,
+				displayName: 'Ada Lovelace',
+				userNicename: 'ada',
+				email: 'ada@example.com',
+				userType: 'wpuser',
+			},
+		] );
+
+		act( () => {
+			comboboxProps.onFilterValueChange( 'ada' );
+		} );
+
+		await act( async () => {
+			jest.advanceTimersByTime( 500 );
+		} );
+
+		expect( comboboxProps.options ).not.toHaveLength( 0 );
+
+		apiFetch.mockResolvedValue( [] );
+
 		act( () => {
 			comboboxProps.onFilterValueChange( 'nobody' );
 		} );
