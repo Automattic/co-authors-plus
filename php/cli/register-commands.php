@@ -77,26 +77,14 @@ add_action(
 	static function (): void {
 		global $coauthors_plus;
 
-		// Guest authors can be switched off, in which case the plugin never
-		// builds the instance and there is nothing for these commands to act
-		// on. The rest of the guest author functionality is loaded on the same
-		// condition, so leaving them unregistered is consistent with it.
-		if ( ! $coauthors_plus instanceof CoAuthors_Plus || ! $coauthors_plus->guest_authors instanceof CoAuthors_Guest_Authors ) {
+		if ( ! $coauthors_plus instanceof CoAuthors_Plus ) {
 			return;
 		}
 
-		$creator       = new Guest_Author_Creator( $coauthors_plus );
-		$assignments   = new Coauthor_Assignment_Service( $coauthors_plus );
-		$guest_authors = new Guest_Author_Service( $coauthors_plus->guest_authors );
-
-		WP_CLI::add_command(
-			'co-authors-plus export-coauthors',
-			new Export_Coauthors_Command(
-				$coauthors_plus,
-				new Coauthor_Export_Service( $coauthors_plus, $guest_authors, $assignments )
-			)
-		);
-
+		// Most commands work on author terms and bylines, which exist whether
+		// or not guest authors are enabled, so they are registered whenever the
+		// plugin is loaded. Only the commands that read or write guest author
+		// profiles are withheld when the feature is switched off, further down.
 		WP_CLI::add_command(
 			'co-authors-plus migrate-author-terms',
 			new Migrate_Author_Terms_Command( $coauthors_plus )
@@ -115,26 +103,6 @@ add_action(
 		WP_CLI::add_command(
 			'co-authors-plus rename-coauthor',
 			new Rename_Coauthor_Command( $coauthors_plus )
-		);
-
-		WP_CLI::add_command(
-			'co-authors-plus create-author',
-			new Create_Author_Command( $creator )
-		);
-
-		WP_CLI::add_command(
-			'co-authors-plus create-guest-authors',
-			new Create_Guest_Authors_Command( $coauthors_plus )
-		);
-
-		WP_CLI::add_command(
-			'co-authors-plus create-guest-authors-from-csv',
-			new Create_Guest_Authors_From_Csv_Command( $creator )
-		);
-
-		WP_CLI::add_command(
-			'co-authors-plus create-guest-authors-from-wxr',
-			new Create_Guest_Authors_From_Wxr_Command( $creator )
 		);
 
 		WP_CLI::add_command(
@@ -184,6 +152,46 @@ add_action(
 		WP_CLI::add_command(
 			'co-authors-plus swap-coauthors',
 			new Swap_Coauthors_Command( $coauthors_plus )
+		);
+
+		// Guest authors can be switched off, in which case the plugin never
+		// builds the instance and there is nothing for these commands to act
+		// on. The rest of the guest author functionality is loaded on the same
+		// condition, so leaving them unregistered is consistent with it.
+		if ( ! $coauthors_plus->guest_authors instanceof CoAuthors_Guest_Authors ) {
+			return;
+		}
+
+		$creator       = new Guest_Author_Creator( $coauthors_plus );
+		$assignments   = new Coauthor_Assignment_Service( $coauthors_plus );
+		$guest_authors = new Guest_Author_Service( $coauthors_plus->guest_authors );
+
+		WP_CLI::add_command(
+			'co-authors-plus export-coauthors',
+			new Export_Coauthors_Command(
+				$coauthors_plus,
+				new Coauthor_Export_Service( $coauthors_plus, $guest_authors, $assignments )
+			)
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus create-author',
+			new Create_Author_Command( $creator )
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus create-guest-authors',
+			new Create_Guest_Authors_Command( $coauthors_plus )
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus create-guest-authors-from-csv',
+			new Create_Guest_Authors_From_Csv_Command( $creator )
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus create-guest-authors-from-wxr',
+			new Create_Guest_Authors_From_Wxr_Command( $creator )
 		);
 
 		WP_CLI::add_command(
