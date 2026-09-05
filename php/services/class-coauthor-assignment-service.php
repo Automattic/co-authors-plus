@@ -102,7 +102,9 @@ class Coauthor_Assignment_Service {
 	 * add_coauthors(), whose return value does not mean what it appears to: it
 	 * returns false when replacing a byline that resolves to no WordPress user,
 	 * which is every byline made up only of guest authors without linked
-	 * accounts, having written the terms perfectly well.
+	 * accounts, having written the terms perfectly well. A false is therefore
+	 * ambiguous, so it is settled by re-reading the terms: if the co-author is
+	 * now on the post the write landed, and if not it genuinely failed.
 	 *
 	 * @param int    $post_id  Post ID.
 	 * @param string $nicename user_nicename to add.
@@ -118,8 +120,10 @@ class Coauthor_Assignment_Service {
 
 		array_splice( $nicenames, min( $position, count( $nicenames ) ), 0, array( $nicename ) );
 
-		$this->assign( $post_id, $nicenames );
+		if ( $this->assign( $post_id, $nicenames ) ) {
+			return true;
+		}
 
-		return true;
+		return in_array( $nicename, $this->nicenames_for_post( $post_id ), true );
 	}
 }

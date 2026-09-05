@@ -32,6 +32,21 @@ use Automattic\CoAuthorsPlus\Tests\Unit\TestCase;
 final class ClearObjectCacheTest extends TestCase {
 
 	/**
+	 * Commands that process posts in batches and must flush the object cache
+	 * between batches.
+	 *
+	 * When adding a command that loops over a large result set, add its file
+	 * here so the flush cannot be dropped unnoticed.
+	 */
+	private const BATCHING_COMMANDS = array(
+		'class-assign-coauthors-command.php',
+		'class-create-terms-for-posts-command.php',
+		'class-list-posts-without-terms-command.php',
+		'class-swap-coauthors-command.php',
+		'class-update-author-terms-command.php',
+	);
+
+	/**
 	 * Absolute path to a file in the plugin root.
 	 *
 	 * @param string $relative Path relative to the repository root.
@@ -75,21 +90,31 @@ final class ClearObjectCacheTest extends TestCase {
 
 		$this->assertNotEmpty( $sources, 'The command classes must be readable for this check to mean anything.' );
 
-		$combined = '';
-
 		foreach ( $sources as $source ) {
 			$contents = (string) file_get_contents( $source );
 
 			$this->assertStringNotContainsString( 'stop_the_insanity', $contents, basename( $source ) );
 			$this->assertStringNotContainsString( 'memcache_debug', $contents, basename( $source ) );
-
-			$combined .= $contents;
 		}
+	}
 
-		$this->assertStringContainsString(
-			'\WP_CLI\Utils\wp_clear_object_cache();',
-			$combined,
-			'The long-running commands should still flush the object cache between batches.'
-		);
+	/**
+	 * Every batching command still flushes the object cache between batches.
+	 *
+	 * Checked per file, not across the directory as a whole, so one command
+	 * dropping its flush cannot hide behind another that kept it.
+	 */
+	public function test_each_batching_command_flushes_the_object_cache(): void {
+		foreach ( self::BATCHING_COMMANDS as $command ) {
+			$source = $this->path( 'php/cli/' . $command );
+
+			$this->assertFileExists( $source, "$command is listed as a batching command but does not exist. Update BATCHING_COMMANDS." );
+
+			$this->assertStringContainsString(
+				'\WP_CLI\Utils\wp_clear_object_cache();',
+				(string) file_get_contents( $source ),
+				"$command no longer flushes the object cache between batches. A long run would exhaust memory on a real site."
+			);
+		}
 	}
 }

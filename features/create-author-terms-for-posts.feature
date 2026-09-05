@@ -364,6 +364,35 @@ Feature: Missing author terms can be backfilled for targeted posts
 		nonexistent_post_author_id
 		"""
 
+	Scenario: The skip tally is pluralised when more than one post is skipped
+		When I run `wp post create --post_title="First nobody post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_A}
+		And I run `wp post create --post_title="Second nobody post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_B}
+		And I run `wp co-authors-plus create-author-terms-for-posts`
+		Then STDOUT should be:
+		"""
+		Found 2 posts with missing author terms.
+		Processing post {POST_A} (1/2 or 50.00%)
+		Warning: Post Author ID 0 does not exist in wp_users table, inserting skip postmeta (`_cap_skip_backfill`).
+		Processing post {POST_B} (2/2 or 100.00%)
+		Warning: Post Author ID 0 does not exist in wp_users table, inserting skip postmeta (`_cap_skip_backfill`).
+		0 records affected
+		Warning: 2 posts were skipped and marked with `_cap_skip_backfill`.
+		Updating author terms with new counts
+		Success: Done!
+		"""
+		When I run `wp post meta get {POST_A} _cap_skip_backfill`
+		Then STDOUT should be:
+		"""
+		nonexistent_post_author_id
+		"""
+		When I run `wp post meta get {POST_B} _cap_skip_backfill`
+		Then STDOUT should be:
+		"""
+		nonexistent_post_author_id
+		"""
+
 	Scenario: Batches are re-queried when --records-per-batch is smaller than the total, and a skipped post does not stall progress
 		When I run `wp post create --post_title="Orphan post" --post_status=publish --post_author=999 --porcelain`
 		And save STDOUT as {ORPHAN_ID}
@@ -470,6 +499,23 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And the return code should be 0
 		# The orphan is named second on purpose: the run used to abort on the first
 		# post and never reach it, so this assertion is what fails without the fix.
+		When I run `wp post meta list {ORPHAN_ID} --keys=_cap_skip_backfill --format=count`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+
+	Scenario: A non-numeric entry in --specific-post-ids is ignored with a warning while valid IDs are still processed
+		When I run `wp post create --post_title="Orphan post" --post_status=publish --post_author=999 --porcelain`
+		And save STDOUT as {ORPHAN_ID}
+		And I run `wp co-authors-plus create-author-terms-for-posts`
+		When I run `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill --specific-post-ids=abc,{ORPHAN_ID}`
+		Then STDOUT should be:
+		"""
+		Warning: Ignoring non-numeric post ID `abc` in --specific-post-ids.
+		Success: Deleted `_cap_skip_backfill` postmeta from post {ORPHAN_ID}.
+		"""
+		And the return code should be 0
 		When I run `wp post meta list {ORPHAN_ID} --keys=_cap_skip_backfill --format=count`
 		Then STDOUT should be:
 		"""

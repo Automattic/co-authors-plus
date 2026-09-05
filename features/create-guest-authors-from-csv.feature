@@ -10,9 +10,10 @@ Feature: Guest authors can be created from a CSV file
 	Scenario: Error on a missing required --file parameter
 		When I try `wp co-authors-plus create-guest-authors-from-csv`
 		Then the return code should be 1
-		And STDERR should contain:
+		And STDERR should be:
 		"""
-		missing --file parameter
+		Error: Parameter errors:
+		 missing --file parameter (Path to the CSV file.)
 		"""
 
 	Scenario: Error on a file that cannot be read
@@ -228,6 +229,8 @@ Feature: Guest authors can be created from a CSV file
 
 	Scenario: A row that fails validation is warned about and the import carries on
 		When I run `wp co-authors-plus create-guest-authors-from-csv --file=features/fixtures/guest-authors-invalid-row.csv`
+		# The bulk importers deliberately exit 0 when some rows fail: the drop is
+		# reported through the tally warning below, not as an error.
 		Then the return code should be 0
 		And STDOUT should contain:
 		"""
@@ -244,6 +247,11 @@ Feature: Guest authors can be created from a CSV file
 		And STDOUT should contain:
 		"""
 		Processing author valid-person (valid@example.com)
+		"""
+		# "1 of 2" also pins the sprintf argument order: failed count first, total second.
+		And STDOUT should contain:
+		"""
+		Warning: 1 of 2 authors could not be created.
 		"""
 		And STDOUT should contain:
 		"""

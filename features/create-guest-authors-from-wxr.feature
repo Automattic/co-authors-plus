@@ -21,9 +21,10 @@ Feature: Guest authors can be created from the author nodes of a WXR file
 	Scenario: Error on a missing required --file parameter
 		When I try `wp co-authors-plus create-guest-authors-from-wxr`
 		Then the return code should be 1
-		And STDERR should contain:
+		And STDERR should be:
 		"""
-		missing --file parameter
+		Error: Parameter errors:
+		 missing --file parameter (Path to the WXR file.)
 		"""
 
 	Scenario: Error on a file that cannot be read
@@ -150,6 +151,50 @@ Feature: Guest authors can be created from the author nodes of a WXR file
 		Then STDOUT should be:
 		"""
 		0
+		"""
+
+	Scenario: An author node that fails validation is warned about and the import carries on
+		When I run `wp co-authors-plus create-guest-authors-from-wxr --file=features/fixtures/guest-authors-invalid-author.wxr`
+		# The bulk importers deliberately exit 0 when some authors fail: the drop is
+		# reported through the tally warning below, not as an error.
+		Then the return code should be 0
+		And STDOUT should contain:
+		"""
+		Processing author wxr-good-one (wxr-good-one@example.com)
+		"""
+		And STDOUT should contain:
+		"""
+		Processing author wxr-no-display-name (wxr-no-display-name@example.com)
+		"""
+		And STDOUT should contain:
+		"""
+		Warning: -- Failed to create guest author: display_name is a required field
+		"""
+		And STDOUT should contain:
+		"""
+		Processing author wxr-good-two (wxr-good-two@example.com)
+		"""
+		# "1 of 3" also pins the sprintf argument order: failed count first, total second.
+		And STDOUT should contain:
+		"""
+		Warning: 1 of 3 authors could not be created.
+		"""
+		And STDOUT should contain:
+		"""
+		All done!
+		"""
+		# The bad node sits between the two good ones, so both profiles existing
+		# proves the import carried on past the failure.
+		When I run `wp post list --post_type=guest-author --format=count`
+		Then STDOUT should be:
+		"""
+		2
+		"""
+		When I run `wp post list --post_type=guest-author --field=post_name --order=asc --orderby=ID`
+		Then STDOUT should be:
+		"""
+		cap-wxr-good-one
+		cap-wxr-good-two
 		"""
 
 	Scenario: Importing the same WXR file twice skips the existing guest authors

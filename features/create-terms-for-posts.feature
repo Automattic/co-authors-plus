@@ -242,3 +242,39 @@ Feature: Author terms can be created for all posts
 		"""
 		cap-admin
 		"""
+
+	Scenario: Several statuses can be targeted at once with a comma separated --post-statuses
+		When I run `wp post create --post_title="Published post" --post_status=publish --post_author=1 --porcelain`
+		And save STDOUT as {POST_A}
+		And I run `wp post create --post_title="Draft post" --post_author=1 --porcelain`
+		And save STDOUT as {POST_B}
+		And I run `wp post create --post_title="Pending post" --post_status=pending --post_author=1 --porcelain`
+		And save STDOUT as {POST_C}
+		And I run `wp post term remove {POST_A} author --all`
+		And I run `wp post term remove {POST_B} author --all`
+		And I run `wp post term remove {POST_C} author --all`
+		And I run `wp co-authors-plus create-terms-for-posts --post-statuses=publish,draft`
+		Then STDOUT should be:
+		"""
+		Now inspecting or updating 2 total posts.
+		No co-authors found for post #{POST_A}.
+		1/2) Added - Post #{POST_A} 'Published post' now has this author term: cap-admin
+		No co-authors found for post #{POST_B}.
+		2/2) Added - Post #{POST_B} 'Draft post' now has this author term: cap-admin
+		Success: Done! Of 2 posts, 2 now have author terms.
+		"""
+		When I run `wp term list author --object_ids={POST_A} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-admin
+		"""
+		When I run `wp term list author --object_ids={POST_B} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-admin
+		"""
+		When I run `wp term list author --object_ids={POST_C} --format=count`
+		Then STDOUT should be:
+		"""
+		0
+		"""
