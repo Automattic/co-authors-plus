@@ -120,7 +120,13 @@ Feature: A single guest author can be created
 		cap-raw-user
 		"""
 
-	Scenario: A user_login that collides with an existing user reuses that user's author term
+	# get_author_term() matches on the cap-<nicename> slug alone, so a profile
+	# sharing a real user's login would adopt that user's author term and rewrite
+	# its description — the user's own posts then resolve to the guest author. The
+	# guard's comment always said logins must not collide with existing users; now
+	# the code agrees, unless the profile is being created as that user's linked
+	# account, which is the allowance the edit screen has always made.
+	Scenario: A user_login that collides with an existing user is refused
 		Given I run `wp user create jane-doe jane-user@example.com --display_name="Jane Doe" --role=author --porcelain`
 		And save STDOUT as {USER_ID}
 		And I run `wp post create --post_title="Post by Jane" --post_author={USER_ID} --post_status=publish --porcelain`
@@ -128,29 +134,26 @@ Feature: A single guest author can be created
 		And I run `wp term list author --object_ids={POST_ID} --field=term_id`
 		And save STDOUT as {USER_TERM_ID}
 		And STDOUT should not be empty
-		When I run `wp co-authors-plus create-author --display_name="Jane Guest" --user_login=jane-doe --user_email=jane-guest@example.com`
-		Then the return code should be 0
-		And STDOUT should contain:
+		When I try `wp co-authors-plus create-author --display_name="Jane Guest" --user_login=jane-doe --user_email=jane-guest@example.com`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
-		Success: -- Created as guest author #
+		Warning: -- Failed to create guest author: user_login cannot duplicate existing guest author or mapped user
 		"""
-		# The duplicate guards only look at guest authors, and get_author_term() matches
-		# on the `cap-<nicename>` slug alone, so the new profile ADOPTS the existing
-		# user's term rather than getting one of its own.
-		When I run `wp post list --post_type=guest-author --format=ids`
-		And save STDOUT as {GUEST_AUTHOR_ID}
-		And I run `wp term list author --object_ids={GUEST_AUTHOR_ID} --field=term_id`
+		When I run `wp post list --post_type=guest-author --format=count`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+		# The user's term survives untouched: same term, description not rewritten.
+		When I run `wp term list author --object_ids={POST_ID} --field=term_id`
 		Then STDOUT should be:
 		"""
 		{USER_TERM_ID}
 		"""
-		# The shared term's description (what CAP searches on) is rewritten with the
-		# guest author's values, so the real user's post now points at the guest author.
 		When I run `wp term list author --object_ids={POST_ID} --field=description`
-		Then STDOUT should contain:
-		"""
-		Jane Guest
-		"""
+		Then STDOUT should not match /Jane Guest/
 
 	Scenario: The avatar field used when creating a profile is not exposed as a parameter
 		When I try `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --avatar=5`

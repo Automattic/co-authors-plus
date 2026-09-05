@@ -566,9 +566,25 @@ PHP 8.4) rather than inferred from reading the source.
     either. Pinned with an exact `wp post meta list --format=csv` assertion.
 
 - Hardened 2026-09-02 after adversarial review: 11 scenarios, all green.
-- **Silent author-term hijack (new, and the most significant finding here).** A
-  `--user_login` that matches an existing WP USER is accepted and the guest author is
-  created, sharing that user's author term. `create_guest_author()` only dedupes
+- ~~**Silent author-term hijack.** A `--user_login` that matches an existing WP
+  USER is accepted and the guest author is created, sharing that user's author
+  term.~~ **FIXED** (decision taken 2026-09-05). `create()`'s guard now matches its
+  own comment and rejects the collision with the existing `duplicate-field` error —
+  with one deliberate allowance: the collision is permitted when the profile is
+  being created as that user's linked account (`linked_account` equals the found
+  user's actual login). That allowance is NOT optional and is not new semantics: it
+  mirrors the guard `manage_guest_author_filter_post_data()` has always applied on
+  the edit screen, and without it `create_guest_author_from_user_id()` — and
+  therefore `wp co-authors-plus create-guest-authors`, the users-list "Create
+  Profile" action, and every test factory user — would break for any user whose
+  display_name equals their login, which is WordPress's default (including
+  `admin`). Three integration tests pin the boundary: the rejection (fails against
+  the old guard), the linked-account allowance (exists to fail against an
+  over-tightened guard), and `linked_account` not bypassing the guest-author
+  duplicate check. The refusal scenario asserts the user's term survives with its
+  description unrewritten. Historical detail preserved below.
+- The original finding, for the record: the guest author was created sharing that
+  user's author term. `create_guest_author()` only dedupes
   against guest-author posts (:1136-1141) and `Guest_Authors::create()` only rejects a
   collision when the existing co-author's `type` is `guest-author`
   (php/class-coauthors-guest-authors.php:1402-1406), while `get_author_term()` matches
