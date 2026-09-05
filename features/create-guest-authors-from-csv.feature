@@ -30,13 +30,11 @@ Feature: Guest authors can be created from a CSV file
 		"""
 		Found 2 authors in CSV
 		Processing author jane-doe (jane@example.com)
-		-- Not found; creating profile.
 		Success: -- Created as guest author #
 		"""
 		And STDOUT should contain:
 		"""
 		Processing author bob-builder (bob@example.com)
-		-- Not found; creating profile.
 		Success: -- Created as guest author #
 		"""
 		And STDOUT should contain:
@@ -102,7 +100,9 @@ Feature: Guest authors can be created from a CSV file
 		Builder
 		"""
 
-	Scenario: Name columns are dropped when neither splitting branch matches
+	# A display_name with no space and no name columns still yields no name meta,
+	# which is correct — there is nothing to split and nothing supplied.
+	Scenario: A single-word display name yields no first or last name
 		When I run `wp co-authors-plus create-guest-authors-from-csv --file=features/fixtures/guest-authors-single-name.csv`
 		Then the return code should be 0
 		And STDOUT should contain:
@@ -111,16 +111,9 @@ Feature: Guest authors can be created from a CSV file
 		"""
 		And STDOUT should contain:
 		"""
-		Undefined array key "first_name"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "last_name"
-		"""
-		And STDOUT should contain:
-		"""
 		Success: -- Created as guest author #
 		"""
+		And STDOUT should not match /Undefined array key/
 		When I run `wp post list --post_type=guest-author --meta_key=cap-user_login --meta_value=prince --format=ids`
 		And save STDOUT as {PRINCE_ID}
 		And I run `wp post meta list {PRINCE_ID} --format=csv`
@@ -134,19 +127,12 @@ Feature: Guest authors can be created from a CSV file
 		{PRINCE_ID},cap-description,"Single name artist"
 		{PRINCE_ID},_original_author_login,prince
 		"""
-		# A row with exactly ONE of first_name/last_name filled matches neither branch
-		# either, so the supplied "Halfy" is silently discarded even though the display
-		# name does contain a space.
+		# A row supplying exactly ONE of first_name/last_name used to match neither
+		# branch, so the supplied "Halfy" was discarded. Whichever column is filled is
+		# now kept, and the empty one simply writes no meta.
 		When I run `wp co-authors-plus create-guest-authors-from-csv --file=features/fixtures/guest-authors-half-named.csv`
 		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		Undefined array key "first_name"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "last_name"
-		"""
+		And STDOUT should not match /Undefined array key/
 		When I run `wp post list --post_type=guest-author --meta_key=cap-user_login --meta_value=half-named --format=ids`
 		And save STDOUT as {HALF_ID}
 		And I run `wp post meta list {HALF_ID} --format=csv`
@@ -154,6 +140,7 @@ Feature: Guest authors can be created from a CSV file
 		"""
 		post_id,meta_key,meta_value
 		{HALF_ID},cap-display_name,"Half Named"
+		{HALF_ID},cap-first_name,Halfy
 		{HALF_ID},cap-user_login,half-named
 		{HALF_ID},cap-user_email,half@example.com
 		{HALF_ID},_original_author_login,half-named
@@ -301,9 +288,9 @@ Feature: Guest authors can be created from a CSV file
 		"""
 		Found 2 authors in CSV
 		Processing author jane-doe (jane@example.com)
-		Warning: -- Author already exists (ID #{JANE_ID}); skipping.
+		Warning: -- Author already exists (ID #{JANE_ID}, user_login jane-doe); skipping.
 		Processing author bob-builder (bob@example.com)
-		Warning: -- Author already exists (ID #{BOB_ID}); skipping.
+		Warning: -- Author already exists (ID #{BOB_ID}, user_login bob-builder); skipping.
 		All done!
 		"""
 		When I run `wp post list --post_type=guest-author --format=count`

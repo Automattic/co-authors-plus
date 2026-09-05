@@ -10,14 +10,7 @@ Feature: A single guest author can be created
 	Scenario: Create a guest author with every supported field
 		When I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=jane@example.com --first_name=Jane --last_name=Doe --website=https://example.com/jane --description="Jane writes about testing"`
 		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "avatar"
-		"""
+		And STDOUT should not match /Undefined array key/
 		And STDOUT should contain:
 		"""
 		Success: -- Created as guest author #
@@ -62,37 +55,10 @@ Feature: A single guest author can be created
 		cap-jane-doe
 		"""
 
-	Scenario: Omitted optional fields raise undefined array key warnings but still create the profile
+	Scenario: Omitted optional fields are defaulted, not warned about
 		When I run `wp co-authors-plus create-author --display_name=Minimal --user_login=minimal`
 		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "user_email"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "first_name"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "last_name"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "website"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "description"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "avatar"
-		"""
+		And STDOUT should not match /Undefined array key/
 		And STDOUT should contain:
 		"""
 		Success: -- Created as guest author #
@@ -200,17 +166,10 @@ Feature: A single guest author can be created
 		"""
 
 	Scenario: A guest author is not created without a display_name
-		When I run `wp co-authors-plus create-author --user_login=no-display-name`
-		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "display_name"
-		"""
-		And STDOUT should contain:
+		When I try `wp co-authors-plus create-author --user_login=no-display-name`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
 		Warning: -- Failed to create guest author: display_name is a required field
 		"""
@@ -221,17 +180,10 @@ Feature: A single guest author can be created
 		"""
 
 	Scenario: A guest author is not created without a user_login
-		When I run `wp co-authors-plus create-author --display_name="No Login"`
-		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "user_login"
-		"""
-		And STDOUT should contain:
+		When I try `wp co-authors-plus create-author --display_name="No Login"`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
 		Warning: -- Failed to create guest author: user_login is a required field
 		"""
@@ -241,14 +193,11 @@ Feature: A single guest author can be created
 		0
 		"""
 
-	Scenario: Running without any parameters still attempts creation and warns
-		When I run `wp co-authors-plus create-author`
-		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
+	Scenario: Running without any parameters fails with a non-zero exit code
+		When I try `wp co-authors-plus create-author`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
 		Warning: -- Failed to create guest author: display_name is a required field
 		"""
@@ -267,7 +216,7 @@ Feature: A single guest author can be created
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}); skipping.
+		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}, user_login jane-doe); skipping.
 		"""
 		When I run `wp post list --post_type=guest-author --format=count`
 		Then STDOUT should be:
@@ -275,6 +224,9 @@ Feature: A single guest author can be created
 		1
 		"""
 
+	# The requested login is janet-other, the reported one is jane-doe. That contrast
+	# is the point: without the login in the message an operator would reasonably
+	# conclude janet-other now exists, when it does not.
 	Scenario: An existing user_email is matched even when the user_login differs
 		Given I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=jane@example.com`
 		And I run `wp post list --post_type=guest-author --format=ids`
@@ -283,7 +235,7 @@ Feature: A single guest author can be created
 		When I run `wp co-authors-plus create-author --display_name="Janet Other" --user_login=janet-other --user_email=jane@example.com`
 		Then STDOUT should be:
 		"""
-		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}); skipping.
+		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}, user_login jane-doe); skipping.
 		"""
 		When I run `wp post list --post_type=guest-author --format=count`
 		Then STDOUT should be:
@@ -299,7 +251,7 @@ Feature: A single guest author can be created
 		When I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=different@example.com`
 		Then STDOUT should be:
 		"""
-		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}); skipping.
+		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}, user_login jane-doe); skipping.
 		"""
 		When I run `wp post meta get {GUEST_AUTHOR_ID} cap-user_email`
 		Then STDOUT should be:

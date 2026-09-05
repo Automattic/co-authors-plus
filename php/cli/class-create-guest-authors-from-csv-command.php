@@ -103,6 +103,8 @@ class Create_Guest_Authors_From_Csv_Command {
 
 		WP_CLI::log( 'Found ' . count( $authors ) . ' authors in CSV' );
 
+		$failed = 0;
+
 		foreach ( $authors as $author ) {
 			WP_CLI::log( sprintf( 'Processing author %s (%s)', $author['user_login'], $author['user_email'] ) );
 
@@ -117,19 +119,29 @@ class Create_Guest_Authors_From_Csv_Command {
 
 			$display_name_space_pos = strpos( $author['display_name'], ' ' );
 
-			if ( false !== $display_name_space_pos && empty( $author['first_name'] ) && empty( $author['last_name'] ) ) {
+			// Take whichever name columns the row supplies, and fall back to splitting
+			// display_name only when it supplies neither. Requiring BOTH columns meant a
+			// row carrying just one matched no branch at all and had its name discarded.
+			if ( ! empty( $author['first_name'] ) || ! empty( $author['last_name'] ) ) {
+				$guest_author_data['first_name'] = sanitize_text_field( $author['first_name'] );
+				$guest_author_data['last_name']  = sanitize_text_field( $author['last_name'] );
+			} elseif ( false !== $display_name_space_pos ) {
 				$first_name = substr( $author['display_name'], 0, $display_name_space_pos );
 				$last_name  = substr( $author['display_name'], ( $display_name_space_pos + 1 ) );
 
 				$guest_author_data['first_name'] = sanitize_text_field( $first_name );
 				$guest_author_data['last_name']  = sanitize_text_field( $last_name );
-			} elseif ( ! empty( $author['first_name'] ) && ! empty( $author['last_name'] ) ) {
-				$guest_author_data['first_name'] = sanitize_text_field( $author['first_name'] );
-				$guest_author_data['last_name']  = sanitize_text_field( $author['last_name'] );
 			}
 
-			$this->creator->create( $guest_author_data );
+			if ( ! $this->creator->create( $guest_author_data ) ) {
+				++$failed;
+			}
 		}//end foreach
+
+		if ( $failed > 0 ) {
+			// A bad row does not abort the import, so say how many were dropped.
+			WP_CLI::warning( sprintf( '%d of %d authors could not be created.', $failed, count( $authors ) ) );
+		}
 
 		WP_CLI::log( 'All done!' );
 	}

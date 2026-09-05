@@ -540,6 +540,44 @@ PHP 8.4) rather than inferred from reading the source.
   and the term assertion is scoped `--object_ids={GUEST_AUTHOR_ID}`; see the correction
   in the shared test-environment section above.
 
+- **Guest author creator, resolved together (one PR).** The shared
+  `Guest_Author_Creator::create()` now returns a bool, and the three importers act
+  on it:
+  - ~~`_original_author_id` is never written: the guard tests
+    `isset( $author['author_id'] )` while the WXR flow passes the ID under `ID`, and
+    even on a hit it stored `$author['ID']`.~~ **FIXED** — the guard tests the key the
+    callers actually supply, so provenance is recorded again. Nothing inside CAP
+    reads this meta; it exists for downstream migration tooling, so this restores a
+    documented promise rather than changing plugin behaviour.
+  - ~~Unguarded array reads emit `Undefined array key` warnings for every key the
+    caller omits — six per `create-author` run, three per WXR author.~~ **FIXED**
+    with `?? ''` defaults. This is behaviour-neutral for stored meta because
+    `CoAuthors_Guest_Authors::create()` skips fields with `empty()`, which treats
+    `''` and absent alike. Had it used `isset()`, every empty field would have
+    started writing an empty meta row.
+  - ~~`avatar` is warned about on EVERY `create-author` invocation, because that
+    command has no `--avatar` flag at all.~~ **FIXED** as a case of the above, not
+    separately. Adding an `--avatar` flag would be a feature, and is not in scope.
+  - ~~`-- Not found; creating profile.` prints BEFORE `create()` validates, so it
+    appears even when nothing is created.~~ **FIXED** by deleting the line. Making it
+    honest would mean duplicating `create()`'s validation in the helper, and on the
+    success path `Success: -- Created as guest author #N` already says it.
+  - ~~A validation failure is a warning plus an implicit exit 0, so `create-author`
+    with no arguments "succeeds" from a script's point of view.~~ **FIXED** for the
+    single-author command, which now halts with 1. The bulk importers deliberately
+    keep exit 0 — one bad row must not abort a large import — and instead tally
+    failures and report `N of M authors could not be created.` That split is the
+    whole reason the helper returns a bool rather than erroring itself.
+  - ~~Duplicate detection tries `user_email` before `user_login`, so an existing
+    profile with the same email but a different login is reported as "already
+    exists" and the requested login is silently dropped.~~ **FIXED in the message,
+    and the lookup order deliberately left alone.** Reversing it would let a second
+    profile share an email, and `get_guest_author_by( 'user_email', ... )` is a bare
+    `get_var` where the first row wins — that ambiguity would leak into linked
+    accounts and the admin UI, well outside the CLI. Shared editorial addresses are
+    common. The real defect was that the operator asked for one login and was told
+    about a profile without being told which; the warning now names it.
+
 ## create-terms-for-posts
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
@@ -970,6 +1008,17 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   the previous `--slug=cap-jane-doe` assertion was satisfiable by residue from
   create-author.feature (which runs first and uses the same login). See the correction
   in the shared test-environment section.
+
+- ~~A CSV row supplying exactly ONE of `first_name`/`last_name` matches neither
+  branch of the name-splitting logic — the `if` needs both name columns empty AND a
+  space in `display_name`, the `elseif` needs BOTH populated — so the supplied name
+  is silently discarded.~~ **FIXED**, and fixed in the same change as the creator's
+  `Undefined array key` warnings, deliberately. Those warnings were the only
+  operator-visible symptom of this gap, so silencing them alone would have made a
+  data-losing import completely quiet. The condition is now "take whichever name
+  columns the row supplies, and fall back to splitting `display_name` only when it
+  supplies neither", which is both shorter than what it replaced and covers the case
+  that fell through.
 
 ## create-guest-authors-from-wxr
 
