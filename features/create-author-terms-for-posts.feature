@@ -181,10 +181,14 @@ Feature: Missing author terms can be backfilled for targeted posts
 		"""
 		0
 		"""
-		When I run `wp co-authors-plus create-author-terms-for-posts --specific-post-ids={POST_A},{POST_B} --above-post-id=10 --below-post-id=5`
+		# A valid range that would exclude both posts, to prove --specific-post-ids still
+		# wins. This used an INVALID range, which now exits 1 — so re-pinning it without
+		# thought would have quietly dropped the precedence coverage altogether.
+		When I run `wp co-authors-plus create-author-terms-for-posts --specific-post-ids={POST_A},{POST_B} --above-post-id={POST_A} --below-post-id={POST_B}`
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
+		Warning: --above-post-id and --below-post-id are ignored when --specific-post-ids is given.
 		Found 1 posts with missing author terms.
 		Processing post {POST_B} (1/1 or 100.00%)
 		Success: Inserted term relationship for post {POST_B} and author 1 (admin).
@@ -284,19 +288,20 @@ Feature: Missing author terms can be backfilled for targeted posts
 		0
 		"""
 
-	Scenario: An uncaught exception is thrown when --above-post-id is not less than --below-post-id
+	Scenario: An invalid ID range is rejected with an error naming the parameters
 		When I try `wp co-authors-plus create-author-terms-for-posts --above-post-id=10 --below-post-id=5`
 		Then the return code should be 1
-		And STDOUT should contain:
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
-		Fatal error: Uncaught Exception: The $above_post_id param must be less than the $below_post_id param.
+		Error: --above-post-id must be less than --below-post-id.
 		"""
-		And STDERR should not be empty
 		When I try `wp co-authors-plus create-author-terms-for-posts --above-post-id=5 --below-post-id=5`
 		Then the return code should be 1
-		And STDOUT should contain:
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
-		Fatal error: Uncaught Exception: The $above_post_id param must be less than the $below_post_id param.
+		Error: --above-post-id must be less than --below-post-id.
 		"""
 
 	Scenario: A post whose author does not exist gets skip postmeta instead of a term
@@ -309,6 +314,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		Processing post {POST_ID} (1/1 or 100.00%)
 		Warning: Post Author ID 999 does not exist in wp_users table, inserting skip postmeta (`_cap_skip_backfill`).
 		0 records affected
+		Warning: 1 post was skipped and marked with `_cap_skip_backfill`.
 		Updating author terms with new counts
 		Success: Done!
 		"""
@@ -326,7 +332,9 @@ Feature: Missing author terms can be backfilled for targeted posts
 		Success: Done!
 		"""
 
-	Scenario: Posts with a post_author of zero are never seen as missing terms
+	# list-posts-without-terms reports these, so excluding them here made the two
+	# diagnostics disagree about the same site. They now take the orphan path.
+	Scenario: Posts with a post_author of zero are marked as unbackfillable
 		When I run `wp post create --post_title="Nobody post" --post_status=publish --porcelain`
 		And save STDOUT as {POST_ID}
 		And I run `wp post get {POST_ID} --field=post_author`
@@ -342,10 +350,18 @@ Feature: Missing author terms can be backfilled for targeted posts
 		When I run `wp co-authors-plus create-author-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Found 0 posts with missing author terms.
+		Found 1 posts with missing author terms.
+		Processing post {POST_ID} (1/1 or 100.00%)
+		Warning: Post Author ID 0 does not exist in wp_users table, inserting skip postmeta (`_cap_skip_backfill`).
 		0 records affected
+		Warning: 1 post was skipped and marked with `_cap_skip_backfill`.
 		Updating author terms with new counts
 		Success: Done!
+		"""
+		When I run `wp post meta get {POST_ID} _cap_skip_backfill`
+		Then STDOUT should be:
+		"""
+		nonexistent_post_author_id
 		"""
 
 	Scenario: Batches are re-queried when --records-per-batch is smaller than the total, and a skipped post does not stall progress
@@ -370,6 +386,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		Processing post {POST_B} (3/3 or 100.00%)
 		Success: Inserted term relationship for post {POST_B} and author 1 (admin).
 		2 records affected
+		Warning: 1 post was skipped and marked with `_cap_skip_backfill`.
 		Updating author terms with new counts
 		Success: Updated author term for author 1 (admin) (100.00%).
 		Success: Done!
@@ -422,6 +439,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		Processing post {POST_ID} (1/1 or 100.00%)
 		Warning: Post Author ID 999 does not exist in wp_users table, inserting skip postmeta (`_cap_skip_backfill`).
 		0 records affected
+		Warning: 1 post was skipped and marked with `_cap_skip_backfill`.
 		Updating author terms with new counts
 		Success: Done!
 		"""
@@ -495,6 +513,25 @@ Feature: Missing author terms can be backfilled for targeted posts
 		Then the return code should be 0
 		And STDOUT should match #(Success: Deleted[\s\S]*?){11}#
 		When I run `wp post list --meta_key=_cap_skip_backfill --post_status=any --format=count`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+
+	# The range check used to sit inside the SQL builder, in a branch only reached
+	# when no --specific-post-ids were given, so this combination was accepted.
+	Scenario: An invalid ID range is rejected even when --specific-post-ids is given
+		When I run `wp post create --post_title="First post" --post_status=publish --post_author=1 --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post term remove {POST_ID} author --all`
+		When I try `wp co-authors-plus create-author-terms-for-posts --specific-post-ids={POST_ID} --above-post-id=10 --below-post-id=5`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
+		"""
+		Error: --above-post-id must be less than --below-post-id.
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --format=count`
 		Then STDOUT should be:
 		"""
 		0
