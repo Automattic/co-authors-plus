@@ -84,6 +84,7 @@ class Create_Guest_Authors_From_Wxr_Command {
 
 		// Get author nodes.
 		$authors = $import_data['authors'];
+		$failed  = 0;
 
 		foreach ( $authors as $author ) {
 			WP_CLI::log( sprintf( 'Processing author %s (%s)', $author['author_login'], $author['author_email'] ) );
@@ -97,7 +98,14 @@ class Create_Guest_Authors_From_Wxr_Command {
 				'ID'           => $author['author_id'],
 			);
 
-			$this->creator->create( $guest_author_data );
+			if ( ! $this->creator->create( $guest_author_data ) ) {
+				++$failed;
+			}
+		}
+
+		if ( $failed > 0 ) {
+			// A bad author node does not abort the import, so say how many were dropped.
+			WP_CLI::warning( sprintf( '%d of %d authors could not be created.', $failed, count( $authors ) ) );
 		}
 
 		WP_CLI::log( 'All done!' );

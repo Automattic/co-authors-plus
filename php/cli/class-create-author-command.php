@@ -76,6 +76,10 @@ class Create_Author_Command {
 	 * @return void
 	 */
 	public function __invoke( array $args, array $assoc_args ): void {
-		$this->creator->create( $assoc_args );
+		if ( ! $this->creator->create( $assoc_args ) ) {
+			// The creator has already explained why; this only makes the failure
+			// visible to a script, which a warning and exit 0 did not.
+			WP_CLI::halt( 1 );
+		}
 	}
 }

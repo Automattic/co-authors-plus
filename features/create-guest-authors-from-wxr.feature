@@ -59,27 +59,14 @@ Feature: Guest authors can be created from the author nodes of a WXR file
 	Scenario: Create guest authors from the author nodes of a WXR file
 		When I run `wp co-authors-plus create-guest-authors-from-wxr --file=features/fixtures/guest-authors.wxr`
 		Then the return code should be 0
+		And STDOUT should not match /Undefined array key/
 		And STDOUT should contain:
 		"""
 		Processing author wxr-jane (wxr-jane@example.com)
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "website"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "description"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "avatar"
 		"""
 		And STDOUT should contain:
 		"""
 		Processing author wxr-bob (wxr-bob@example.com)
-		-- Not found; creating profile.
 		"""
 		And STDOUT should contain:
 		"""
@@ -112,15 +99,16 @@ Feature: Guest authors can be created from the author nodes of a WXR file
 		{JANE_ID},cap-last_name,Jane
 		{JANE_ID},cap-user_login,wxr-jane
 		{JANE_ID},cap-user_email,wxr-jane@example.com
+		{JANE_ID},_original_author_id,101
 		{JANE_ID},_original_author_login,wxr-jane
 		"""
-		# Stated explicitly as well as implied by the block above: the `_original_author_id`
-		# guard tests `isset( $author['author_id'] )` while this flow passes the WXR
-		# author ID under the key `ID`, so the meta is never written.
-		When I run `wp post meta list {JANE_ID} --keys=_original_author_id --format=count`
+		# The importers pass the source author ID under the `ID` key. The guard used to
+		# test `author_id`, which no caller sets, so this meta was never written and the
+		# documented provenance was lost.
+		When I run `wp post meta get {JANE_ID} _original_author_id`
 		Then STDOUT should be:
 		"""
-		0
+		101
 		"""
 		# Scoped to the profile just created, not to the slug: a term-slug lookup would
 		# pass on residue from an earlier feature or an earlier run.
@@ -142,6 +130,7 @@ Feature: Guest authors can be created from the author nodes of a WXR file
 		{BOB_ID},cap-last_name,Bob
 		{BOB_ID},cap-user_login,wxr-bob
 		{BOB_ID},cap-user_email,wxr-bob@example.com
+		{BOB_ID},_original_author_id,102
 		{BOB_ID},_original_author_login,wxr-bob
 		"""
 		When I run `wp term list author --object_ids={BOB_ID} --field=slug`
@@ -176,9 +165,9 @@ Feature: Guest authors can be created from the author nodes of a WXR file
 		And STDOUT should be:
 		"""
 		Processing author wxr-jane (wxr-jane@example.com)
-		Warning: -- Author already exists (ID #{JANE_ID}); skipping.
+		Warning: -- Author already exists (ID #{JANE_ID}, user_login wxr-jane); skipping.
 		Processing author wxr-bob (wxr-bob@example.com)
-		Warning: -- Author already exists (ID #{BOB_ID}); skipping.
+		Warning: -- Author already exists (ID #{BOB_ID}, user_login wxr-bob); skipping.
 		All done!
 		"""
 		When I run `wp post list --post_type=guest-author --format=count`
