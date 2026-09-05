@@ -541,14 +541,14 @@ PHP 8.4) rather than inferred from reading the source.
   `$total_posts`. No output change today; it removes a latent divergence.
 
 - Hardened 2026-09-02 after adversarial review: 9 scenarios, all green.
-- Drafts, pending and private posts are INVISIBLE to this command. The WP_Query at
-  :94-101 sets no `post_status`, and a CLI request has no current user, so only
-  public statuses are inspected — despite the docblock's claim that it walks all
-  posts, and unlike `create-author-terms-for-posts`, which exposes
-  `--post-statuses`. Pinned in "Draft and private posts are never inspected": the
-  command reports `Now inspecting or updating 0 total posts.` and both posts end
-  with zero author terms. A "tidy-up" adding `'post_status' => 'any'` would be a
-  silent scope change.
+- ~~Drafts, pending and private posts are INVISIBLE to this command. The WP_Query
+  sets no `post_status`, and a CLI request has no current user, so only public
+  statuses are inspected — despite the docblock's claim that it walks all posts, and
+  unlike `create-author-terms-for-posts`, which exposes `--post-statuses`. A
+  "tidy-up" adding `'post_status' => 'any'` would be a silent scope
+  change.~~ **FIXED** by the flag rather than by widening, for exactly the reason
+  that last sentence gives. The default-scope scenario is retained and renamed to
+  say "by default", with a companion scenario covering `--post-statuses=draft`.
 - The skip guard is "has ANY term in the author taxonomy", not "has the term for
   this post's author", so a post deliberately attributed to somebody other than
   `post_author` is skipped and never reconciled. Pinned in "A post whose existing
@@ -563,12 +563,17 @@ PHP 8.4) rather than inferred from reading the source.
 - The orphan-author scenario was pinned with an end-anchored regex on the empty
   trailing nicename. That is gone with the bug: the scenario now pins the whole of
   STDOUT exactly, since a skipped post produces a short and fully predictable run.
-- STILL OPEN: drafts, pending and private posts remain invisible, and the docblock
-  still overclaims. The sibling `create-author-terms-for-posts` exposes
-  `--post-statuses`; adding the same flag here (defaulting to `publish`, so no
-  silent scope change on a command that WRITES) is the natural fix, kept separate
-  from the corrections above because it adds public interface rather than fixing
-  behaviour.
+- ~~Drafts, pending and private posts are invisible, and the docblock overclaims
+  that the command walks every supported post.~~ **FIXED** by adding
+  `--post-statuses`, spelled and defaulted exactly as the sibling
+  `create-author-terms-for-posts` does. The default stays `publish` deliberately:
+  this command WRITES, so widening it would silently multiply the scope of a
+  backfill and attach terms to drafts nobody asked about. Contrast
+  `list-posts-without-terms`, where the default WAS widened — that one is read-only,
+  so a narrow default bought no safety and only withheld evidence. Naming the status
+  explicitly also removes an oddity: `WP_Query`'s default is publish PLUS whatever
+  private statuses the current user can read, so the scope of a backfill previously
+  depended on whether `--user` was passed.
 
 ## create-author-terms-for-posts
 
