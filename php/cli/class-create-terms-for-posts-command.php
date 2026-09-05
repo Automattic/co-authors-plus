@@ -44,10 +44,18 @@ class Create_Terms_For_Posts_Command {
 	 * create-author-terms-for-posts for a version that targets only the posts that
 	 * need it, which is faster on all but the smallest sites.
 	 *
+	 * ## OPTIONS
+	 *
+	 * [--post-statuses=<post-statuses>]
+	 * : Comma-separated post statuses to cover. Defaults to publish.
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     # Backfill author terms across the site.
 	 *     $ wp co-authors-plus create-terms-for-posts
+	 *
+	 *     # Cover drafts and pending posts as well.
+	 *     $ wp co-authors-plus create-terms-for-posts --post-statuses=publish,draft,pending
 	 *
 	 * @when after_wp_load
 	 *
@@ -61,10 +69,16 @@ class Create_Terms_For_Posts_Command {
 		// Cache this to prevent repeated lookups.
 		$author_terms = array();
 
+		// Named explicitly rather than left to WP_Query's default, which is publish
+		// plus whatever private statuses the current user can read — so the scope of a
+		// backfill would otherwise depend on whether --user was passed.
+		$post_statuses = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
+
 		$args = array(
 			'order'             => 'ASC',
 			'orderby'           => 'ID',
 			'post_type'         => $coauthors_plus->supported_post_types(),
+			'post_status'       => $post_statuses,
 			'posts_per_page'    => 100,
 			'paged'             => 1,
 			'update_meta_cache' => false,

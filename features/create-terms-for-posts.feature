@@ -154,7 +154,9 @@ Feature: Author terms can be created for all posts
 		cap-beta
 		"""
 
-	Scenario: Draft and private posts are never inspected
+	# The default is deliberately still publish: this command WRITES, so widening it
+	# would silently multiply the scope of a backfill. --post-statuses is the opt-in.
+	Scenario: Draft and private posts are not inspected by default
 		When I run `wp post create --post_title="Draft post" --post_author=1 --porcelain`
 		And save STDOUT as {DRAFT_ID}
 		And I run `wp post create --post_title="Private post" --post_status=private --post_author=1 --porcelain`
@@ -221,4 +223,22 @@ Feature: Author terms can be created for all posts
 		Then STDOUT should be:
 		"""
 		1
+		"""
+
+	Scenario: Drafts are covered when asked for
+		When I run `wp post create --post_title="Draft post" --post_author=1 --porcelain`
+		And save STDOUT as {DRAFT_ID}
+		And I run `wp post term remove {DRAFT_ID} author --all`
+		And I run `wp co-authors-plus create-terms-for-posts --post-statuses=draft`
+		Then STDOUT should be:
+		"""
+		Now inspecting or updating 1 total posts.
+		No co-authors found for post #{DRAFT_ID}.
+		1/1) Added - Post #{DRAFT_ID} 'Draft post' now has this author term: cap-admin
+		Success: Done! Of 1 posts, 1 now have author terms.
+		"""
+		When I run `wp term list author --object_ids={DRAFT_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-admin
 		"""
