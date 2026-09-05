@@ -361,6 +361,8 @@ Feature: One co-author can be swapped with another on their posts
 		{AUTHOR1_ID}
 		"""
 
+	# As above: the term swaps, but post_author cannot follow a guest author who has
+	# no WordPress account, so the run reports how many posts that applied to.
 	Scenario: Swap to a guest author with no linked account
 		When I run `wp user create author1 author1@example.com --role=author --porcelain`
 		And save STDOUT as {AUTHOR1_ID}
@@ -373,6 +375,7 @@ Feature: One co-author can be swapped with another on their posts
 		Swapping authorship from author1 to jane-doe
 		Found 1 posts to update.
 		1: Post #{POST_ID} has been assigned "jane-doe" as a co-author
+		1 post kept its original post_author, because no co-author assigned to it has a WordPress account
 		Success: All done!
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`

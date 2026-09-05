@@ -273,6 +273,10 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		cap-author-one
 		"""
 
+	# The byline is written, but post_author still names the previous user, because
+	# a guest author with no linked account cannot be put in that column. The
+	# summary has to say so: anything reading post_author directly, such as the
+	# admin author column, still shows the old user.
 	Scenario: Assign an unlinked guest author from the meta value
 		When I run `wp user create author1 author1@example.com --role=author --porcelain`
 		And save STDOUT as {AUTHOR1_ID}
@@ -286,6 +290,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		1: Post #{POST_ID} has been assigned "jane-doe" as the author
 		All done! Here are your results:
 		- 1 posts now have the proper co-author
+		- 1 post kept its original post_author, because no co-author assigned to it has a WordPress account
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -297,3 +302,26 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		{AUTHOR1_ID}
 		"""
+
+	# Two posts, so the plural form of the summary line is exercised as well as the
+	# singular above. Without this the _n() plural branch is never run.
+	Scenario: Several posts keeping their original post_author are counted together
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=jane@example.com`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="First import" --post_status=publish --porcelain`
+		And save STDOUT as {POST_A}
+		And I run `wp post meta update {POST_A} _original_import_author jane-doe`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Second import" --post_status=publish --porcelain`
+		And save STDOUT as {POST_B}
+		And I run `wp post meta update {POST_B} _original_import_author jane-doe`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_A} has been assigned "jane-doe" as the author
+		2: Post #{POST_B} has been assigned "jane-doe" as the author
+		All done! Here are your results:
+		- 2 posts now have the proper co-author
+		- 2 posts kept their original post_author, because no co-author assigned to them has a WordPress account
+		"""
+		And the return code should be 0

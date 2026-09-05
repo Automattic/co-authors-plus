@@ -153,7 +153,8 @@ class Swap_Coauthors_Command {
 
 		$posts = new WP_Query( $query_args );
 
-		$posts_total = 0;
+		$posts_total          = 0;
+		$posts_keeping_author = 0;
 
 		WP_CLI::log( "Found $posts->found_posts posts to update." );
 
@@ -203,9 +204,16 @@ class Swap_Coauthors_Command {
 					$coauthors[] = $to_userlogin;
 
 					// By not passing $append = false as the 3rd param, we replace all existing co-authors.
-					$coauthors_plus->add_coauthors( $post->ID, $coauthors );
+					// The byline is written either way; a false return means only that post_author
+					// could not be pointed at a WordPress user, which is the norm when the swap
+					// targets a guest author with no account.
+					$post_author_synced = $coauthors_plus->add_coauthors( $post->ID, $coauthors );
 
 					WP_CLI::log( $posts_total . ': Post #' . $post->ID . ' has been assigned "' . $to_userlogin . '" as a co-author' );
+
+					if ( ! $post_author_synced ) {
+						$posts_keeping_author++;
+					}
 
 					clean_post_cache( $post->ID );
 				} else {
@@ -222,6 +230,21 @@ class Swap_Coauthors_Command {
 
 			$posts = new WP_Query( $query_args );
 		}//end while
+
+		if ( $posts_keeping_author ) {
+			WP_CLI::log(
+				sprintf(
+					/* translators: Count of posts. */
+					_n(
+						'%s post kept its original post_author, because no co-author assigned to it has a WordPress account',
+						'%s posts kept their original post_author, because no co-author assigned to them has a WordPress account',
+						$posts_keeping_author,
+						'co-authors-plus'
+					),
+					number_format_i18n( $posts_keeping_author )
+				)
+			);
+		}
 
 		WP_CLI::success( 'All done!' );
 	}
