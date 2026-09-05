@@ -93,6 +93,49 @@ PHP 8.4) rather than inferred from reading the source.
   refactor that "normalised" this to `user_login` (as swap-coauthors does) would
   happen to keep working, whereas one that passed the post_name would double-prefix.
 
+- **Six defects resolved together (one PR), because they all live in one method.**
+  - ~~The `sanitize_title()` fallback is not idempotent: the already-associated check
+    compares the RAW meta value against `user_login` while assignment passes
+    `user_nicename`, so meta `Author One` never matches `author-one` and the post is
+    re-assigned and re-counted on EVERY run — a write storm, per post, for ever.~~
+    **FIXED** by resolving the co-author first and comparing against the resolved
+    login. Note the problem was broader than `sanitize_title()`: `get_user_by()` also
+    retries after stripping a `cap-` prefix, and guest-author lookups sanitise on
+    every call, so meta `cap-author1` was equally non-idempotent. Comparing against
+    the resolved co-author is the only fix that closes all of them.
+  - ~~The already-associated branch `continue`s before `add_coauthors()` is ever
+    called. `get_coauthors()` falls back to the `post_author` user when a post has no
+    author terms, so a post matched only via that fallback is treated as done and
+    never gets a term — invisible to all term-driven tooling afterwards.~~ **FIXED.**
+    Only a real author term now counts as already associated. The `post_author`
+    fallback in `get_coauthors()` is untouched; what changed is that this command no
+    longer reads it as evidence of a byline.
+  - ~~No `post_status` on the query, and no flag to opt in, so drafts carrying the
+    meta key are silently skipped.~~ **FIXED** with `--post-statuses`, defaulting to
+    `publish` — an opt-in rather than a widened default, because this command
+    rewrites a byline per post. Contrast `list-posts-without-terms`, which was
+    widened because it only reports. Naming the status also removes a quirk: the old
+    default was publish PLUS whatever private statuses the current user could read,
+    so scope depended on whether `--user` was passed. That is a NARROWING for anyone
+    running under `--user`, and belongs in the changelog.
+  - ~~An empty meta VALUE is processed rather than skipped, so it joins the missing
+    list and imodes into a dangling comma.~~ **FIXED** with its own counter and
+    message. A counter rather than an `array_filter()` on the missing list, because
+    it buys an invariant: every post reached now increments exactly one counter, so
+    `posts_total > 0` implies at least one summary line — which is what makes the
+    empty-run fix below airtight rather than reintroducible through a side door.
+  - ~~The log echoes the RAW meta value while assigning the sanitised match, saying
+    `assigned "Author One"` while actually assigning `author-one`.~~ **FIXED** on both
+    the assign and the already-associated lines; the catalogue only named the first.
+  - ~~An empty run prints only `All done! Here are your results:` with no counts,
+    because every summary line is truthiness-guarded.~~ **FIXED** — it now says which
+    meta key it found nothing for.
+- TRAP for anyone touching this command: do NOT "normalise" what is passed to
+  `add_coauthors()` from `user_nicename` to `user_login`. It resolves names with
+  `$query_type = 'user_nicename'`, so a login whose nicename differs (`john.doe` vs
+  `john-doe`) would fail that lookup, `update_author_term( false )` returns false,
+  the slug substitution is skipped, and an unprefixed `john.doe` term gets written.
+
 ## swap-coauthors
 
 (Calibrated against the live env 2026-09-01; all scenarios green.)
@@ -155,7 +198,7 @@ PHP 8.4) rather than inferred from reading the source.
   only public statuses match: a DRAFT post carrying the `cap-<from>` term (CAP's
   `save_post` hook gives it one) is silently skipped and is not even counted in
   `Found N posts to update.`. There is no `--post_status` flag to opt in. Pinned in
-  the same scenario; `assign-coauthors` has the identical restriction.
+  the same scenario; `assign-coauthors` had the identical restriction until it gained `--post-statuses`; swap-coauthors is now the only command whose status filter cannot be opted out of.
 - ~~Swapping TO an unlinked guest author leaves `wp_posts.post_author` pointing at
   the previous WP user indefinitely, and the command ignores `add_coauthors()`'s
   return value — so the byline changes, the log still says `has been assigned` and
