@@ -14,7 +14,7 @@ use WP_CLI;
 /**
  * Removes the postmeta that marks a post as skipped during backfill.
  *
- * Moved here from CoAuthorsPlus_Command unchanged. Behaviour is pinned by
+ * Behaviour is pinned by
  * scenarios in features/create-author-terms-for-posts.feature.
  */
 class Delete_Skip_Backfill_Postmeta_Command {
@@ -48,6 +48,7 @@ class Delete_Skip_Backfill_Postmeta_Command {
 	public function __invoke( array $args, array $assoc_args ): void {
 		global $wpdb;
 
+		$meta_key          = Create_Author_Terms_For_Posts_Command::SKIP_POST_FOR_BACKFILL_META_KEY;
 		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : array();
 
 		if ( empty( $specific_post_ids ) ) {
@@ -59,19 +60,21 @@ class Delete_Skip_Backfill_Postmeta_Command {
 			$specific_post_ids = $wpdb->get_col(
 				$wpdb->prepare(
 					"SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s",
-					Create_Author_Terms_For_Posts_Command::SKIP_POST_FOR_BACKFILL_META_KEY
+					$meta_key
 				)
 			);
 		}
 
 		foreach ( $specific_post_ids as $post_id ) {
-			WP_CLI::log( sprintf( 'Deleting postmeta key `%s` for Post ID %d', Create_Author_Terms_For_Posts_Command::SKIP_POST_FOR_BACKFILL_META_KEY, $post_id ) );
-			$result = delete_post_meta( $post_id, Create_Author_Terms_For_Posts_Command::SKIP_POST_FOR_BACKFILL_META_KEY );
+			$post_id = (int) $post_id;
 
-			if ( $result ) {
-				WP_CLI::success( '👍' );
+			// A post that never carried the marker is not a failure, and aborting on one
+			// left every later --specific-post-ids entry unprocessed after earlier
+			// deletions had already succeeded.
+			if ( delete_post_meta( $post_id, $meta_key ) ) {
+				WP_CLI::success( sprintf( 'Deleted `%s` postmeta from post %d.', $meta_key, $post_id ) );
 			} else {
-				WP_CLI::error( '👎' );
+				WP_CLI::warning( sprintf( 'No `%s` postmeta to delete on post %d.', $meta_key, $post_id ) );
 			}
 		}
 	}

@@ -675,22 +675,35 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
 
-- Success/failure per post is reported with bare emoji (`Success: 👍` /
-  `Error: 👎`). Confirmed live: both survive the wp-env output filter and pin
-  as exact-match assertions (the `Error: 👎` line splits to STDERR with exit 1).
-- `WP_CLI::error( '👎' )` (php/class-wp-cli.php:335) aborts the whole loop on the
-  FIRST post whose meta cannot be deleted (e.g. an ID without the meta), leaving
-  any later IDs in `--specific-post-ids` unprocessed, with exit code 1 — even if
-  earlier deletions succeeded. Confirmed and pinned 2026-09-02 in the
-  "stops at the first post that does not have it" scenario: given
-  `--specific-post-ids=<no-meta-post>,<has-meta-post>`, STDOUT holds only the
-  `Deleting postmeta key ... for Post ID <no-meta-post>` line, STDERR is
-  `Error: 👎`, rc 1, and the second post STILL has its
-  `_cap_skip_backfill` meta. A partial run is therefore indistinguishable from a
-  total failure, and re-running is the only recovery.
-- With no `--specific-post-ids` the lookup WP_Query uses defaults
-  (`post_type=post`, `post_status=publish`), so skip metas on drafts, pages or
-  other post types are never found in the no-args mode. Noted; not pinned.
+- ~~Success/failure per post is reported with bare emoji (`Success: 👍` /
+  `Error: 👎`), carrying no post ID and so no diagnostic value.~~ **FIXED.** Each
+  line now names the meta key and the post, which also matters for the harness:
+  `FeatureContext` splits STDERR back out with `array_diff`, which compares values,
+  so identical emoji lines would all have been removed together. Distinct lines are
+  a prerequisite for the split behaving per-line. The pre-emptive
+  `Deleting postmeta key ... for Post ID N` line is dropped with them — it was pure
+  duplication once the outcome line carried the ID, and it halved the output of a
+  bare run over thousands of posts.
+- ~~`WP_CLI::error( '👎' )` aborts the whole loop on the FIRST post whose meta
+  cannot be deleted (e.g. an ID without the meta), leaving any later IDs in
+  `--specific-post-ids` unprocessed, with exit code 1 — even if earlier deletions
+  succeeded. A partial run is indistinguishable from a total failure, and
+  re-running is the only recovery.~~ **FIXED.** A post that never carried the marker
+  is now a warning, and the loop carries on. The run exits 0, which is the
+  deliberate part: the command's contract is that the named posts end up without the
+  marker, and that holds. `delete_post_meta()` returning false cannot distinguish
+  "never had it" — the common `--specific-post-ids` typo — from a database error, so
+  failing the whole run on it was over-reading a weak signal. The scenario that
+  pinned the abort is inverted: it now asserts the *second* post's meta really is
+  gone, which is what fails against the old code.
+- ~~With no `--specific-post-ids` the lookup WP_Query uses defaults, so skip metas
+  on drafts, pages or other post types are never found.~~ **STALE, not fixed as
+  written** — there is no `WP_Query` in this command any more; the bare lookup is a
+  direct prepared read of the postmeta table, superseded by the struck entry below.
+  (The struck entry's own wording is also inaccurate: it says the query "now passes
+  `post_type=any`, `post_status=any` and `posts_per_page=-1`", which describes an
+  approach that was tried and replaced. Another reminder that "Noted; not pinned"
+  entries are the ones to distrust.)
 - When there is nothing to delete the command prints nothing at all (no summary,
   exit 0). Pinned.
 
