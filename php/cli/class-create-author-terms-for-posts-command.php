@@ -12,7 +12,7 @@ namespace Automattic\CoAuthorsPlus\CLI;
 use CoAuthors_Plus;
 use Exception;
 use WP_CLI;
-use WP_Query;
+use WP_Term;
 
 /**
  * Backfills author terms for the posts that are missing them.
@@ -157,6 +157,9 @@ class Create_Author_Terms_For_Posts_Command {
 			$below_post_id
 		);
 
+		// One recount per term when counting resumes, rather than one per write.
+		wp_defer_term_counting( true );
+
 		do {
 			foreach ( $posts_with_missing_author_terms as $record ) {
 				$record->post_author = intval( $record->post_author );
@@ -181,23 +184,36 @@ class Create_Author_Terms_For_Posts_Command {
 					$authors[ $record->post_author ] = $author;
 				}
 
-				$author_term                          = ( ! empty( $author_terms[ $record->post_author ] ) ) ?
-					$author_terms[ $record->post_author ] :
-					$coauthors_plus->update_author_term( $author );
+				// ?? rather than ! empty(), so a failed term creation is memoised too and an
+				// unresolvable author is attempted once per run rather than once per post.
+				$author_term                          = $author_terms[ $record->post_author ] ?? $coauthors_plus->update_author_term( $author );
 				$author_terms[ $record->post_author ] = $author_term;
 
-				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery
-				$insert_author_term_relationship = $wpdb->insert(
-					$wpdb->term_relationships,
-					array(
-						'object_id'        => $record->post_id,
-						'term_taxonomy_id' => $author_term->term_taxonomy_id,
-						'term_order'       => 0,
-					)
-				);
+				// update_author_term() returns a WP_Error when the term cannot be created.
+				// Dereferencing that used to write a relationship row with no
+				// term_taxonomy_id behind it.
+				if ( ! $author_term instanceof WP_Term ) {
+					WP_CLI::warning( sprintf( 'No author term for user ID %d, marking post %d as skipped.', $record->post_author, $record->post_id ) );
+					$this->skip_backfill_for_post( $record->post_id, 'author_term_not_created' );
+					++$skipped;
+					continue;
+				}
 
-				if ( false === $insert_author_term_relationship ) {
-					WP_CLI::warning( sprintf( 'Failed to insert term relationship for post %d and author %d.', $record->post_id, $record->post_author ) );
+				// wp_set_object_terms() rather than a raw term_relationships insert: core
+				// then does the dedupe, writes term_order, runs the count callback, and
+				// fires set_object_terms — which CAP hooks to clear its own
+				// coauthors_post_<id> cache. The raw insert skipped all of that, so on a
+				// persistent object cache a backfilled post kept reporting no co-authors
+				// until it was next saved.
+				// Not appending, deliberately: the query above selects only posts with no
+				// author terms at all, so set and append coincide, and set is the
+				// operation this backfill actually means.
+				$set_author_term = wp_set_object_terms( $record->post_id, array( $author_term->slug ), $coauthors_plus->coauthor_taxonomy, false );
+
+				if ( is_wp_error( $set_author_term ) ) {
+					WP_CLI::warning( sprintf( 'Failed to set the author term for post %d and author %d, marking it skipped.', $record->post_id, $record->post_author ) );
+					$this->skip_backfill_for_post( $record->post_id, 'author_term_not_set' );
+					++$skipped;
 				} else {
 					WP_CLI::success( sprintf( 'Inserted term relationship for post %d and author %d (%s).', $record->post_id, $record->post_author, $author->user_nicename ) );
 					++$affected;
@@ -231,6 +247,8 @@ class Create_Author_Terms_For_Posts_Command {
 			}
 		} while ( ! empty( $posts_with_missing_author_terms ) );
 
+		wp_defer_term_counting( false );
+
 		WP_CLI::log( sprintf( '%d records affected', $affected ) );
 
 		if ( $skipped > 0 ) {
@@ -249,20 +267,6 @@ class Create_Author_Terms_For_Posts_Command {
 			);
 		}
 
-		WP_CLI::log( 'Updating author terms with new counts' );
-		$count_of_authors = count( $authors );
-		$count            = 0;
-		foreach ( $authors as $author ) {
-			++$count;
-			$result = $coauthors_plus->update_author_term( $author );
-
-			if ( is_wp_error( $result ) || false === $result ) {
-				WP_CLI::warning( sprintf( 'Failed to update author term for author %d (%s).', $author->ID, $author->user_nicename ) );
-			} else {
-				$percentage = $this->get_formatted_complete_percentage( $count, $count_of_authors );
-				WP_CLI::success( sprintf( 'Updated author term for author %d (%s) (%s).', $author->ID, $author->user_nicename, $percentage ) );
-			}
-		}
 
 		WP_CLI::success( 'Done!' );
 	}

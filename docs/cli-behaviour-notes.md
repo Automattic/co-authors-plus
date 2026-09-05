@@ -821,17 +821,30 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
     `0 records affected`, and the run still ends `Success: Done!` with nothing
     explaining the gap.~~ **FIXED.** Skips are counted and reported. The new string
     is pluralised with `_n()` from the outset.
-- STILL OPEN, and parked pending a decision: the raw `$wpdb->insert` into
-  `term_relationships` bypasses `wp_set_object_terms()`, and with it the
-  `set_object_terms` action that CAP hooks at `class-coauthors-plus.php` to clear its
-  own `coauthors_post_<id>` cache — which caches an EMPTY array. On a host with a
-  persistent object cache, which is the environment this command exists for, a
-  backfilled post keeps reporting no co-authors to the front end, template tags and
-  REST until it is saved or the cache is flushed. It also skips dedupe and writes
-  `term_order = 0` where every other path writes the ordered value. The fix is a
-  deletion — use `wp_set_object_terms()`, wrapped in `wp_defer_term_counting()` — but
-  wp-env has no persistent object cache, so neither the bug nor the fix is observable
-  in this suite, and it would ship on reasoning alone.
+- ~~The raw `$wpdb->insert` into `term_relationships` bypasses
+  `wp_set_object_terms()`, and with it the `set_object_terms` action that CAP hooks
+  to clear its own `coauthors_post_<id>` cache — which caches an EMPTY array. On a
+  host with a persistent object cache, the environment this command exists for, a
+  backfilled post kept reporting no co-authors to the front end, template tags and
+  REST until it was saved or the cache flushed.~~ **FIXED** (decision taken
+  2026-09-05: ship on reasoning, with a mechanism proxy). The write goes through
+  `wp_set_object_terms()` — non-append, deliberately, since the query selects only
+  posts with no author terms so set and append coincide — wrapped in
+  `wp_defer_term_counting()` so counting resumes with one recount per term. The
+  cache staleness itself is invisible in wp-env, so the scenario pins the mechanism
+  instead: a `--require` fixture hooks `set_object_terms` and asserts it fires
+  during the backfill, which the raw insert never did. That is the action CAP's
+  invalidation listens to. Two useful discoveries along the way, recorded so they
+  are not re-learnt: `wp_set_object_terms()` only writes `term_order` on NON-append
+  calls, and even then only when its mid-function term lookup is not served from
+  cache (`wp_update_term_count()` cleans term caches without bumping the query
+  salt), so `term_order` is nondeterministic and must not be pinned. A forced-count
+  scenario also guards the deleted "Updating author terms with new counts" pass:
+  counts come from the deferred recount, which the raw insert bypassed entirely.
+  The `update_author_term()` WP_Error dereference that could write a relationship
+  row with no `term_taxonomy_id` is guarded too, and both failure paths now mark
+  the skip meta — which also removes the batch-starvation source, since a post the
+  run cannot complete drops out of the next batch.
 - CORRECTION to the earlier note claiming `--specific-post-ids` can loop forever:
   it cannot. `if ( $count >= $count_of_posts_with_missing_author_terms ) break;`
   bounds the run, and `$count` increments per record processed whether or not it
