@@ -66,6 +66,16 @@ class Delete_Skip_Backfill_Postmeta_Command {
 		}
 
 		foreach ( $specific_post_ids as $post_id ) {
+			// A stray non-numeric entry used to be cast to 0 and reported as
+			// "post 0", which reads as a real post. Name it and move on, so the
+			// valid IDs in the same list are still processed. Checked here rather
+			// than before the empty() fallback: emptying the user's list there
+			// would silently widen the run to every marker on the site.
+			if ( ! is_numeric( $post_id ) ) {
+				WP_CLI::warning( sprintf( 'Ignoring non-numeric post ID `%s` in --specific-post-ids.', $post_id ) );
+				continue;
+			}
+
 			$post_id = (int) $post_id;
 
 			// A post that never carried the marker is not a failure, and aborting on one
@@ -76,6 +86,6 @@ class Delete_Skip_Backfill_Postmeta_Command {
 			} else {
 				WP_CLI::warning( sprintf( 'No `%s` postmeta to delete on post %d.', $meta_key, $post_id ) );
 			}
-		}
+		}//end foreach
 	}
 }
