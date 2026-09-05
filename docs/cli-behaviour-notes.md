@@ -188,9 +188,19 @@ PHP 8.4) rather than inferred from reading the source.
   convention, `--dry-run=0` and `--no-dry-run` remain real swaps, since flag
   values use PHP truthiness and `--no-<flag>` is the documented negation; both
   are pinned in "Treat --dry-run=0 and --no-dry-run as a real swap".
-- The command is TERM-driven, not `post_author`-driven. A post whose only link to the
-  `from` author is `wp_posts.post_author` (its `cap-<from>` term removed) is reported
-  as `Found 0 posts to update.` / `Success: All done!` and left untouched — unlike
+- ~~The command is TERM-driven, not `post_author`-driven, and silent about it. A post
+  whose only link to the `from` author is `wp_posts.post_author` was reported as
+  `Found 0 posts to update.` and nothing more — a clean no-op on exactly the shape a
+  plain-WordPress migration produces.~~ **Decision taken 2026-09-05: report, don't
+  widen.** The command now counts publish posts whose `post_author` is the from
+  user's account but which carry no `cap-` term, and warns that the swap does not
+  touch them. It still writes nothing new — actually swapping those posts would
+  widen the command's write scope, which stays a separate decision (an opt-in flag
+  is the likely shape if anyone asks). The count query passes `suppress_filters`,
+  because CAP's own author-query rewrite would add term matches and defeat the
+  point; both `_n()` branches and the unlinked-guest-author (no user ID) branch are
+  covered by scenarios. The original wording of this entry continues below for the
+  record: it was reported as `Found 0 posts to update.` / `Success: All done!` and left untouched — unlike
   `assign-user-to-coauthor` and `get_coauthors()`, which both fall back to
   `post_author`. Sites migrating from plain WordPress authorship therefore get a
   silent no-op. Pinned in "Ignore posts the swap query cannot reach".
@@ -224,6 +234,11 @@ PHP 8.4) rather than inferred from reading the source.
   --format=count`), and without that cleanup an orphan `cap-author2` term left by any
   other feature — guest-author terms are never cleaned up at all — would fail the dry
   scenario with an unrelated "dry run created a term" message.
+
+- ~~The `--to must not be empty` guard ran after the `--from` lookup, so an invalid
+  `--from` with an empty `--to` reported the missing co-author instead of the
+  missing parameter.~~ **FIXED** — the usage error is validated before any lookup.
+  The scenario that pinned the old order is inverted and renamed.
 
 ## CoAuthors_Plus::add_coauthors() return value
 
