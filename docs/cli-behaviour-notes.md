@@ -735,6 +735,46 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   leaves the count at 2; after the backfill it is still 2. The feature pins 2 to
   document those semantics (an author term's count survives having every one of
   its relationships removed), not as a guard against the API swap.
+- **Parameter validation and skip reporting, resolved together.**
+  - ~~An invalid ID range throws an uncaught `Exception` from a private SQL builder.
+    The operator gets a doubled PHP stack trace on STDOUT and only WP core's generic
+    "There has been a critical error on this website" on STDERR, so nothing tells
+    them which parameter was wrong — the message even names PHP variables rather
+    than CLI flags.~~ **FIXED.** Validated in `__invoke()` with `WP_CLI::error()`,
+    naming the flags as typed. The `throw` stays in the builder as an unreachable
+    backstop.
+  - ~~`--specific-post-ids` is an `elseif` that short-circuits the range validation,
+    so an invalid range combined with specific IDs is silently ignored.~~ **FIXED**
+    by the same guard, which is now unconditional. The precedence itself is
+    unchanged but no longer silent: combining them warns that the range is ignored.
+  - ~~Posts with `post_author = 0` are excluded by `AND post_author <> 0`, while
+    `list-posts-without-terms` DOES list them, so the two diagnostics disagree about
+    the same site.~~ **FIXED** by dropping the exclusion. `get_user_by( 'id', 0 )`
+    returns false, so such posts take the existing orphan path — warned, marked with
+    the skip meta, and excluded from later batches — rather than needing a new branch.
+  - ~~A post whose author is missing is counted in `Found N posts` but yields
+    `0 records affected`, and the run still ends `Success: Done!` with nothing
+    explaining the gap.~~ **FIXED.** Skips are counted and reported. The new string
+    is pluralised with `_n()` from the outset.
+- STILL OPEN, and parked pending a decision: the raw `$wpdb->insert` into
+  `term_relationships` bypasses `wp_set_object_terms()`, and with it the
+  `set_object_terms` action that CAP hooks at `class-coauthors-plus.php` to clear its
+  own `coauthors_post_<id>` cache — which caches an EMPTY array. On a host with a
+  persistent object cache, which is the environment this command exists for, a
+  backfilled post keeps reporting no co-authors to the front end, template tags and
+  REST until it is saved or the cache is flushed. It also skips dedupe and writes
+  `term_order = 0` where every other path writes the ordered value. The fix is a
+  deletion — use `wp_set_object_terms()`, wrapped in `wp_defer_term_counting()` — but
+  wp-env has no persistent object cache, so neither the bug nor the fix is observable
+  in this suite, and it would ship on reasoning alone.
+- CORRECTION to the earlier note claiming `--specific-post-ids` can loop forever:
+  it cannot. `if ( $count >= $count_of_posts_with_missing_author_terms ) break;`
+  bounds the run, and `$count` increments per record processed whether or not it
+  succeeded. The real symptom is STARVATION — a post that cannot be completed is
+  re-selected by every batch and consumes the budget, so the others are never
+  reached and the progress line repeats for the same post. On a large site that is
+  indistinguishable from a hang, which is probably how it was recorded as a loop.
+
 ## delete-postmeta-that-skip-author-term-backfill
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)

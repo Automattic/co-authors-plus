@@ -112,6 +112,18 @@ class Create_Author_Terms_For_Posts_Command {
 		$above_post_id     = $assoc_args['above-post-id'] ?? null;
 		$below_post_id     = $assoc_args['below-post-id'] ?? null;
 
+		// Validated here rather than in the SQL builder, which was only reached when
+		// no --specific-post-ids were given, and threw an uncaught Exception when it
+		// was — so the operator saw a stack trace and a generic critical-error line
+		// rather than being told which parameter was wrong.
+		if ( null !== $above_post_id && null !== $below_post_id && (int) $below_post_id <= (int) $above_post_id ) {
+			WP_CLI::error( '--above-post-id must be less than --below-post-id.' );
+		}
+
+		if ( ! empty( $specific_post_ids ) && ( null !== $above_post_id || null !== $below_post_id ) ) {
+			WP_CLI::warning( '--above-post-id and --below-post-id are ignored when --specific-post-ids is given.' );
+		}
+
 		global $wpdb;
 
 		$coauthors_plus = $this->coauthors_plus;
@@ -131,6 +143,7 @@ class Create_Author_Terms_For_Posts_Command {
 		$author_terms = array();
 		$count        = 0;
 		$affected     = 0;
+		$skipped      = 0;
 		$page         = 1;
 
 		$posts_with_missing_author_terms = $this->get_posts_with_missing_terms(
@@ -161,6 +174,7 @@ class Create_Author_Terms_For_Posts_Command {
 						// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.user_meta__wpdb__users -- This is just trying to convey where the root problem should be resolved.
 						WP_CLI::warning( sprintf( 'Post Author ID %d does not exist in %s table, inserting skip postmeta (`%s`).', $record->post_author, $wpdb->users, self::SKIP_POST_FOR_BACKFILL_META_KEY ) );
 						$this->skip_backfill_for_post( $record->post_id, 'nonexistent_post_author_id' );
+						++$skipped;
 						continue;
 					}
 
@@ -218,6 +232,22 @@ class Create_Author_Terms_For_Posts_Command {
 		} while ( ! empty( $posts_with_missing_author_terms ) );
 
 		WP_CLI::log( sprintf( '%d records affected', $affected ) );
+
+		if ( $skipped > 0 ) {
+			WP_CLI::warning(
+				sprintf(
+					/* translators: 1: Count of posts. 2: Post meta key. */
+					_n(
+						'%1$s post was skipped and marked with `%2$s`.',
+						'%1$s posts were skipped and marked with `%2$s`.',
+						$skipped,
+						'co-authors-plus'
+					),
+					number_format_i18n( $skipped ),
+					self::SKIP_POST_FOR_BACKFILL_META_KEY
+				)
+			);
+		}
 
 		WP_CLI::log( 'Updating author terms with new counts' );
 		$count_of_authors = count( $authors );
@@ -297,7 +327,6 @@ class Create_Author_Terms_For_Posts_Command {
 			FROM $from
 			WHERE post_type IN ( $post_types_placeholder )
 			  AND post_status IN ( $post_status_placeholder )
-			  AND post_author <> 0
 			  AND ID NOT IN (
 			  	SELECT
 			  	    tr.object_id
