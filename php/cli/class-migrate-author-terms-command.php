@@ -62,34 +62,45 @@ class Migrate_Author_Terms_Command {
 			array(
 				'taxonomy'   => $coauthors_plus->coauthor_taxonomy,
 				'hide_empty' => false,
-			) 
+			)
 		);
+
+		if ( is_wp_error( $author_terms ) ) {
+			WP_CLI::error( $author_terms->get_error_message() );
+		}
+
+		// Prefixed terms need nothing doing, and counting them made the total wrong.
+		// Dropping them here also keeps the loop off stale term objects, since the only
+		// row it deletes is a prefixed sibling the loop no longer holds.
+		$author_terms = array_filter(
+			$author_terms,
+			static fn ( $author_term ): bool => ! Prefix::slug_has_prefix( $author_term->slug )
+		);
+
 		WP_CLI::log( 'Now migrating up to ' . count( $author_terms ) . ' terms' );
+
 		foreach ( $author_terms as $author_term ) {
-			// Term is already prefixed. We're good.
-			if ( Prefix::slug_has_prefix( $author_term->slug ) ) {
-				WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) is already prefixed, skipping" );
-				continue;
-			}
 			// A prefixed term was accidentally created, and the old term needs to be merged into the new (WordPress.com VIP).
 			$prefixed_term = get_term_by( 'slug', Prefix::prefix_slug( $author_term->slug ), $coauthors_plus->coauthor_taxonomy );
 
 			if ( $prefixed_term ) {
 				WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) has a new term too: $prefixed_term->slug ($prefixed_term->term_id). Merging" );
-				$args = array(
+				$delete_args = array(
 					'default'       => $author_term->term_id,
 					'force_default' => true,
 				);
-				wp_delete_term( $prefixed_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
+				wp_delete_term( $prefixed_term->term_id, $coauthors_plus->coauthor_taxonomy, $delete_args );
 			}
 
-			// Term isn't prefixed, doesn't have a sibling, and should be updated.
+			// Whether or not a sibling was just merged in, this term still holds the
+			// unprefixed slug: the merge reassigns the sibling's posts to THIS term and
+			// deletes the sibling, so re-slugging here is what completes the migration.
 			WP_CLI::log( "Term {$author_term->slug} ({$author_term->term_id}) isn't prefixed, adding one" );
-			$args = array(
+			$update_args = array(
 				'slug' => Prefix::prefix_slug( $author_term->slug ),
 			);
-			wp_update_term( $author_term->term_id, $coauthors_plus->coauthor_taxonomy, $args );
+			wp_update_term( $author_term->term_id, $coauthors_plus->coauthor_taxonomy, $update_args );
 		}//end foreach
-		WP_CLI::success( 'All done! Grab a cold one (Affogatto)' );
+		WP_CLI::success( 'All done! Grab a cold one (Affogato)' );
 	}
 }

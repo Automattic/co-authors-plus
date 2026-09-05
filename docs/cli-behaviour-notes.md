@@ -319,24 +319,40 @@ PHP 8.4) rather than inferred from reading the source.
 
 (Calibrated against the live env 2026-09-01; re-verified green 2026-09-02 — 8 scenarios.)
 
-- The merge branch (bare term with a prefixed sibling) has no `continue`; after
-  merging it falls through and also logs "Term x (id) isn't prefixed, adding one"
-  before re-slugging the surviving bare term (php/class-wp-cli.php:857-872). The
-  net state is correct but the log narrates two operations for one term.
-  Confirmed, including that the surviving term keeps the BARE term's term_id with
-  the `cap-` slug and that the prefixed sibling's post relationships are
-  reassigned to it (`force_default`).
-- "Now migrating up to N terms" counts ALL author terms, including already
-  prefixed ones that will only be skipped (line 850). Confirmed.
-- Grammar oddities pinned as-is: "Now migrating up to 1 terms" and the success
-  message "All done! Grab a cold one (Affogatto)" (line 874). Confirmed.
-- Terms are processed in `get_terms` default order (name ASC), so `cap-someone`
-  is skipped before the bare `someone` is merged/prefixed. Confirmed.
-- Only the SLUG is prefixed; the term NAME is left untouched. Confirmed
-  2026-09-02: a term created as `Legacy Author` (slug `legacy-author`) ends up as
-  name `Legacy Author` / slug `cap-legacy-author`, and the log line reports the
-  SLUG (`Term legacy-author (N) isn't prefixed, adding one`), so name and slug
-  drift apart. Pinned in "The term name keeps its original value...".
+- **NOT A DEFECT — do not "fix" this.** The merge branch has no `continue`, so
+  after merging it also logs "isn't prefixed, adding one" and re-slugs the term.
+  That fall-through is REQUIRED. `wp_delete_term()` is called on the PREFIXED
+  sibling with the BARE term as its `default`, so the survivor is the bare term and
+  still holds the unprefixed slug; the re-slug is what completes the migration.
+  Adding a `continue` here would merge two terms and leave the survivor unprefixed —
+  a silently failed migration, and non-idempotent, since the next
+  `update_author_term()` would recreate the collision. Two log lines for two real
+  operations is honest narration. The comment claiming the term "doesn't have a
+  sibling" was wrong on this path and has been corrected in the source.
+- ~~"Now migrating up to N terms" counts ALL author terms, including already
+  prefixed ones that will only be skipped.~~ **FIXED.** Prefixed terms are filtered
+  out before the count and the loop, so the number is the work actually to be done.
+  One predicate fixes this and the stale-object entry below together: the only row
+  the loop deletes is a prefixed sibling, which the filtered list no longer holds,
+  so iterating a stale object became structurally impossible rather than merely
+  unobserved. A `get_terms()` `WP_Error` is now caught too — without that,
+  `array_filter()` on a non-array would have turned a PHP warning into a fatal.
+- ~~The success message reads "All done! Grab a cold one (Affogatto)".~~ **FIXED** —
+  the drink is an *affogato*. "Now migrating up to 1 terms" still does not
+  pluralise; that belongs to the pluralisation sweep, which is deliberately left as
+  one dedicated pass rather than scattered through fix PRs, since it touches nearly
+  every command and feature file.
+- Terms are processed in `get_terms` default order (name ASC). Still true, but no
+  longer observable from the log, since prefixed terms are never narrated.
+- **NOT A DEFECT — this entry was wrong.** Only the SLUG is prefixed and the term
+  NAME is left raw, which is not drift but the plugin-wide convention. Every author
+  term the plugin creates is built that way by `update_author_term()`
+  (`wp_insert_term( $coauthor->user_login, ..., array( 'slug' =>
+  Prefix::prefix_slug( ... ) ) )`), and both `rename-coauthor` and `reassign-terms`
+  write a prefixed slug with a raw name. The term name is also read exactly once in
+  the whole plugin, in a `rename-coauthor` log line — every lookup goes by slug.
+  Prefixing the name would diverge from all three creation sites and buy nothing.
+  The scenario stays as a guard on the convention rather than a pin on a bug.
 
 - Re-calibrated 2026-09-02 after adversarial review: 8 scenarios, all green.
 - Taxonomy scoping is now pinned. With a `guardian` category and a `cap-guardian`
@@ -347,17 +363,23 @@ PHP 8.4) rather than inferred from reading the source.
   dropped it would start `wp_delete_term()`-ing same-slug terms from other
   taxonomies. NB category/post_tag terms are NOT cleared by the Behat reset either,
   so the scenario deletes its own two terms first via `wp eval`.
-- Reverse `get_terms()` ordering is now pinned. With names "Aaa" (slug `someone`) and
-  "Zzz" (slug `cap-someone`) the BARE term is processed first, its prefixed sibling
-  is deleted mid-loop, and the loop then still logs `Term cap-someone (<id>) is
-  already prefixed, skipping` for a term that no longer exists — the `foreach`
-  iterates over term objects fetched before the loop, so it narrates a skip for a
-  deleted row. Confirmed exactly. The survivor keeps the bare term's term_id and its
-  original name ("Aaa") with slug `cap-someone`.
+- ~~Reverse `get_terms()` ordering: with names "Aaa" (slug `someone`) and "Zzz"
+  (slug `cap-someone`) the BARE term is processed first, its prefixed sibling is
+  deleted mid-loop, and the loop then still logs `already prefixed, skipping` for a
+  term that no longer exists, because the `foreach` iterates term objects fetched
+  before the loop.~~ **FIXED** by the same filter as the count above. The scenario is
+  retained, retitled around what it still proves — that the merge works whatever the
+  ordering — since its original subject no longer exists.
 - Return code 0 is now asserted on the primary happy paths: `I run` does not check
   exit codes despite its docblock, and when the exit code is non-zero the harness
   moves `Error:` lines off STDOUT, so a command that died after printing the expected
   lines would previously have satisfied every `STDOUT should be:` block here.
+- Watch the discriminators here. Because skipped terms are no longer narrated, the
+  "already prefixed" and "run twice" scenarios now print exactly what a run against
+  an empty database prints, so their state assertions are the only thing left
+  distinguishing them — the run-twice scenario had none and has been given one. A
+  new scenario with two prefixed terms and one bare one exercises the count
+  properly; the file previously never held more than two terms.
 
 ## remove-terms-from-revisions
 
