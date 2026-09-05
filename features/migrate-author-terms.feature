@@ -10,7 +10,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		And STDOUT should be:
 		"""
 		Now migrating up to 0 terms
-		Success: All done! Grab a cold one (Affogatto)
+		Success: All done! Grab a cold one (Affogato)
 		"""
 
 	Scenario: Prefix an unprefixed author term
@@ -22,7 +22,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		"""
 		Now migrating up to 1 terms
 		Term someone ({TERM_ID}) isn't prefixed, adding one
-		Success: All done! Grab a cold one (Affogatto)
+		Success: All done! Grab a cold one (Affogato)
 		"""
 		When I run `wp term list author --field=slug`
 		Then STDOUT should be:
@@ -38,7 +38,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		"""
 		Now migrating up to 1 terms
 		Term legacy-author ({TERM_ID}) isn't prefixed, adding one
-		Success: All done! Grab a cold one (Affogatto)
+		Success: All done! Grab a cold one (Affogato)
 		"""
 		When I run `wp term list author --fields=name,slug --format=csv`
 		Then STDOUT should be:
@@ -53,10 +53,11 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		And I run `wp co-authors-plus migrate-author-terms`
 		Then STDOUT should be:
 		"""
-		Now migrating up to 1 terms
-		Term cap-someone ({TERM_ID}) is already prefixed, skipping
-		Success: All done! Grab a cold one (Affogatto)
+		Now migrating up to 0 terms
+		Success: All done! Grab a cold one (Affogato)
 		"""
+		# With the log silent, this state assertion is the sole discriminator: an
+		# inverted filter would produce cap-cap-someone here.
 		When I run `wp term list author --field=slug`
 		Then STDOUT should be:
 		"""
@@ -74,11 +75,10 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		And I run `wp co-authors-plus migrate-author-terms`
 		Then STDOUT should be:
 		"""
-		Now migrating up to 2 terms
-		Term cap-someone ({PREFIXED_ID}) is already prefixed, skipping
+		Now migrating up to 1 terms
 		Term someone ({BARE_ID}) has a new term too: cap-someone ({PREFIXED_ID}). Merging
 		Term someone ({BARE_ID}) isn't prefixed, adding one
-		Success: All done! Grab a cold one (Affogatto)
+		Success: All done! Grab a cold one (Affogato)
 		"""
 		When I run `wp term list author --fields=term_id,slug --format=csv`
 		Then STDOUT should be:
@@ -92,16 +92,23 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		{BARE_ID}
 		"""
 
-	Scenario: Running the migration twice only skips already-prefixed terms
+	Scenario: Running the migration twice finds nothing left to do
 		When I run `wp term create author someone --porcelain`
 		And save STDOUT as {TERM_ID}
 		And I run `wp co-authors-plus migrate-author-terms`
 		And I run the previous command again
 		Then STDOUT should be:
 		"""
-		Now migrating up to 1 terms
-		Term cap-someone ({TERM_ID}) is already prefixed, skipping
-		Success: All done! Grab a cold one (Affogatto)
+		Now migrating up to 0 terms
+		Success: All done! Grab a cold one (Affogato)
+		"""
+		# The second run's output is now identical to a run with no terms at all, so
+		# only this proves the first run did the migrating.
+		When I run `wp term list author --fields=term_id,slug --format=csv`
+		Then STDOUT should be:
+		"""
+		term_id,slug
+		{TERM_ID},cap-someone
 		"""
 
 	Scenario: Same-slug terms in other taxonomies are left alone
@@ -116,7 +123,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		"""
 		Now migrating up to 1 terms
 		Term guardian ({TERM_ID}) isn't prefixed, adding one
-		Success: All done! Grab a cold one (Affogatto)
+		Success: All done! Grab a cold one (Affogato)
 		"""
 		When I run `wp term list post_tag --slug=cap-guardian --field=slug`
 		Then STDOUT should be:
@@ -135,7 +142,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		{TERM_ID},cap-guardian
 		"""
 
-	Scenario: A sibling deleted earlier in the run is still logged as already prefixed
+	Scenario: A prefixed sibling is merged and deleted whatever the term ordering
 		When I run `wp term create author "Aaa" --slug=someone --porcelain`
 		And save STDOUT as {BARE_ID}
 		And I run `wp term create author "Zzz" --slug=cap-someone --porcelain`
@@ -144,15 +151,35 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Now migrating up to 2 terms
+		Now migrating up to 1 terms
 		Term someone ({BARE_ID}) has a new term too: cap-someone ({PREFIXED_ID}). Merging
 		Term someone ({BARE_ID}) isn't prefixed, adding one
-		Term cap-someone ({PREFIXED_ID}) is already prefixed, skipping
-		Success: All done! Grab a cold one (Affogatto)
+		Success: All done! Grab a cold one (Affogato)
 		"""
 		When I run `wp term list author --fields=term_id,name,slug --format=csv`
 		Then STDOUT should be:
 		"""
 		term_id,name,slug
 		{BARE_ID},Aaa,cap-someone
+		"""
+
+	Scenario: The count reports only the terms that will be migrated
+		When I run `wp term create author alice --slug=cap-alice`
+		And I run `wp term create author bob --slug=cap-bob`
+		And I run `wp term create author someone --porcelain`
+		And save STDOUT as {TERM_ID}
+		And I run `wp co-authors-plus migrate-author-terms`
+		Then the return code should be 0
+		And STDOUT should be:
+		"""
+		Now migrating up to 1 terms
+		Term someone ({TERM_ID}) isn't prefixed, adding one
+		Success: All done! Grab a cold one (Affogato)
+		"""
+		When I run `wp term list author --field=slug --orderby=slug --order=asc`
+		Then STDOUT should be:
+		"""
+		cap-alice
+		cap-bob
+		cap-someone
 		"""

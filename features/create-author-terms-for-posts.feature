@@ -408,8 +408,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And I run `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill`
 		Then STDOUT should be:
 		"""
-		Deleting postmeta key `_cap_skip_backfill` for Post ID {POST_ID}
-		Success: 👍
+		Success: Deleted `_cap_skip_backfill` postmeta from post {POST_ID}.
 		"""
 		When I run `wp post meta list {POST_ID} --keys=_cap_skip_backfill --format=count`
 		Then STDOUT should be:
@@ -427,40 +426,36 @@ Feature: Missing author terms can be backfilled for targeted posts
 		Success: Done!
 		"""
 
-	Scenario: Error when deleting skip postmeta from a post that does not have it
+	Scenario: Deleting skip postmeta from a post that does not have it warns and carries on
 		When I run `wp post create --post_title="Regular post" --post_status=publish --post_author=1 --porcelain`
 		And save STDOUT as {POST_ID}
-		When I try `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill --specific-post-ids={POST_ID}`
+		When I run `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill --specific-post-ids={POST_ID}`
 		Then STDOUT should be:
 		"""
-		Deleting postmeta key `_cap_skip_backfill` for Post ID {POST_ID}
+		Warning: No `_cap_skip_backfill` postmeta to delete on post {POST_ID}.
 		"""
-		And STDERR should be:
-		"""
-		Error: 👎
-		"""
-		And the return code should be 1
+		And the return code should be 0
+		And STDERR should be empty
 
-	Scenario: Deleting skip postmeta stops at the first post that does not have it
+	Scenario: Deleting skip postmeta continues past a post that does not have it
 		When I run `wp post create --post_title="Orphan post" --post_status=publish --post_author=999 --porcelain`
 		And save STDOUT as {ORPHAN_ID}
 		And I run `wp co-authors-plus create-author-terms-for-posts`
 		And I run `wp post create --post_title="Regular post" --post_status=publish --post_author=1 --porcelain`
 		And save STDOUT as {POST_ID}
-		When I try `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill --specific-post-ids={POST_ID},{ORPHAN_ID}`
+		When I run `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill --specific-post-ids={POST_ID},{ORPHAN_ID}`
 		Then STDOUT should be:
 		"""
-		Deleting postmeta key `_cap_skip_backfill` for Post ID {POST_ID}
+		Warning: No `_cap_skip_backfill` postmeta to delete on post {POST_ID}.
+		Success: Deleted `_cap_skip_backfill` postmeta from post {ORPHAN_ID}.
 		"""
-		And STDERR should be:
-		"""
-		Error: 👎
-		"""
-		And the return code should be 1
-		When I run `wp post meta get {ORPHAN_ID} _cap_skip_backfill`
+		And the return code should be 0
+		# The orphan is named second on purpose: the run used to abort on the first
+		# post and never reach it, so this assertion is what fails without the fix.
+		When I run `wp post meta list {ORPHAN_ID} --keys=_cap_skip_backfill --format=count`
 		Then STDOUT should be:
 		"""
-		nonexistent_post_author_id
+		0
 		"""
 
 	Scenario: Deleting skip postmeta with nothing to delete produces no output
@@ -480,7 +475,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		When I run `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill`
 		Then STDOUT should contain:
 		"""
-		Deleting postmeta key `_cap_skip_backfill` for Post ID {POST_ID}
+		Success: Deleted `_cap_skip_backfill` postmeta from post {POST_ID}.
 		"""
 		And the return code should be 0
 		When I run `wp post meta list {POST_ID} --keys=_cap_skip_backfill --format=count`
@@ -498,7 +493,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		"""
 		When I run `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill`
 		Then the return code should be 0
-		And STDOUT should match #(Deleting postmeta key[\s\S]*?){11}#
+		And STDOUT should match #(Success: Deleted[\s\S]*?){11}#
 		When I run `wp post list --meta_key=_cap_skip_backfill --post_status=any --format=count`
 		Then STDOUT should be:
 		"""

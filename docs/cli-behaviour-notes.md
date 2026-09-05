@@ -319,24 +319,40 @@ PHP 8.4) rather than inferred from reading the source.
 
 (Calibrated against the live env 2026-09-01; re-verified green 2026-09-02 — 8 scenarios.)
 
-- The merge branch (bare term with a prefixed sibling) has no `continue`; after
-  merging it falls through and also logs "Term x (id) isn't prefixed, adding one"
-  before re-slugging the surviving bare term (php/class-wp-cli.php:857-872). The
-  net state is correct but the log narrates two operations for one term.
-  Confirmed, including that the surviving term keeps the BARE term's term_id with
-  the `cap-` slug and that the prefixed sibling's post relationships are
-  reassigned to it (`force_default`).
-- "Now migrating up to N terms" counts ALL author terms, including already
-  prefixed ones that will only be skipped (line 850). Confirmed.
-- Grammar oddities pinned as-is: "Now migrating up to 1 terms" and the success
-  message "All done! Grab a cold one (Affogatto)" (line 874). Confirmed.
-- Terms are processed in `get_terms` default order (name ASC), so `cap-someone`
-  is skipped before the bare `someone` is merged/prefixed. Confirmed.
-- Only the SLUG is prefixed; the term NAME is left untouched. Confirmed
-  2026-09-02: a term created as `Legacy Author` (slug `legacy-author`) ends up as
-  name `Legacy Author` / slug `cap-legacy-author`, and the log line reports the
-  SLUG (`Term legacy-author (N) isn't prefixed, adding one`), so name and slug
-  drift apart. Pinned in "The term name keeps its original value...".
+- **NOT A DEFECT — do not "fix" this.** The merge branch has no `continue`, so
+  after merging it also logs "isn't prefixed, adding one" and re-slugs the term.
+  That fall-through is REQUIRED. `wp_delete_term()` is called on the PREFIXED
+  sibling with the BARE term as its `default`, so the survivor is the bare term and
+  still holds the unprefixed slug; the re-slug is what completes the migration.
+  Adding a `continue` here would merge two terms and leave the survivor unprefixed —
+  a silently failed migration, and non-idempotent, since the next
+  `update_author_term()` would recreate the collision. Two log lines for two real
+  operations is honest narration. The comment claiming the term "doesn't have a
+  sibling" was wrong on this path and has been corrected in the source.
+- ~~"Now migrating up to N terms" counts ALL author terms, including already
+  prefixed ones that will only be skipped.~~ **FIXED.** Prefixed terms are filtered
+  out before the count and the loop, so the number is the work actually to be done.
+  One predicate fixes this and the stale-object entry below together: the only row
+  the loop deletes is a prefixed sibling, which the filtered list no longer holds,
+  so iterating a stale object became structurally impossible rather than merely
+  unobserved. A `get_terms()` `WP_Error` is now caught too — without that,
+  `array_filter()` on a non-array would have turned a PHP warning into a fatal.
+- ~~The success message reads "All done! Grab a cold one (Affogatto)".~~ **FIXED** —
+  the drink is an *affogato*. "Now migrating up to 1 terms" still does not
+  pluralise; that belongs to the pluralisation sweep, which is deliberately left as
+  one dedicated pass rather than scattered through fix PRs, since it touches nearly
+  every command and feature file.
+- Terms are processed in `get_terms` default order (name ASC). Still true, but no
+  longer observable from the log, since prefixed terms are never narrated.
+- **NOT A DEFECT — this entry was wrong.** Only the SLUG is prefixed and the term
+  NAME is left raw, which is not drift but the plugin-wide convention. Every author
+  term the plugin creates is built that way by `update_author_term()`
+  (`wp_insert_term( $coauthor->user_login, ..., array( 'slug' =>
+  Prefix::prefix_slug( ... ) ) )`), and both `rename-coauthor` and `reassign-terms`
+  write a prefixed slug with a raw name. The term name is also read exactly once in
+  the whole plugin, in a `rename-coauthor` log line — every lookup goes by slug.
+  Prefixing the name would diverge from all three creation sites and buy nothing.
+  The scenario stays as a guard on the convention rather than a pin on a bug.
 
 - Re-calibrated 2026-09-02 after adversarial review: 8 scenarios, all green.
 - Taxonomy scoping is now pinned. With a `guardian` category and a `cap-guardian`
@@ -347,17 +363,23 @@ PHP 8.4) rather than inferred from reading the source.
   dropped it would start `wp_delete_term()`-ing same-slug terms from other
   taxonomies. NB category/post_tag terms are NOT cleared by the Behat reset either,
   so the scenario deletes its own two terms first via `wp eval`.
-- Reverse `get_terms()` ordering is now pinned. With names "Aaa" (slug `someone`) and
-  "Zzz" (slug `cap-someone`) the BARE term is processed first, its prefixed sibling
-  is deleted mid-loop, and the loop then still logs `Term cap-someone (<id>) is
-  already prefixed, skipping` for a term that no longer exists — the `foreach`
-  iterates over term objects fetched before the loop, so it narrates a skip for a
-  deleted row. Confirmed exactly. The survivor keeps the bare term's term_id and its
-  original name ("Aaa") with slug `cap-someone`.
+- ~~Reverse `get_terms()` ordering: with names "Aaa" (slug `someone`) and "Zzz"
+  (slug `cap-someone`) the BARE term is processed first, its prefixed sibling is
+  deleted mid-loop, and the loop then still logs `already prefixed, skipping` for a
+  term that no longer exists, because the `foreach` iterates term objects fetched
+  before the loop.~~ **FIXED** by the same filter as the count above. The scenario is
+  retained, retitled around what it still proves — that the merge works whatever the
+  ordering — since its original subject no longer exists.
 - Return code 0 is now asserted on the primary happy paths: `I run` does not check
   exit codes despite its docblock, and when the exit code is non-zero the harness
   moves `Error:` lines off STDOUT, so a command that died after printing the expected
   lines would previously have satisfied every `STDOUT should be:` block here.
+- Watch the discriminators here. Because skipped terms are no longer narrated, the
+  "already prefixed" and "run twice" scenarios now print exactly what a run against
+  an empty database prints, so their state assertions are the only thing left
+  distinguishing them — the run-twice scenario had none and has been given one. A
+  new scenario with two prefixed terms and one bare one exercises the count
+  properly; the file previously never held more than two terms.
 
 ## remove-terms-from-revisions
 
@@ -658,22 +680,35 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
 
-- Success/failure per post is reported with bare emoji (`Success: 👍` /
-  `Error: 👎`). Confirmed live: both survive the wp-env output filter and pin
-  as exact-match assertions (the `Error: 👎` line splits to STDERR with exit 1).
-- `WP_CLI::error( '👎' )` (php/class-wp-cli.php:335) aborts the whole loop on the
-  FIRST post whose meta cannot be deleted (e.g. an ID without the meta), leaving
-  any later IDs in `--specific-post-ids` unprocessed, with exit code 1 — even if
-  earlier deletions succeeded. Confirmed and pinned 2026-09-02 in the
-  "stops at the first post that does not have it" scenario: given
-  `--specific-post-ids=<no-meta-post>,<has-meta-post>`, STDOUT holds only the
-  `Deleting postmeta key ... for Post ID <no-meta-post>` line, STDERR is
-  `Error: 👎`, rc 1, and the second post STILL has its
-  `_cap_skip_backfill` meta. A partial run is therefore indistinguishable from a
-  total failure, and re-running is the only recovery.
-- With no `--specific-post-ids` the lookup WP_Query uses defaults
-  (`post_type=post`, `post_status=publish`), so skip metas on drafts, pages or
-  other post types are never found in the no-args mode. Noted; not pinned.
+- ~~Success/failure per post is reported with bare emoji (`Success: 👍` /
+  `Error: 👎`), carrying no post ID and so no diagnostic value.~~ **FIXED.** Each
+  line now names the meta key and the post, which also matters for the harness:
+  `FeatureContext` splits STDERR back out with `array_diff`, which compares values,
+  so identical emoji lines would all have been removed together. Distinct lines are
+  a prerequisite for the split behaving per-line. The pre-emptive
+  `Deleting postmeta key ... for Post ID N` line is dropped with them — it was pure
+  duplication once the outcome line carried the ID, and it halved the output of a
+  bare run over thousands of posts.
+- ~~`WP_CLI::error( '👎' )` aborts the whole loop on the FIRST post whose meta
+  cannot be deleted (e.g. an ID without the meta), leaving any later IDs in
+  `--specific-post-ids` unprocessed, with exit code 1 — even if earlier deletions
+  succeeded. A partial run is indistinguishable from a total failure, and
+  re-running is the only recovery.~~ **FIXED.** A post that never carried the marker
+  is now a warning, and the loop carries on. The run exits 0, which is the
+  deliberate part: the command's contract is that the named posts end up without the
+  marker, and that holds. `delete_post_meta()` returning false cannot distinguish
+  "never had it" — the common `--specific-post-ids` typo — from a database error, so
+  failing the whole run on it was over-reading a weak signal. The scenario that
+  pinned the abort is inverted: it now asserts the *second* post's meta really is
+  gone, which is what fails against the old code.
+- ~~With no `--specific-post-ids` the lookup WP_Query uses defaults, so skip metas
+  on drafts, pages or other post types are never found.~~ **STALE, not fixed as
+  written** — there is no `WP_Query` in this command any more; the bare lookup is a
+  direct prepared read of the postmeta table, superseded by the struck entry below.
+  (The struck entry's own wording is also inaccurate: it says the query "now passes
+  `post_type=any`, `post_status=any` and `posts_per_page=-1`", which describes an
+  approach that was tried and replaced. Another reminder that "Noted; not pinned"
+  entries are the ones to distrust.)
 - When there is nothing to delete the command prints nothing at all (no summary,
   exit 0). Pinned.
 
