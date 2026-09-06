@@ -97,7 +97,10 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		cap-author1
 		"""
 
-	Scenario: Do not backfill the author term for a post whose author already matches
+	# get_coauthors() falls back to the post_author user when a post has no author
+	# terms. Treating that as already associated left the post with no term at all,
+	# invisible to every term-driven query — this plugin's own included.
+	Scenario: Backfill the author term for a post reachable only through post_author
 		When I run `wp user create author1 author1@example.com --role=author --porcelain`
 		And save STDOUT as {AUTHOR1_ID}
 		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Own post" --post_status=publish --porcelain`
@@ -112,17 +115,17 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		And I run `wp co-authors-plus assign-coauthors`
 		Then STDOUT should be:
 		"""
-		1: Post #{POST_ID} already has "author1" associated as a co-author
+		1: Post #{POST_ID} has been assigned "author1" as the author
 		All done! Here are your results:
-		- 1 posts already had the co-author assigned
+		- 1 posts now have the proper co-author
 		"""
-		When I run `wp term list author --object_ids={POST_ID} --format=count`
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
 		"""
-		0
+		cap-author1
 		"""
 
-	Scenario: Report missing co-author profiles once each in the summary
+	Scenario: Report missing co-author profiles once each and skip empty meta values
 		When I run `wp post create --post_title="Ghost post one" --post_status=publish --porcelain`
 		And save STDOUT as {POST_ID_1}
 		And I run `wp post meta update {POST_ID_1} _original_import_author ghostwriter`
@@ -141,10 +144,11 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		1: Post #{POST_ID_1} does not have "ghostwriter" associated as a co-author but there is not a co-author profile
 		2: Post #{POST_ID_2} does not have "ghostwriter" associated as a co-author but there is not a co-author profile
 		3: Post #{POST_ID_3} does not have "phantom" associated as a co-author but there is not a co-author profile
-		4: Post #{POST_ID_4} does not have "" associated as a co-author but there is not a co-author profile
+		4: Post #{POST_ID_4} has an empty _original_import_author value
 		All done! Here are your results:
-		- 4 posts reference co-authors that don't exist. These are:
-		  ghostwriter, phantom,
+		- 3 posts reference co-authors that don't exist. These are:
+		  ghostwriter, phantom
+		- 1 post has an empty _original_import_author value
 		"""
 		When I run `wp term list author --object_ids={POST_ID_1},{POST_ID_2},{POST_ID_3},{POST_ID_4} --format=count`
 		Then STDOUT should be:
@@ -233,7 +237,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		And I run `wp co-authors-plus assign-coauthors`
 		Then STDOUT should be:
 		"""
-		All done! Here are your results:
+		No posts found with the "_original_import_author" meta key.
 		"""
 		When I run `wp co-authors-plus assign-coauthors --post_type=page`
 		Then STDOUT should be:
@@ -248,7 +252,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		cap-author1
 		"""
 
-	Scenario: Fall back to a sanitised meta value, re-assigning on every run
+	Scenario: Fall back to a sanitised meta value and re-run safely
 		When I run `wp user create author-one author-one@example.com --role=author --porcelain`
 		And I run `wp post create --post_title="Display name import" --post_status=publish --porcelain`
 		And save STDOUT as {POST_ID}
@@ -256,16 +260,19 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		And I run `wp co-authors-plus assign-coauthors`
 		Then STDOUT should be:
 		"""
-		1: Post #{POST_ID} has been assigned "Author One" as the author
+		1: Post #{POST_ID} has been assigned "author-one" as the author
 		All done! Here are your results:
 		- 1 posts now have the proper co-author
 		"""
+		# The raw meta value is "Author One"; the resolved login is "author-one". The
+		# comparison used to be against the raw value, so it never matched what had just
+		# been assigned and every run re-wrote the byline afresh.
 		When I run the previous command again
 		Then STDOUT should be:
 		"""
-		1: Post #{POST_ID} has been assigned "Author One" as the author
+		1: Post #{POST_ID} already has "author-one" associated as a co-author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 1 posts already had the co-author assigned
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -273,6 +280,10 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		cap-author-one
 		"""
 
+	# The byline is written, but post_author still names the previous user, because
+	# a guest author with no linked account cannot be put in that column. The
+	# summary has to say so: anything reading post_author directly, such as the
+	# admin author column, still shows the old user.
 	Scenario: Assign an unlinked guest author from the meta value
 		When I run `wp user create author1 author1@example.com --role=author --porcelain`
 		And save STDOUT as {AUTHOR1_ID}
@@ -286,6 +297,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		1: Post #{POST_ID} has been assigned "jane-doe" as the author
 		All done! Here are your results:
 		- 1 posts now have the proper co-author
+		- 1 post kept its original post_author, because no co-author assigned to it has a WordPress account
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -297,3 +309,76 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		{AUTHOR1_ID}
 		"""
+
+	# Two posts, so the plural form of the summary line is exercised as well as the
+	# singular above. Without this the _n() plural branch is never run.
+	Scenario: Several posts keeping their original post_author are counted together
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=jane@example.com`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="First import" --post_status=publish --porcelain`
+		And save STDOUT as {POST_A}
+		And I run `wp post meta update {POST_A} _original_import_author jane-doe`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Second import" --post_status=publish --porcelain`
+		And save STDOUT as {POST_B}
+		And I run `wp post meta update {POST_B} _original_import_author jane-doe`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_A} has been assigned "jane-doe" as the author
+		2: Post #{POST_B} has been assigned "jane-doe" as the author
+		All done! Here are your results:
+		- 2 posts now have the proper co-author
+		- 2 posts kept their original post_author, because no co-author assigned to them has a WordPress account
+		"""
+		And the return code should be 0
+
+	# Drafts carrying the meta key are outside the default scope, because this command
+	# rewrites a byline per post. --post-statuses is the opt-in, as on
+	# create-terms-for-posts.
+	Scenario: Cover drafts only when asked with --post-statuses
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And I run `wp post create --post_title="Draft import" --post_status=draft --porcelain`
+		And save STDOUT as {DRAFT_ID}
+		And I run `wp post meta update {DRAFT_ID} _original_import_author author1`
+		And I run `wp post create --post_title="Pending import" --post_status=pending --porcelain`
+		And save STDOUT as {PENDING_ID}
+		And I run `wp post meta update {PENDING_ID} _original_import_author author1`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		No posts found with the "_original_import_author" meta key.
+		"""
+		# Comma-separated, so the explode() is exercised rather than just a single value.
+		When I run `wp co-authors-plus assign-coauthors --post-statuses=draft,pending`
+		Then STDOUT should be:
+		"""
+		1: Post #{DRAFT_ID} has been assigned "author1" as the author
+		2: Post #{PENDING_ID} has been assigned "author1" as the author
+		All done! Here are your results:
+		- 2 posts now have the proper co-author
+		"""
+		When I run `wp term list author --object_ids={DRAFT_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		"""
+
+	# Two empty values, so the plural form of the summary line is exercised as well as
+	# the singular above. Without this the _n() plural branch never runs.
+	Scenario: Several empty meta values are counted together
+		When I run `wp post create --post_title="First" --post_status=publish --porcelain`
+		And save STDOUT as {POST_A}
+		And I run `wp eval 'update_post_meta( {POST_A}, "_original_import_author", "" );'`
+		And I run `wp post create --post_title="Second" --post_status=publish --porcelain`
+		And save STDOUT as {POST_B}
+		And I run `wp eval 'update_post_meta( {POST_B}, "_original_import_author", "" );'`
+		And I run `wp co-authors-plus assign-coauthors`
+		Then STDOUT should be:
+		"""
+		1: Post #{POST_A} has an empty _original_import_author value
+		2: Post #{POST_B} has an empty _original_import_author value
+		All done! Here are your results:
+		- 2 posts have an empty _original_import_author value
+		"""
+		And the return code should be 0

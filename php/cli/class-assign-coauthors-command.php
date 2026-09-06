@@ -53,6 +53,9 @@ class Assign_Coauthors_Command {
 	 * [--post_type=<post-type>]
 	 * : Limit to one post type. Defaults to post.
 	 *
+	 * [--post-statuses=<post-statuses>]
+	 * : Comma-separated post statuses to cover. Defaults to publish.
+	 *
 	 * [--append_coauthors]
 	 * : Add to the existing byline rather than replacing it.
 	 *
@@ -88,10 +91,20 @@ class Assign_Coauthors_Command {
 		$append_coauthors = $parsed_args['append_coauthors'];
 		unset( $parsed_args['append_coauthors'] );
 
+		// Named explicitly rather than left to WP_Query's default, which is publish
+		// plus whatever private statuses the current user can read — so the scope of a
+		// run would otherwise depend on whether --user was passed. Drafts are opted
+		// into rather than included by default, as on create-terms-for-posts, because
+		// this command rewrites a byline per post.
+		$parsed_args['post_status'] = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
+		unset( $parsed_args['post-statuses'] );
+
 		$posts_total              = 0;
 		$posts_already_associated = 0;
 		$posts_missing_coauthor   = 0;
 		$posts_associated         = 0;
+		$posts_keeping_author     = 0;
+		$posts_missing_meta_value = 0;
 		$missing_coauthors        = array();
 
 		$posts = new WP_Query( $parsed_args );
@@ -100,25 +113,22 @@ class Assign_Coauthors_Command {
 			foreach ( $posts->posts as $single_post ) {
 				$posts_total++;
 
-				// See if the value in the post meta field is the same as any of the existing co-authors.
-				$original_author    = get_post_meta( $single_post->ID, $parsed_args['meta_key'], true );
-				$existing_coauthors = get_coauthors( $single_post->ID );
-				$already_associated = false;
-				foreach ( $existing_coauthors as $existing_coauthor ) {
-					if ( $original_author == $existing_coauthor->user_login ) {
-						$already_associated = true;
-						break;
-					}
-				}
-				if ( $already_associated ) {
-					$posts_already_associated++;
-					WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' already has "' . $original_author . '" associated as a co-author' );
+				$original_author = get_post_meta( $single_post->ID, $parsed_args['meta_key'], true );
+
+				// The query matches on the key existing, so the value can still be empty. An
+				// empty value names no co-author, so it is not a missing profile and must not
+				// join the missing list, where it imploded into a dangling comma.
+				if ( '' === $original_author ) {
+					$posts_missing_meta_value++;
+					WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' has an empty ' . $parsed_args['meta_key'] . ' value' );
 					continue;
 				}
 
-				// Make sure this original author exists as a co-author. The
-				// meta value is tried as given and then as a slug, which is
-				// how it is stored once an importer has been through it.
+				// Resolve the co-author before deciding anything. The meta value is tried as
+				// given and then as a slug, which is how it is stored once an importer has
+				// been through it. Everything below then works from the resolved co-author
+				// rather than the raw value, so a second run recognises its own work and the
+				// log names who was really assigned.
 				$coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $original_author );
 
 				if ( ! $coauthor ) {
@@ -132,10 +142,34 @@ class Assign_Coauthors_Command {
 					continue;
 				}
 
-				// Assign the co-author to the post.
-				$coauthors_plus->add_coauthors( $single_post->ID, array( $coauthor->user_nicename ), $append_coauthors );
-				WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' has been assigned "' . $original_author . '" as the author' );
+				// Only a real author term counts as already associated. get_coauthors() falls
+				// back to the post_author user when a post has no terms, and treating that as
+				// done left the post with no term at all — invisible to every term-driven
+				// query, this plugin's own included.
+				$existing_coauthors = cap_get_coauthor_terms_for_post( $single_post->ID ) ? get_coauthors( $single_post->ID ) : array();
+				$already_associated = false;
+				foreach ( $existing_coauthors as $existing_coauthor ) {
+					if ( $coauthor->user_login === $existing_coauthor->user_login ) {
+						$already_associated = true;
+						break;
+					}
+				}
+				if ( $already_associated ) {
+					$posts_already_associated++;
+					WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' already has "' . $coauthor->user_login . '" associated as a co-author' );
+					continue;
+				}
+
+				// Assign the co-author to the post. The byline is written either way; a
+				// false return means only that post_author could not be pointed at a
+				// WordPress user, which is the norm for a guest author with no account.
+				$post_author_synced = $coauthors_plus->add_coauthors( $single_post->ID, array( $coauthor->user_nicename ), $append_coauthors );
+				WP_CLI::log( $posts_total . ': Post #' . $single_post->ID . ' has been assigned "' . $coauthor->user_login . '" as the author' );
 				$posts_associated++;
+
+				if ( ! $post_author_synced ) {
+					$posts_keeping_author++;
+				}
 				clean_post_cache( $single_post->ID );
 			}//end foreach
 
@@ -143,6 +177,12 @@ class Assign_Coauthors_Command {
 			\WP_CLI\Utils\wp_clear_object_cache();
 			$posts = new WP_Query( $parsed_args );
 		}//end while
+
+		if ( 0 === $posts_total ) {
+			WP_CLI::log( sprintf( 'No posts found with the "%s" meta key.', $parsed_args['meta_key'] ) );
+
+			return;
+		}
 
 		WP_CLI::log( 'All done! Here are your results:' );
 		if ( $posts_already_associated ) {
@@ -152,8 +192,37 @@ class Assign_Coauthors_Command {
 			WP_CLI::log( "- {$posts_missing_coauthor} posts reference co-authors that don't exist. These are:" );
 			WP_CLI::log( '  ' . implode( ', ', array_unique( $missing_coauthors ) ) );
 		}
+		if ( $posts_missing_meta_value ) {
+			WP_CLI::log(
+				'- ' . sprintf(
+					/* translators: 1: Count of posts. 2: Post meta key. */
+					_n(
+						'%1$s post has an empty %2$s value',
+						'%1$s posts have an empty %2$s value',
+						$posts_missing_meta_value,
+						'co-authors-plus'
+					),
+					number_format_i18n( $posts_missing_meta_value ),
+					$parsed_args['meta_key']
+				)
+			);
+		}
 		if ( $posts_associated ) {
 			WP_CLI::log( "- {$posts_associated} posts now have the proper co-author" );
+		}
+		if ( $posts_keeping_author ) {
+			WP_CLI::log(
+				'- ' . sprintf(
+					/* translators: Count of posts. */
+					_n(
+						'%s post kept its original post_author, because no co-author assigned to it has a WordPress account',
+						'%s posts kept their original post_author, because no co-author assigned to them has a WordPress account',
+						$posts_keeping_author,
+						'co-authors-plus'
+					),
+					number_format_i18n( $posts_keeping_author )
+				)
+			);
 		}
 	}
 }

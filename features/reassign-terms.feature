@@ -22,7 +22,7 @@ Feature: Author terms can be reassigned between co-authors
 		"""
 		name,slug
 		admin,cap-admin
-		newuser,newuser
+		newuser,cap-newuser
 		"""
 		When I run `wp post list --post_type=guest-author --orderby=ID --order=asc --field=post_name`
 		Then STDOUT should be:
@@ -43,7 +43,7 @@ Feature: Author terms can be reassigned between co-authors
 		Then STDOUT should be:
 		"""
 		cap-admin
-		newuser
+		cap-newuser
 		"""
 
 	Scenario: Merge into an existing term and reassign its posts
@@ -82,7 +82,7 @@ Feature: Author terms can be reassigned between co-authors
 		cap-olduser
 		"""
 
-	Scenario: Reassigning a term to itself deletes the term and orphans its posts
+	Scenario: Reassigning a term to itself is skipped
 		When I run `wp user create olduser olduser@example.com --role=author`
 		And I run `wp co-authors-plus create-guest-authors`
 		And I run `wp post create --post_title="Owned post" --post_status=publish --porcelain`
@@ -92,19 +92,23 @@ Feature: Author terms can be reassigned between co-authors
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Success: There's already a 'olduser' term for 'olduser'. Reassigning 1 posts and then deleting the term
+		Warning: Term 'olduser' is already 'olduser', skipping
 		Reassignment complete. Here are your results:
 		- 0 authors were successfully reassigned terms
-		- 1 authors had their old term merged to their new term
+		- 0 authors had their old term merged to their new term
 		- 0 authors were missing old terms
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
-		Then STDOUT should be empty
+		Then STDOUT should be:
+		"""
+		cap-olduser
+		"""
 		And the return code should be 0
 		When I run `wp term list author --field=slug`
 		Then STDOUT should be:
 		"""
 		cap-admin
+		cap-olduser
 		"""
 
 	Scenario: A numeric --new-term is resolved to that user's login
@@ -125,17 +129,49 @@ Feature: Author terms can be reassigned between co-authors
 		Then STDOUT should be:
 		"""
 		cap-admin
-		newuser
+		cap-newuser
 		"""
 
-	Scenario: A numeric --new-term for an unknown user id is not resolved
+	# The self-reassignment guard compares resolved term IDs, not the raw inputs:
+	# here the same co-author is named two ways, so an implementation comparing
+	# input strings would take the merge path and delete the term onto itself.
+	Scenario: A numeric --new-term resolving to the old term's own user is skipped as a self-reassignment
+		When I run `wp user create olduser olduser@example.com --role=author --porcelain`
+		And save STDOUT as {OLDUSER_ID}
+		And I run `wp co-authors-plus create-guest-authors`
+		And I run `wp post create --post_title="Owned post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post term add {POST_ID} author cap-olduser`
+		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term={OLDUSER_ID}`
+		Then the return code should be 0
+		And STDOUT should be:
+		"""
+		Warning: Term 'olduser' is already 'olduser', skipping
+		Reassignment complete. Here are your results:
+		- 0 authors were successfully reassigned terms
+		- 0 authors had their old term merged to their new term
+		- 0 authors were missing old terms
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-olduser
+		"""
+		When I run `wp term list author --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-admin
+		cap-olduser
+		"""
+
+	Scenario: A numeric --new-term for an unknown user id is skipped
 		When I run `wp user create olduser olduser@example.com --role=author`
 		And I run `wp co-authors-plus create-guest-authors`
 		And I try `wp co-authors-plus reassign-terms --old-term=olduser --new-term=999999`
 		Then the return code should be 0
 		And STDERR should contain:
 		"""
-		Attempt to read property "user_login" on false
+		Warning: No user has the ID 999999, skipping 'olduser'
 		"""
 		And STDOUT should contain:
 		"""
@@ -148,18 +184,21 @@ Feature: Author terms can be reassigned between co-authors
 		cap-olduser
 		"""
 
-	Scenario: A target slug already taken by another term still reports success
+	Scenario: A target slug already taken by another term is reported, not counted
 		When I run `wp user create olduser olduser@example.com --role=author`
 		And I run `wp co-authors-plus create-guest-authors`
-		And I run `wp term create author newuser --porcelain`
+		And I run `wp term create author newuser --slug=cap-newuser --porcelain`
 		And save STDOUT as {EXISTING_ID}
 		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term=newuser`
 		Then the return code should be 0
-		And STDOUT should be:
+		And STDOUT should contain:
 		"""
-		Success: Converted 'olduser' term to 'newuser'
+		Warning: Could not convert 'olduser' term to 'newuser':
+		"""
+		And STDOUT should contain:
+		"""
 		Reassignment complete. Here are your results:
-		- 1 authors were successfully reassigned terms
+		- 0 authors were successfully reassigned terms
 		- 0 authors had their old term merged to their new term
 		- 0 authors were missing old terms
 		"""
@@ -167,7 +206,7 @@ Feature: Author terms can be reassigned between co-authors
 		Then STDOUT should be:
 		"""
 		cap-admin
-		newuser
+		cap-newuser
 		cap-olduser
 		"""
 
@@ -239,7 +278,7 @@ Feature: Author terms can be reassigned between co-authors
 		Then STDOUT should be:
 		"""
 		cap-admin
-		newuser
+		cap-newuser
 		"""
 
 	Scenario: Report a missing --author-mapping file
@@ -270,7 +309,7 @@ Feature: Author terms can be reassigned between co-authors
 		Then STDOUT should be:
 		"""
 		cap-admin
-		newuser
+		cap-newuser
 		"""
 
 	Scenario: The underscore variant --author_mapping is rejected as an unknown parameter

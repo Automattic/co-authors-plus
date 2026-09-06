@@ -21,14 +21,13 @@ Multiple byline management for WordPress, supporting both WordPress users and gu
 co-authors-plus/
 ├── co-authors-plus.php                # Main plugin file (includes, globals, bootstrap)
 ├── template-tags.php                  # Template tag functions (coauthors(), get_coauthors(), etc.)
-├── upgrade.php                        # Database upgrade functions
 ├── php/
 │   ├── class-coauthors-plus.php       # Main plugin class (taxonomy, meta boxes, AJAX)
 │   ├── class-coauthors-guest-authors.php  # Guest author CPT management
 │   ├── class-coauthors-template-filters.php # Frontend template filters
 │   ├── class-coauthors-wp-list-table.php   # Admin list table
 │   ├── class-coauthors-iterator.php   # Iterator for looping through coauthors
-│   ├── class-wp-cli.php              # WP-CLI commands
+│   ├── cli/                           # WP-CLI commands, one class each
 │   ├── api/endpoints/                 # REST API controller (CoAuthors\API\Endpoints)
 │   ├── blocks/                        # Gutenberg blocks (CoAuthors\Blocks)
 │   └── integrations/                  # AMP, Yoast, WordPress Importer, Jetpack
@@ -50,7 +49,8 @@ co-authors-plus/
 - `php/class-coauthors-template-filters.php` — Frontend filters for `the_author`, `the_author_posts_link`, RSS feeds
 - `php/api/endpoints/class-coauthors-controller.php` — REST API controller (`coauthors/v1`)
 - `php/blocks/` — Five Gutenberg blocks for displaying coauthor information
-- `php/class-wp-cli.php` — WP-CLI commands: `wp co-authors-plus create-guest-authors`, `create-terms-for-posts`
+- `php/cli/` — WP-CLI commands, one class per subcommand, registered in `register-commands.php`
+- `php/services/` — Domain services the commands and other entry points can share
 - `php/integrations/` — Integrations with AMP, Yoast SEO, WordPress Importer, Jetpack
 
 ### Dependencies

@@ -6,9 +6,10 @@ Feature: Guest authors and their post assignments can be imported
 
 	Scenario: Error when no file is given
 		When I try `wp co-authors-plus import-coauthors`
-		Then STDERR should contain:
+		Then STDERR should be:
 		"""
-		missing --file parameter
+		Error: Parameter errors:
+		 missing --file parameter (The file to read, as written by export-coauthors.)
 		"""
 		And the return code should be 1
 
@@ -67,6 +68,48 @@ Feature: Guest authors and their post assignments can be imported
 		Then STDOUT should be:
 		"""
 		cap-jane-doe
+		"""
+
+	# The byline order here is deliberately neither alphabetical nor the order
+	# the profiles were created in, so only the recorded positions can restore
+	# it. The probe reads term_order the same way the plugin's own read path
+	# does.
+	Scenario: A multi-author byline comes back in its original order
+		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Alice Smith", "user_login" => "alice-smith" ) );'`
+		And I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Bob Jones", "user_login" => "bob-jones" ) );'`
+		And I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Carol King", "user_login" => "carol-king" ) );'`
+		And I run `wp post create --post_status=publish --post_title="Hello" --post_name=hello --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp eval 'wp_set_post_terms( {POST_ID}, array( "cap-carol-king", "cap-alice-smith", "cap-bob-jones" ), "author" );'`
+		When I run `wp eval 'echo implode( ",", wp_list_pluck( wp_get_object_terms( {POST_ID}, "author", array( "orderby" => "term_order" ) ), "slug" ) );'`
+		Then STDOUT should be:
+		"""
+		cap-carol-king,cap-alice-smith,cap-bob-jones
+		"""
+
+		When I run `wp co-authors-plus export-coauthors --file=/tmp/cap-order.json`
+		Then STDOUT should be:
+		"""
+		Success: Exported 3 guest authors to /tmp/cap-order.json
+		"""
+
+		# Wipe the site clean: profiles, author terms and the post itself.
+		When I run `wp eval 'foreach ( get_posts( array( "post_type" => "guest-author", "post_status" => "any", "numberposts" => -1 ) ) as $p ) { wp_delete_post( $p->ID, true ); }'`
+		And I run `wp eval 'foreach ( get_terms( array( "taxonomy" => "author", "hide_empty" => false ) ) as $t ) { wp_delete_term( $t->term_id, "author" ); }'`
+		And I run `wp post delete {POST_ID} --force`
+		And I run `wp post create --post_status=publish --post_title="Hello" --post_name=hello --porcelain`
+		And save STDOUT as {NEW_POST_ID}
+
+		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-order.json`
+		Then STDOUT should be:
+		"""
+		Success: Created 3 profiles and linked 3 posts.
+		"""
+		And the return code should be 0
+		When I run `wp eval 'echo implode( ",", wp_list_pluck( wp_get_object_terms( {NEW_POST_ID}, "author", array( "orderby" => "term_order" ) ), "slug" ) );'`
+		Then STDOUT should be:
+		"""
+		cap-carol-king,cap-alice-smith,cap-bob-jones
 		"""
 
 	Scenario: A dry run reports what it would do and writes nothing

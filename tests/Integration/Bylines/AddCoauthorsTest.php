@@ -951,6 +951,71 @@ class AddCoauthorsTest extends TestCase {
 	}
 
 	/**
+	 * A failed author term must not drop the author from the byline.
+	 *
+	 * When wp_insert_term() fails, update_author_term() returns a WP_Error.
+	 * A WP_Error is an object too, so without the is_wp_error() guard in
+	 * add_coauthors(), reading `$term->slug` from it blanks the author name
+	 * and the author silently vanishes from the byline.
+	 *
+	 * The guard's actual contract: the raw name is kept and passed to
+	 * wp_set_post_terms(), which creates an *unprefixed* term for it (the
+	 * `cap-` prefix is only applied by update_author_term(), which is the
+	 * call that failed). get_coauthors() strips an optional `cap-` prefix
+	 * when resolving slugs, so the author still resolves and survives via
+	 * that unprefixed term. This test asserts exactly that behaviour.
+	 *
+	 * @covers ::add_coauthors
+	 */
+	public function test_author_is_not_lost_when_author_term_creation_fails(): void {
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $this->author1->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		/*
+		 * Fail term insertion only for author2's prefixed slug. Only
+		 * update_author_term() passes a slug argument, so the later insert
+		 * from within wp_set_post_terms() (no slug, unprefixed name) is
+		 * unaffected — that is the path the guard preserves.
+		 */
+		$failing_slug = 'cap-' . $this->author2->user_nicename;
+		$filter       = function ( $term, $taxonomy = '', $args = array() ) use ( $failing_slug ) {
+			if ( isset( $args['slug'] ) && $failing_slug === $args['slug'] ) {
+				return new \WP_Error( 'forced-term-failure', 'Simulated term insertion failure.' );
+			}
+			return $term;
+		};
+		add_filter( 'pre_insert_term', $filter, 10, 3 );
+
+		try {
+			$result = $this->_cap->add_coauthors(
+				$post_id,
+				array( $this->author1->user_login, $this->author2->user_login )
+			);
+		} finally {
+			remove_filter( 'pre_insert_term', $filter );
+		}
+
+		$this->assertTrue( $result );
+
+		// Both authors are still on the byline, in order.
+		$this->assertSame(
+			array( $this->author1->user_login, $this->author2->user_login ),
+			$this->get_coauthor_logins( $post_id )
+		);
+
+		// The survival route: author1 has the usual prefixed term, while
+		// author2 rode through wp_set_post_terms() as an unprefixed term.
+		$slugs = wp_list_pluck( wp_get_post_terms( $post_id, $this->_cap->coauthor_taxonomy ), 'slug' );
+		$this->assertContains( 'cap-' . $this->author1->user_nicename, $slugs );
+		$this->assertContains( $this->author2->user_nicename, $slugs );
+	}
+
+	/**
 	 * Confirms that a name which resolves to no user or guest author is
 	 * reported rather than accepted silently.
 	 *

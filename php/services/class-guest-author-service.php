@@ -95,6 +95,20 @@ class Guest_Author_Service {
 	 * @return int|WP_Error New guest author ID, or an error.
 	 */
 	public function create( array $profile ) {
+		return $this->guest_authors->create( $this->sanitize_profile( $profile ) );
+	}
+
+	/**
+	 * Sanitise a profile the way the admin save does.
+	 *
+	 * Each declared field's sanitize_function is applied, falling back to
+	 * sanitize_text_field. Keys that are not declared fields are dropped, and
+	 * absent fields stay absent rather than becoming empty strings.
+	 *
+	 * @param array<string, string> $profile Field key => raw value.
+	 * @return array<string, string> Field key => sanitised value.
+	 */
+	public function sanitize_profile( array $profile ): array {
 		$args = array();
 
 		foreach ( $this->fields() as $field ) {
@@ -107,7 +121,7 @@ class Guest_Author_Service {
 			$args[ $key ] = $this->sanitize( $field, $profile[ $key ] );
 		}
 
-		return $this->guest_authors->create( $args );
+		return $args;
 	}
 
 	/**

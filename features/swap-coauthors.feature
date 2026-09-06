@@ -47,11 +47,14 @@ Feature: One co-author can be swapped with another on their posts
 		And STDOUT should be empty
 		And the return code should be 1
 
-	Scenario: Validate --from before an empty --to
+	# The empty --to is a usage error, so it is reported before any co-author lookup.
+	# It used to surface only after --from had resolved, so this pairing complained
+	# about the co-author instead of the missing parameter.
+	Scenario: Report an empty --to before looking up --from
 		When I try `wp co-authors-plus swap-coauthors --from=not-a-user --to=`
 		Then STDERR should be:
 		"""
-		Error: No co-author found for not-a-user
+		Error: --to param must not be empty
 		"""
 		And STDOUT should be empty
 		And the return code should be 1
@@ -314,7 +317,7 @@ Feature: One co-author can be swapped with another on their posts
 		{AUTHOR2_ID}
 		"""
 
-	Scenario: Ignore posts the swap query cannot reach
+	Scenario: Report posts linked only through post_author instead of ignoring them silently
 		When I run `wp user create author1 author1@example.com --role=author --porcelain`
 		And save STDOUT as {AUTHOR1_ID}
 		And I run `wp user create author2 author2@example.com --role=author --porcelain`
@@ -338,6 +341,7 @@ Feature: One co-author can be swapped with another on their posts
 		"""
 		Swapping authorship from author1 to author2
 		Found 0 posts to update.
+		Warning: 1 post has author1 as its post_author but does not carry the cap-author1 term, so this swap does not touch it.
 		Success: All done!
 		"""
 		When I run `wp term list author --object_ids={DRAFT_ID} --field=slug`
@@ -361,6 +365,8 @@ Feature: One co-author can be swapped with another on their posts
 		{AUTHOR1_ID}
 		"""
 
+	# As above: the term swaps, but post_author cannot follow a guest author who has
+	# no WordPress account, so the run reports how many posts that applied to.
 	Scenario: Swap to a guest author with no linked account
 		When I run `wp user create author1 author1@example.com --role=author --porcelain`
 		And save STDOUT as {AUTHOR1_ID}
@@ -373,6 +379,7 @@ Feature: One co-author can be swapped with another on their posts
 		Swapping authorship from author1 to jane-doe
 		Found 1 posts to update.
 		1: Post #{POST_ID} has been assigned "jane-doe" as a co-author
+		1 post kept its original post_author, because no co-author assigned to it has a WordPress account
 		Success: All done!
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
@@ -384,4 +391,48 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		{AUTHOR1_ID}
+		"""
+
+	# Two termless posts, so the plural branch of the new warning runs as well as the
+	# singular above.
+	Scenario: Several posts linked only through post_author are counted together
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp user create author2 author2@example.com --role=author --porcelain`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="First termless" --post_status=publish --porcelain`
+		And save STDOUT as {POST_A}
+		And I run `wp post term remove {POST_A} author cap-author1 --by=slug`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="Second termless" --post_status=publish --porcelain`
+		And save STDOUT as {POST_B}
+		And I run `wp post term remove {POST_B} author cap-author1 --by=slug`
+		And I run `wp co-authors-plus swap-coauthors --from=author1 --to=author2`
+		Then STDOUT should be:
+		"""
+		Swapping authorship from author1 to author2
+		Found 0 posts to update.
+		Warning: 2 posts have author1 as their post_author but do not carry the cap-author1 term, so this swap does not touch them.
+		Success: All done!
+		"""
+		And the return code should be 0
+
+	# A guest author with no linked account has no user ID for post_author to hold,
+	# so the check has nothing to count and must stay silent rather than fatal.
+	Scenario: Swapping from an unlinked guest author reports no post_author-only posts
+		When I run `wp user create author2 author2@example.com --role=author --porcelain`
+		And I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=jane@example.com`
+		And I run `wp post create --post_title="Ghost written" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp eval '$GLOBALS["coauthors_plus"]->add_coauthors( {POST_ID}, array( "jane-doe" ) );'`
+		And I run `wp co-authors-plus swap-coauthors --from=jane-doe --to=author2`
+		Then STDOUT should be:
+		"""
+		Swapping authorship from jane-doe to author2
+		Found 1 posts to update.
+		1: Post #{POST_ID} has been assigned "author2" as a co-author
+		Success: All done!
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author2
 		"""

@@ -133,7 +133,11 @@ final class CoauthorAssignmentServiceTest extends TestCase {
 	public function test_it_reports_a_change_even_when_add_coauthors_returns_false(): void {
 		list( $service, $coauthors_plus ) = $this->service();
 
-		Functions\when( 'wp_get_object_terms' )->justReturn( array() );
+		// Empty before the write, carrying the term after it: the false from
+		// add_coauthors() hid a successful write.
+		Functions\expect( 'wp_get_object_terms' )
+			->twice()
+			->andReturn( array(), $this->terms( array( 'cap-carol' ) ) );
 		Functions\when( 'is_wp_error' )->justReturn( false );
 
 		$coauthors_plus->shouldReceive( 'add_coauthors' )
@@ -142,6 +146,25 @@ final class CoauthorAssignmentServiceTest extends TestCase {
 			->andReturn( false );
 
 		$this->assertTrue( $service->add_at_position( 7, 'carol', 0 ) );
+	}
+
+	/**
+	 * When add_coauthors() returns false AND the re-read shows the co-author
+	 * never landed on the post, the write genuinely failed, and saying so is
+	 * what stops an import counting the post as linked.
+	 */
+	public function test_it_reports_failure_when_the_write_does_not_land(): void {
+		list( $service, $coauthors_plus ) = $this->service();
+
+		Functions\when( 'wp_get_object_terms' )->justReturn( array() );
+		Functions\when( 'is_wp_error' )->justReturn( false );
+
+		$coauthors_plus->shouldReceive( 'add_coauthors' )
+			->once()
+			->with( 7, array( 'carol' ), false )
+			->andReturn( false );
+
+		$this->assertFalse( $service->add_at_position( 7, 'carol', 0 ) );
 	}
 
 	/**

@@ -76,18 +76,65 @@ PHP 8.4) rather than inferred from reading the source.
   NB `wp post meta update <id> <key> ""` does NOT store an empty string — WP-CLI
   replies `Success: Value passed for custom field '<key>' is unchanged.` and writes
   nothing — so the fixture uses `wp eval 'update_post_meta( ..., "" );'`.
-- Assigning an unlinked guest author sets the author term but leaves
-  `wp_posts.post_author` on the previous user: `add_coauthors()` bails at
-  php/class-coauthors-plus.php:1705-1709 and returns false AFTER
-  `wp_set_post_terms()` has run, and `assign_coauthors()` ignores that return value,
-  still logging `has been assigned` and counting the post as successfully associated.
-  Pinned in "Assign an unlinked guest author from the meta value": term becomes
-  `cap-jane-doe`, `post_author` stays the author1 user ID. Note the value handed to
+- ~~Assigning an unlinked guest author sets the author term but leaves
+  `wp_posts.post_author` on the previous user, and the command ignores
+  `add_coauthors()`'s return value, still logging `has been assigned` and counting
+  the post as successfully associated with no mention of the discrepancy.~~
+  **FIXED** in the caller, not in `add_coauthors()`. The per-post line is unchanged
+  because it was true — the byline really was assigned — but the summary now counts
+  the posts whose `post_author` could not follow. That column is what the admin
+  posts list, `WP_Query`'s `author` parameter and many themes read, so an operator
+  who is not told about it will see the old author still attributed. The scenario
+  already asserted the unchanged `post_author` in state; the command now says it
+  aloud. Note the value handed to
   `add_coauthors()` is `$coauthor->user_nicename`, which for a guest author is
   `sanitize_title( user_login )` (`jane-doe`, NOT the `cap-`-prefixed post_name); the
   prefix is re-added inside `get_post_meta_key()` during the nicename lookup, so a
   refactor that "normalised" this to `user_login` (as swap-coauthors does) would
   happen to keep working, whereas one that passed the post_name would double-prefix.
+
+- **Six defects resolved together (one PR), because they all live in one method.**
+  - ~~The `sanitize_title()` fallback is not idempotent: the already-associated check
+    compares the RAW meta value against `user_login` while assignment passes
+    `user_nicename`, so meta `Author One` never matches `author-one` and the post is
+    re-assigned and re-counted on EVERY run — a write storm, per post, for ever.~~
+    **FIXED** by resolving the co-author first and comparing against the resolved
+    login. Note the problem was broader than `sanitize_title()`: `get_user_by()` also
+    retries after stripping a `cap-` prefix, and guest-author lookups sanitise on
+    every call, so meta `cap-author1` was equally non-idempotent. Comparing against
+    the resolved co-author is the only fix that closes all of them.
+  - ~~The already-associated branch `continue`s before `add_coauthors()` is ever
+    called. `get_coauthors()` falls back to the `post_author` user when a post has no
+    author terms, so a post matched only via that fallback is treated as done and
+    never gets a term — invisible to all term-driven tooling afterwards.~~ **FIXED.**
+    Only a real author term now counts as already associated. The `post_author`
+    fallback in `get_coauthors()` is untouched; what changed is that this command no
+    longer reads it as evidence of a byline.
+  - ~~No `post_status` on the query, and no flag to opt in, so drafts carrying the
+    meta key are silently skipped.~~ **FIXED** with `--post-statuses`, defaulting to
+    `publish` — an opt-in rather than a widened default, because this command
+    rewrites a byline per post. Contrast `list-posts-without-terms`, which was
+    widened because it only reports. Naming the status also removes a quirk: the old
+    default was publish PLUS whatever private statuses the current user could read,
+    so scope depended on whether `--user` was passed. That is a NARROWING for anyone
+    running under `--user`, and belongs in the changelog.
+  - ~~An empty meta VALUE is processed rather than skipped, so it joins the missing
+    list and imodes into a dangling comma.~~ **FIXED** with its own counter and
+    message. A counter rather than an `array_filter()` on the missing list, because
+    it buys an invariant: every post reached now increments exactly one counter, so
+    `posts_total > 0` implies at least one summary line — which is what makes the
+    empty-run fix below airtight rather than reintroducible through a side door.
+  - ~~The log echoes the RAW meta value while assigning the sanitised match, saying
+    `assigned "Author One"` while actually assigning `author-one`.~~ **FIXED** on both
+    the assign and the already-associated lines; the catalogue only named the first.
+  - ~~An empty run prints only `All done! Here are your results:` with no counts,
+    because every summary line is truthiness-guarded.~~ **FIXED** — it now says which
+    meta key it found nothing for.
+- TRAP for anyone touching this command: do NOT "normalise" what is passed to
+  `add_coauthors()` from `user_nicename` to `user_login`. It resolves names with
+  `$query_type = 'user_nicename'`, so a login whose nicename differs (`john.doe` vs
+  `john-doe`) would fail that lookup, `update_author_term( false )` returns false,
+  the slug substitution is skipped, and an unprefixed `john.doe` term gets written.
 
 ## swap-coauthors
 
@@ -141,9 +188,19 @@ PHP 8.4) rather than inferred from reading the source.
   convention, `--dry-run=0` and `--no-dry-run` remain real swaps, since flag
   values use PHP truthiness and `--no-<flag>` is the documented negation; both
   are pinned in "Treat --dry-run=0 and --no-dry-run as a real swap".
-- The command is TERM-driven, not `post_author`-driven. A post whose only link to the
-  `from` author is `wp_posts.post_author` (its `cap-<from>` term removed) is reported
-  as `Found 0 posts to update.` / `Success: All done!` and left untouched — unlike
+- ~~The command is TERM-driven, not `post_author`-driven, and silent about it. A post
+  whose only link to the `from` author is `wp_posts.post_author` was reported as
+  `Found 0 posts to update.` and nothing more — a clean no-op on exactly the shape a
+  plain-WordPress migration produces.~~ **Decision taken 2026-09-05: report, don't
+  widen.** The command now counts publish posts whose `post_author` is the from
+  user's account but which carry no `cap-` term, and warns that the swap does not
+  touch them. It still writes nothing new — actually swapping those posts would
+  widen the command's write scope, which stays a separate decision (an opt-in flag
+  is the likely shape if anyone asks). The count query passes `suppress_filters`,
+  because CAP's own author-query rewrite would add term matches and defeat the
+  point; both `_n()` branches and the unlinked-guest-author (no user ID) branch are
+  covered by scenarios. The original wording of this entry continues below for the
+  record: it was reported as `Found 0 posts to update.` / `Success: All done!` and left untouched — unlike
   `assign-user-to-coauthor` and `get_coauthors()`, which both fall back to
   `post_author`. Sites migrating from plain WordPress authorship therefore get a
   silent no-op. Pinned in "Ignore posts the swap query cannot reach".
@@ -151,14 +208,13 @@ PHP 8.4) rather than inferred from reading the source.
   only public statuses match: a DRAFT post carrying the `cap-<from>` term (CAP's
   `save_post` hook gives it one) is silently skipped and is not even counted in
   `Found N posts to update.`. There is no `--post_status` flag to opt in. Pinned in
-  the same scenario; `assign-coauthors` has the identical restriction.
-- Swapping TO an unlinked guest author leaves `wp_posts.post_author` pointing at the
-  previous WP user indefinitely: `wp_set_post_terms()` has already run by the time
-  `add_coauthors()` bails at php/class-coauthors-plus.php:1705-1709 and returns false,
-  and `swap_coauthors()` ignores that return value — so the byline changes, the log
-  still says `has been assigned` and the command still reports `Success: All done!`.
-  Pinned in "Swap to a guest author with no linked account" (term becomes
-  `cap-jane-doe`, `post_author` stays the author1 user ID).
+  the same scenario; `assign-coauthors` had the identical restriction until it gained `--post-statuses`; swap-coauthors is now the only command whose status filter cannot be opted out of.
+- ~~Swapping TO an unlinked guest author leaves `wp_posts.post_author` pointing at
+  the previous WP user indefinitely, and the command ignores `add_coauthors()`'s
+  return value — so the byline changes, the log still says `has been assigned` and
+  the command still reports `Success: All done!`.~~ **FIXED** in the caller, exactly
+  as for `assign-coauthors` above, and deliberately with the same wording so the two
+  commands report the condition identically.
 - NOT a bug — an adversarial-review claim tested live on 2026-09-02 and REJECTED:
   logins whose `user_nicename` differs from the raw login, e.g. `john.doe` (nicename
   `john-doe`, term `cap-john-doe`), ARE swapped correctly even though the tax_query
@@ -179,6 +235,11 @@ PHP 8.4) rather than inferred from reading the source.
   other feature — guest-author terms are never cleaned up at all — would fail the dry
   scenario with an unrelated "dry run created a term" message.
 
+- ~~The `--to must not be empty` guard ran after the `--from` lookup, so an invalid
+  `--from` with an empty `--to` reported the missing co-author instead of the
+  missing parameter.~~ **FIXED** — the usage error is validated before any lookup.
+  The scenario that pinned the old order is inverted and renamed.
+
 ## CoAuthors_Plus::add_coauthors() return value
 
 - Its return value does not mean "the assignment succeeded". When `$append` is
@@ -191,6 +252,24 @@ PHP 8.4) rather than inferred from reading the source.
   while the terms are visibly there. Decide "did the byline change" from the
   byline itself, not from this return value. Pinned by
   `Coauthor_Assignment_Service` and its regression test.
+- **Decision, and the reason the semantics were left alone.** The obvious tidy-up is
+  to make the return mean "the assignment succeeded". It was rejected: this is
+  de-facto public PHP API, called by the classic metabox, both REST write paths,
+  bulk edit and user-deletion reassignment, and `Coauthor_Assignment_Service`'s
+  regression test pins the current meaning. Instead the two CLI callers that
+  misreported it — `assign-coauthors` and `swap-coauthors` — now read it for what it
+  actually says, which is whether `post_author` was synced, and report that
+  separately from whether the byline changed. Any future caller should do the same;
+  the return is a `post_author` signal, not a success signal, and the method is
+  behaving correctly within its own contract.
+- The two summary lines this added are pluralised with `_n()` from the outset,
+  following `assign-user-to-coauthor`, and both branches are covered by scenarios —
+  one post and two. The general pluralisation sweep across the older strings is
+  still deferred to its own pass, but that is a reason to leave existing strings
+  alone, not a licence to add new broken ones. Note the new strings use `%s` rather
+  than the precedent's `%d`: `number_format_i18n()` returns a thousands-separated
+  string, and `%d` truncates `1,234` to `1`. The precedent has that bug; it is
+  logged here rather than fixed in passing, since it belongs to another command.
 
 ## (shared test environment — affects everyone's calibration)
 
@@ -238,11 +317,15 @@ PHP 8.4) rather than inferred from reading the source.
   0.~~ **FIXED.** The variable is initialised, a mapping file that does not
   define `$cli_user_map` is reported, and the command now errors when it has
   nothing to reassign rather than pretending to succeed.
-- The rename path (target term absent) sets the surviving term's slug AND name to
-  the raw `--new_term` value with NO `cap-` prefix (lines 598-603), inconsistent
-  with the plugin's `cap-<nicename>` slug convention. The old guest author profile
-  keeps its original `user_login`/`post_name`, so term and profile drift apart.
-  Confirmed (term list shows `newuser,newuser` next to `admin,cap-admin`).
+- ~~The rename path (target term absent) sets the surviving term's slug AND name to
+  the raw `--new-term` value with NO `cap-` prefix, inconsistent with the plugin's
+  `cap-<nicename>` slug convention.~~ **FIXED.** The slug is now
+  `Prefix::prefix_slug( $new_user )` while the name stays raw, matching what
+  `rename-coauthor` already does. Note this does NOT make a second run idempotent,
+  and deliberately so: the command never touches the guest-author profile, so
+  `post_name` still holds the old login and the entry below about the second run
+  reporting a missing term still stands. Renaming the profile too is
+  `rename-coauthor`'s job.
 - "Error: Term 'x' doesn't exist, skipping" is emitted via `WP_CLI::log` to STDOUT
   and the exit code stays 0 (line 580), so scripted callers cannot detect the miss
   from the exit code. Confirmed.
@@ -267,27 +350,32 @@ PHP 8.4) rather than inferred from reading the source.
   $authors_to_migrate`, rc 0, all-zero summary. The `if ( $old_term && $new_term )`
   guard at :557 has no else branch and there is no validation of the pair. Pinned in
   the no-args scenario.
-- NEW (silent false success): the rename branch ignores `wp_update_term()`'s return
-  value (:598-606). When the target slug is already taken by an unrelated author
-  term, `wp_update_term()` returns `WP_Error( 'duplicate_term_slug' )`, nothing is
-  renamed, and the command still logs `Success: Converted 'olduser' term to
-  'newuser'` and counts `- 1 authors were successfully reassigned terms`. Confirmed:
-  `cap-olduser` survives untouched next to the pre-existing `newuser` term. Pinned in
-  "A target slug already taken by another term still reports success".
-- NEW (unresolved numeric `--new_term`): `--new_term=999999` with no such user makes
-  `get_user_by( 'id', ... )` return false, and PHP 8.4 emits `Warning: Attempt to
-  read property "user_login" on false` (:574). `$new_user` becomes null, the rename
-  branch calls `wp_update_term()` with a null name/slug, and that WP_Error is
-  discarded too. rc stays 0 and the summary still prints. Nothing is renamed —
-  the scenario asserts the unchanged term list, so the pin holds whichever way a
-  refactor resolves this.
-- NEW (data loss): `--old_term=x --new_term=x` takes the MERGE branch, because both
-  lookups return the same term object. `wp_delete_term( $id, 'author', array(
+- ~~NEW (silent false success): the rename branch ignores `wp_update_term()`'s
+  return value. When the target slug is already taken by an unrelated author term it
+  returns `WP_Error( 'duplicate_term_slug' )`, nothing is renamed, and the command
+  still logs `Success: Converted ...` and counts it a success.~~ **FIXED.** The
+  return is checked and a failed rename reports a warning naming the term and the
+  underlying reason, and is not counted. The scenario's fixture term had to move to
+  slug `cap-newuser` to keep provoking the collision, since the prefix fix above
+  changed what the rename targets — worth knowing, because had the prefix fix landed
+  second this scenario would have started passing while proving nothing. Core owns
+  the duplicate-slug wording, so only CAP's half of the message is pinned.
+- ~~NEW (unresolved numeric `--new-term`): `--new-term=999999` with no such user
+  makes `get_user_by( 'id', ... )` return false, PHP 8.4 emits `Warning: Attempt to
+  read property "user_login" on false`, `$new_user` becomes null, and the rename
+  branch calls `wp_update_term()` with a null name/slug whose WP_Error is discarded
+  too.~~ **FIXED.** The lookup result is checked and the row is skipped with a
+  warning naming the ID, so no null ever reaches core. rc stays 0, which is
+  consistent with the other skip paths — see the open note about exit codes below.
+- ~~NEW (data loss): `--old-term=x --new-term=x` takes the MERGE branch, because
+  both lookups return the same term object. `wp_delete_term( $id, 'author', array(
   'default' => $id, 'force_default' => true ) )` reassigns the term's posts to the
   term that is about to be deleted, so those posts end up with NO author term at all
-  while the summary reports `- 1 authors had their old term merged to their new
-  term`. Confirmed. Pinned in "Reassigning a term to itself deletes the term and
-  orphans its posts".
+  while the summary reports a successful merge.~~ **FIXED.** The merge branch now
+  compares `term_id` and skips with a warning. Comparing the two *inputs* would not
+  have been enough: two different spellings can resolve to the same co-author, so the
+  guard has to be on the resolved term. The scenario now asserts the post keeps
+  `cap-olduser` and the term survives.
 - The docblock (:518-525) advertises cleaning up after an import that created
   'author' terms under the OLD user_login, but the old-term lookup goes through
   `get_coauthor_by( 'login', ... )` -> `get_author_term()`, which returns null for a
@@ -310,24 +398,40 @@ PHP 8.4) rather than inferred from reading the source.
 
 (Calibrated against the live env 2026-09-01; re-verified green 2026-09-02 — 8 scenarios.)
 
-- The merge branch (bare term with a prefixed sibling) has no `continue`; after
-  merging it falls through and also logs "Term x (id) isn't prefixed, adding one"
-  before re-slugging the surviving bare term (php/class-wp-cli.php:857-872). The
-  net state is correct but the log narrates two operations for one term.
-  Confirmed, including that the surviving term keeps the BARE term's term_id with
-  the `cap-` slug and that the prefixed sibling's post relationships are
-  reassigned to it (`force_default`).
-- "Now migrating up to N terms" counts ALL author terms, including already
-  prefixed ones that will only be skipped (line 850). Confirmed.
-- Grammar oddities pinned as-is: "Now migrating up to 1 terms" and the success
-  message "All done! Grab a cold one (Affogatto)" (line 874). Confirmed.
-- Terms are processed in `get_terms` default order (name ASC), so `cap-someone`
-  is skipped before the bare `someone` is merged/prefixed. Confirmed.
-- Only the SLUG is prefixed; the term NAME is left untouched. Confirmed
-  2026-09-02: a term created as `Legacy Author` (slug `legacy-author`) ends up as
-  name `Legacy Author` / slug `cap-legacy-author`, and the log line reports the
-  SLUG (`Term legacy-author (N) isn't prefixed, adding one`), so name and slug
-  drift apart. Pinned in "The term name keeps its original value...".
+- **NOT A DEFECT — do not "fix" this.** The merge branch has no `continue`, so
+  after merging it also logs "isn't prefixed, adding one" and re-slugs the term.
+  That fall-through is REQUIRED. `wp_delete_term()` is called on the PREFIXED
+  sibling with the BARE term as its `default`, so the survivor is the bare term and
+  still holds the unprefixed slug; the re-slug is what completes the migration.
+  Adding a `continue` here would merge two terms and leave the survivor unprefixed —
+  a silently failed migration, and non-idempotent, since the next
+  `update_author_term()` would recreate the collision. Two log lines for two real
+  operations is honest narration. The comment claiming the term "doesn't have a
+  sibling" was wrong on this path and has been corrected in the source.
+- ~~"Now migrating up to N terms" counts ALL author terms, including already
+  prefixed ones that will only be skipped.~~ **FIXED.** Prefixed terms are filtered
+  out before the count and the loop, so the number is the work actually to be done.
+  One predicate fixes this and the stale-object entry below together: the only row
+  the loop deletes is a prefixed sibling, which the filtered list no longer holds,
+  so iterating a stale object became structurally impossible rather than merely
+  unobserved. A `get_terms()` `WP_Error` is now caught too — without that,
+  `array_filter()` on a non-array would have turned a PHP warning into a fatal.
+- ~~The success message reads "All done! Grab a cold one (Affogatto)".~~ **FIXED** —
+  the drink is an *affogato*. "Now migrating up to 1 terms" still does not
+  pluralise; that belongs to the pluralisation sweep, which is deliberately left as
+  one dedicated pass rather than scattered through fix PRs, since it touches nearly
+  every command and feature file.
+- Terms are processed in `get_terms` default order (name ASC). Still true, but no
+  longer observable from the log, since prefixed terms are never narrated.
+- **NOT A DEFECT — this entry was wrong.** Only the SLUG is prefixed and the term
+  NAME is left raw, which is not drift but the plugin-wide convention. Every author
+  term the plugin creates is built that way by `update_author_term()`
+  (`wp_insert_term( $coauthor->user_login, ..., array( 'slug' =>
+  Prefix::prefix_slug( ... ) ) )`), and both `rename-coauthor` and `reassign-terms`
+  write a prefixed slug with a raw name. The term name is also read exactly once in
+  the whole plugin, in a `rename-coauthor` log line — every lookup goes by slug.
+  Prefixing the name would diverge from all three creation sites and buy nothing.
+  The scenario stays as a guard on the convention rather than a pin on a bug.
 
 - Re-calibrated 2026-09-02 after adversarial review: 8 scenarios, all green.
 - Taxonomy scoping is now pinned. With a `guardian` category and a `cap-guardian`
@@ -338,26 +442,67 @@ PHP 8.4) rather than inferred from reading the source.
   dropped it would start `wp_delete_term()`-ing same-slug terms from other
   taxonomies. NB category/post_tag terms are NOT cleared by the Behat reset either,
   so the scenario deletes its own two terms first via `wp eval`.
-- Reverse `get_terms()` ordering is now pinned. With names "Aaa" (slug `someone`) and
-  "Zzz" (slug `cap-someone`) the BARE term is processed first, its prefixed sibling
-  is deleted mid-loop, and the loop then still logs `Term cap-someone (<id>) is
-  already prefixed, skipping` for a term that no longer exists — the `foreach`
-  iterates over term objects fetched before the loop, so it narrates a skip for a
-  deleted row. Confirmed exactly. The survivor keeps the bare term's term_id and its
-  original name ("Aaa") with slug `cap-someone`.
+- ~~Reverse `get_terms()` ordering: with names "Aaa" (slug `someone`) and "Zzz"
+  (slug `cap-someone`) the BARE term is processed first, its prefixed sibling is
+  deleted mid-loop, and the loop then still logs `already prefixed, skipping` for a
+  term that no longer exists, because the `foreach` iterates term objects fetched
+  before the loop.~~ **FIXED** by the same filter as the count above. The scenario is
+  retained, retitled around what it still proves — that the merge works whatever the
+  ordering — since its original subject no longer exists.
 - Return code 0 is now asserted on the primary happy paths: `I run` does not check
   exit codes despite its docblock, and when the exit code is non-zero the harness
   moves `Error:` lines off STDOUT, so a command that died after printing the expected
   lines would previously have satisfied every `STDOUT should be:` block here.
+- Watch the discriminators here. Because skipped terms are no longer narrated, the
+  "already prefixed" and "run twice" scenarios now print exactly what a run against
+  an empty database prints, so their state assertions are the only thing left
+  distinguishing them — the run-twice scenario had none and has been given one. A
+  new scenario with two prefixed terms and one bare one exercises the count
+  properly; the file previously never held more than two terms.
+
+- ~~A missing wordpress-importer plugin gives an uncaught PHP fatal from the
+  unguarded `require_once`, so an operator is handed a stack trace and WordPress's
+  generic critical-error line instead of being told which dependency to install.~~
+  **FIXED.** The path is checked first and reported with `WP_CLI::error()`. The
+  scenario that pinned the fatal now pins the clean error, and it discriminates: the
+  fixture genuinely uninstalls the plugin, so the guard's failure branch is executed
+  rather than assumed.
+- The importer path also moved from `WP_CONTENT_DIR . '/plugins'` to
+  `WP_PLUGIN_DIR`, which is the constant WordPress provides for exactly this and
+  respects a relocated plugin directory. **Stated plainly: no test discriminates
+  this.** In the default environment the two constants resolve to the same path, and
+  the scenario matches the path with a wildcard, so it passes either way. It ships on
+  the reasoning that a site with `WP_PLUGIN_DIR` set elsewhere would otherwise be
+  told the importer is missing when it is merely somewhere else.
+- ~~`Failed to read WXR file.` is unreachable: a file that is not a WXR fatals
+  inside wordpress-importer 0.9.6's parser fallback chain rather than returning a
+  `WP_Error`.~~ **FIXED**, and the earlier framing of the fix was wrong twice over.
+  It is not "validate the file first" and not the importer's bug: the fallback
+  parser (`WXR_Parser_XML_Processor`) needs the importer's bundled php-toolkit,
+  which only the importer's own bootstrap loads — CAP half-loaded the parser by
+  requiring `parsers.php` alone, breaking the parser's error contract. Loading the
+  toolkit under the exact guard the bootstrap uses
+  (`class_exists( 'WordPress\XML\XMLProcessor' )`, plus `file_exists` so older
+  importers without a toolkit keep their self-contained chain) makes garbage return
+  `WP_Error( 'WXR_parse_error', ... )` — verified live before patching — and the
+  dead branch both reachable and pinned. Valid files are untouched: SimpleXML still
+  returns first, confirmed against the good fixture. The error now appends the
+  parser's reason after CAP's own prefix; only CAP's half is pinned.
 
 ## remove-terms-from-revisions
 
 (Calibrated against the live env 2026-09-01; re-verified green 2026-09-02 — 7 scenarios.)
 
-- The taxonomy is hardcoded as `'author'` in the `wp_set_post_terms` call
-  (php/class-wp-cli.php:977) instead of `$coauthors_plus->coauthor_taxonomy`, and
-  revisions are read via direct SQL on `post_type='revision' AND
-  post_status='inherit'` (line 965).
+- ~~The taxonomy is hardcoded as `'author'` in the `wp_set_post_terms` call
+  instead of `$coauthors_plus->coauthor_taxonomy`.~~ **FIXED.** The read side
+  went through the configured taxonomy while the write named `author`
+  directly, so on a site that had changed the property the command found the
+  terms, logged a removal for each revision, counted them, and cleared nothing
+  — reporting success for work it had not done. A unit guard now reads the
+  command sources and fails if any of them names the taxonomy directly, since
+  covering it live would mean registering a taxonomy under another name before
+  init. Revisions are still read via direct SQL on `post_type='revision' AND
+  post_status='inherit'`.
 - All output is `WP_CLI::log` — there is no `WP_CLI::success` and the exit code is
   always 0. Count lines never pluralise: "Found 1 revisions to look through",
   "1 revisions had author terms removed". Confirmed.
@@ -443,9 +588,25 @@ PHP 8.4) rather than inferred from reading the source.
     either. Pinned with an exact `wp post meta list --format=csv` assertion.
 
 - Hardened 2026-09-02 after adversarial review: 11 scenarios, all green.
-- **Silent author-term hijack (new, and the most significant finding here).** A
-  `--user_login` that matches an existing WP USER is accepted and the guest author is
-  created, sharing that user's author term. `create_guest_author()` only dedupes
+- ~~**Silent author-term hijack.** A `--user_login` that matches an existing WP
+  USER is accepted and the guest author is created, sharing that user's author
+  term.~~ **FIXED** (decision taken 2026-09-05). `create()`'s guard now matches its
+  own comment and rejects the collision with the existing `duplicate-field` error —
+  with one deliberate allowance: the collision is permitted when the profile is
+  being created as that user's linked account (`linked_account` equals the found
+  user's actual login). That allowance is NOT optional and is not new semantics: it
+  mirrors the guard `manage_guest_author_filter_post_data()` has always applied on
+  the edit screen, and without it `create_guest_author_from_user_id()` — and
+  therefore `wp co-authors-plus create-guest-authors`, the users-list "Create
+  Profile" action, and every test factory user — would break for any user whose
+  display_name equals their login, which is WordPress's default (including
+  `admin`). Three integration tests pin the boundary: the rejection (fails against
+  the old guard), the linked-account allowance (exists to fail against an
+  over-tightened guard), and `linked_account` not bypassing the guest-author
+  duplicate check. The refusal scenario asserts the user's term survives with its
+  description unrewritten. Historical detail preserved below.
+- The original finding, for the record: the guest author was created sharing that
+  user's author term. `create_guest_author()` only dedupes
   against guest-author posts (:1136-1141) and `Guest_Authors::create()` only rejects a
   collision when the existing co-author's `type` is `guest-author`
   (php/class-coauthors-guest-authors.php:1402-1406), while `get_author_term()` matches
@@ -461,16 +622,34 @@ PHP 8.4) rather than inferred from reading the source.
   that user's author term" (term_id equality + the rewritten description). Note this
   makes the `term-creation-failed` / "The author slug may conflict with an existing
   user" error string unreachable from this path.
-- **No sanitisation at all.** `create_author()` hands `$assoc_args` straight to
-  `create_guest_author()`, so `--display_name="<b>Raw</b> Name"` is stored (and used as
-  `post_title`) verbatim, `--user_login="Raw User!"` is stored verbatim, an unschemed
-  `--website=example.com/raw` is stored as typed, and `--description="<script>x</script>bio"`
-  lands in `cap-description` unfiltered. Only `post_name` is normalised, by
-  `create()`'s own `sanitize_title()` (`cap-raw-user`), which is also what the term
-  slug becomes. This is the exact opposite of `create-guest-authors-from-csv`, which
-  sanitises every cell — a shared `build_guest_author_data()` helper during the split
-  would silently change one command or the other. Pinned in "Field values are stored
-  exactly as given, without sanitisation".
+- ~~**No sanitisation at all.** `create_author()` hands `$assoc_args` straight to
+  the creator, which stores every field verbatim — tags in the display name and
+  login, script tags in the description — while only `post_name` is normalised.~~
+  **FIXED**, and this is also the write-path unification PR #1406 deliberately
+  deferred. `Guest_Author_Service` now exposes its sanitiser as
+  `sanitize_profile()` — each field's declared `sanitize_function`, falling back to
+  `sanitize_text_field`, exactly what the admin edit screen applies — and the shared
+  `Guest_Author_Creator` runs every profile through it BEFORE its duplicate lookups
+  and before `create()`'s collision guard, so both vet the value that will actually
+  be stored. Sanitise-first also closed a live variant of the term hijack: a raw
+  `--user_login="<b>jane</b>"` used to miss the guard's user lookup while still
+  producing the slug `cap-jane`. Deliberate limits, pinned as parity rather than
+  perfection: the login keeps spaces and punctuation, because the admin
+  fallback keeps them too (the website field followed on: it now declares
+  `sanitize_url` — `esc_url_raw` is its alias, and the `esc_` name is a WP 2.8-era
+  accident core corrected in 5.9 — which schemes unschemed values and preserves
+  percent-encoding on every write path at once, admin screen included,
+  deliberately);
+  `avatar` is an attachment ID, not a declared field, and bypasses the sanitiser so
+  it still reaches `set_post_thumbnail()`; and the provenance meta records the login
+  exactly as the source supplied it. ~~One non-idempotency inherited from the admin screen: `sanitize_text_field`
+  strips `%xx` octets from a percent-encoded URL on a second save.~~ **FIXED** by
+  the website field's `sanitize_url` declaration; pinned by an integration test
+  that fails under the fallback. CSV keeps its stricter per-cell layer on top; every second pass over its
+  pinned output was verified to be the identity. This was the exact opposite of
+  `create-guest-authors-from-csv`, which sanitises every cell — a shared `build_guest_author_data()` helper during the split
+  would have silently changed one command or the other. Now pinned in "Field values
+  are sanitised as the admin edit screen would sanitise them".
 - The six `Undefined array key` warnings are now pinned as six separate
   `STDOUT should contain:` steps instead of one ordered `.*`-chained regex: their order
   is just the literal order of the array literal at :1156-1163, so a behaviour-preserving
@@ -482,51 +661,96 @@ PHP 8.4) rather than inferred from reading the source.
   and the term assertion is scoped `--object_ids={GUEST_AUTHOR_ID}`; see the correction
   in the shared test-environment section above.
 
+- **Guest author creator, resolved together (one PR).** The shared
+  `Guest_Author_Creator::create()` now returns a bool, and the three importers act
+  on it:
+  - ~~`_original_author_id` is never written: the guard tests
+    `isset( $author['author_id'] )` while the WXR flow passes the ID under `ID`, and
+    even on a hit it stored `$author['ID']`.~~ **FIXED** — the guard tests the key the
+    callers actually supply, so provenance is recorded again. Nothing inside CAP
+    reads this meta; it exists for downstream migration tooling, so this restores a
+    documented promise rather than changing plugin behaviour.
+  - ~~Unguarded array reads emit `Undefined array key` warnings for every key the
+    caller omits — six per `create-author` run, three per WXR author.~~ **FIXED**
+    with `?? ''` defaults. This is behaviour-neutral for stored meta because
+    `CoAuthors_Guest_Authors::create()` skips fields with `empty()`, which treats
+    `''` and absent alike. Had it used `isset()`, every empty field would have
+    started writing an empty meta row.
+  - ~~`avatar` is warned about on EVERY `create-author` invocation, because that
+    command has no `--avatar` flag at all.~~ **FIXED** as a case of the above, not
+    separately. Adding an `--avatar` flag would be a feature, and is not in scope.
+  - ~~`-- Not found; creating profile.` prints BEFORE `create()` validates, so it
+    appears even when nothing is created.~~ **FIXED** by deleting the line. Making it
+    honest would mean duplicating `create()`'s validation in the helper, and on the
+    success path `Success: -- Created as guest author #N` already says it.
+  - ~~A validation failure is a warning plus an implicit exit 0, so `create-author`
+    with no arguments "succeeds" from a script's point of view.~~ **FIXED** for the
+    single-author command, which now halts with 1. The bulk importers deliberately
+    keep exit 0 — one bad row must not abort a large import — and instead tally
+    failures and report `N of M authors could not be created.` That split is the
+    whole reason the helper returns a bool rather than erroring itself.
+  - ~~Duplicate detection tries `user_email` before `user_login`, so an existing
+    profile with the same email but a different login is reported as "already
+    exists" and the requested login is silently dropped.~~ **FIXED in the message,
+    and the lookup order deliberately left alone.** Reversing it would let a second
+    profile share an email, and `get_guest_author_by( 'user_email', ... )` is a bare
+    `get_var` where the first row wins — that ambiguity would leak into linked
+    accounts and the admin UI, well outside the CLI. Shared editorial addresses are
+    common. The real defect was that the operator asked for one login and was told
+    about a profile without being told which; the warning now names it.
+
 ## create-terms-for-posts
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
 
-- When a post's `post_author` user does not exist, `update_author_term()` returns
-  `false` and the command dereferences it anyway (php/class-wp-cli.php:131-132).
-  Confirmed live: `Warning: Attempt to read property "slug" on false in .../php/class-wp-cli.php on line 131`
-  and the same for `"user_nicename"` on line 132 (PHP 8.4 says "on false", not
-  "on bool"). Each warning appears TWICE in combined output: once as a
-  timestamped debug-log line (`[date] PHP Warning: ...`) and once as a plain
-  `Warning: ...` display line. No `trim(): Passing null` deprecation from
-  `wp_set_object_terms()` was observed. The post is still logged as
-  `Added - Post #N ... now has an author term for: ` (trailing empty author),
-  counted in `$affected`, and the final message claims
-  `Success: Done! Of 1 posts, 1 now have author terms.` even though NO term was
-  set (verified: `wp term list author --object_ids=N --format=count` is 0).
-  Pinned with `should contain:` + the count state assertion.
-- `Updating author terms with new counts` is misleading: `update_author_term()`
-  only refreshes the term description; it never recalculates counts
-  (`update_author_term_post_count()` is not called here).
+- ~~When a post's `post_author` user does not exist, `update_author_term()` returns
+  `false` and the command dereferences it anyway, emitting PHP warnings for `slug`
+  and `user_nicename`. The post is still logged as `Added ... now has an author term
+  for: ` with a trailing empty author, counted in `$affected`, and the run claims
+  `Of 1 posts, 1 now have author terms.` though NO term was set.~~ **FIXED.** The
+  resolved term is checked with `! $author_term instanceof WP_Term`, which covers
+  both failure modes — `false` for a missing user, and a `WP_Error` if the term
+  cannot be created — and the post is skipped with a warning naming the post and the
+  user ID. The summary counts it honestly, so the state assertion (`0` terms) now
+  agrees with the reported figure instead of contradicting it. The memo also moved
+  from `! empty()` to `??`, so a failed lookup is cached too and an orphaned author
+  is resolved once per run rather than once per post.
+- ~~`Updating author terms with new counts` is misleading: `update_author_term()`
+  only refreshes the term description; it never recalculates counts.~~ **FIXED, and
+  the original diagnosis here was wrong.** Counts *are* recalculated — CAP registers
+  `_update_users_posts_count` as the taxonomy's `update_count_callback`, and core
+  fires it from `wp_set_object_terms()`, so setting the term on each post already
+  maintains the count. The real defect was that the whole trailing pass was
+  REDUNDANT: it looped over authors that had every one been through
+  `update_author_term()` moments earlier in the same run, with a description derived
+  from user fields that cannot have changed meanwhile, so `wp_update_term()` never
+  fired. A second pass doing nothing, announced by a message describing something
+  else. Both are deleted. A new scenario forces a term count to 5, runs the command,
+  and asserts the count comes back to 1 — verified live, which is what confirmed the
+  write path maintains it and the deletion is safe.
 - The command walks every supported post type (post AND page by default), unlike
   `create-author-terms-for-posts` which defaults to `post` only. Pinned in the
   "Pages are inspected by default" scenario.
 - Never-pluralised grammar: `Of 1 posts, 1 now have author terms.`
-- The unused global `$wp_post_types` is imported at :89.
-- The two per-post log lines use DIFFERENT identifiers for the same term: the
-  "Skipping" line prints term NAMES (`already has these terms: admin`) while the
-  "Added" line prints the user's `user_nicename` (`... an author term for:
-  writer`) — neither shows the `cap-` prefixed slug that is actually stored.
-  Confirmed 2026-09-02 and pinned in "The author term reflects the post author
-  rather than always being admin" (log says `writer`, stored slug is
-  `cap-writer`).
-- The "Skipping" line uses `{$posts->found_posts}` as the denominator while the
-  "Added" line uses `$total_posts` (:118 vs :129). They are equal today only
-  because `found_posts` is re-read from an identical query each page.
+- ~~The two per-post log lines use DIFFERENT identifiers for the same term: the
+  "Skipping" line prints term NAMES while the "Added" line prints the user's
+  `user_nicename` — neither shows the `cap-` prefixed slug that is actually
+  stored.~~ **FIXED.** Both lines now print the slug, so the log names the thing
+  the command wrote and an operator can paste it straight into `wp term list`.
+- ~~The "Skipping" line uses `{$posts->found_posts}` as the denominator while the
+  "Added" line uses `$total_posts`. They are equal today only because
+  `found_posts` is re-read from an identical query each page.~~ **FIXED.** Both use
+  `$total_posts`. No output change today; it removes a latent divergence.
 
 - Hardened 2026-09-02 after adversarial review: 9 scenarios, all green.
-- Drafts, pending and private posts are INVISIBLE to this command. The WP_Query at
-  :94-101 sets no `post_status`, and a CLI request has no current user, so only
-  public statuses are inspected — despite the docblock's claim that it walks all
-  posts, and unlike `create-author-terms-for-posts`, which exposes
-  `--post-statuses`. Pinned in "Draft and private posts are never inspected": the
-  command reports `Now inspecting or updating 0 total posts.` and both posts end
-  with zero author terms. A "tidy-up" adding `'post_status' => 'any'` would be a
-  silent scope change.
+- ~~Drafts, pending and private posts are INVISIBLE to this command. The WP_Query
+  sets no `post_status`, and a CLI request has no current user, so only public
+  statuses are inspected — despite the docblock's claim that it walks all posts, and
+  unlike `create-author-terms-for-posts`, which exposes `--post-statuses`. A
+  "tidy-up" adding `'post_status' => 'any'` would be a silent scope
+  change.~~ **FIXED** by the flag rather than by widening, for exactly the reason
+  that last sentence gives. The default-scope scenario is retained and renamed to
+  say "by default", with a companion scenario covering `--post-statuses=draft`.
 - The skip guard is "has ANY term in the author taxonomy", not "has the term for
   this post's author", so a post deliberately attributed to somebody other than
   `post_author` is skipped and never reconciled. Pinned in "A post whose existing
@@ -538,9 +762,20 @@ PHP 8.4) rather than inferred from reading the source.
   `$author_terms[ ... ]`, :123-127) is now exercised with two distinct authors in
   "Each post gets an author term for its own author", so hoisting the lookup out
   of the loop can no longer pass.
-- The orphan-author "Added" line is now pinned with an end-anchored regex
-  (`... now has an author term for: ?$`) instead of a substring, so a refactor
-  that substituted a placeholder nicename would fail.
+- The orphan-author scenario was pinned with an end-anchored regex on the empty
+  trailing nicename. That is gone with the bug: the scenario now pins the whole of
+  STDOUT exactly, since a skipped post produces a short and fully predictable run.
+- ~~Drafts, pending and private posts are invisible, and the docblock overclaims
+  that the command walks every supported post.~~ **FIXED** by adding
+  `--post-statuses`, spelled and defaulted exactly as the sibling
+  `create-author-terms-for-posts` does. The default stays `publish` deliberately:
+  this command WRITES, so widening it would silently multiply the scope of a
+  backfill and attach terms to drafts nobody asked about. Contrast
+  `list-posts-without-terms`, where the default WAS widened — that one is read-only,
+  so a narrow default bought no safety and only withheld evidence. Naming the status
+  explicitly also removes an oddity: `WP_Query`'s default is publish PLUS whatever
+  private statuses the current user can read, so the scope of a backfill previously
+  depended on whether `--user` was passed.
 
 ## create-author-terms-for-posts
 
@@ -568,15 +803,17 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   one placeholder per value. Pinned with `--post-statuses=publish,draft`.
 - The skip-postmeta warning interpolates `$wpdb->users`, which is `wp_users` in
   the wp-env tests container (default prefix). Pinned exactly.
-- `--specific-post-ids` takes precedence over `--above-post-id`/`--below-post-id`
-  (elseif at :1235-1239), so an invalid range combined with specific IDs is
-  silently ignored. Noted from source; not pinned.
-- Posts with `post_author = 0` are excluded by the SQL (`post_author <> 0` at
-  :1265) and are therefore invisible to this command, while
-  `list-posts-without-terms` DOES list them. Pinned.
-- `Updating author terms with new counts` is misleading here too:
-  `update_author_term()` only refreshes descriptions; the direct
-  `$wpdb->insert` into term_relationships never updates term counts either.
+- ~~`--specific-post-ids` takes precedence over the range, so an invalid range
+  combined with specific IDs is silently ignored.~~ Duplicate of the entry struck
+  under the resolution block below — fixed by #1419 (unconditional validation plus
+  a stated-precedence warning). This copy predates that block and was missed when
+  it landed; struck now so the catalogue stops disagreeing with itself.
+- ~~Posts with `post_author = 0` are excluded by the SQL and invisible to this
+  command, while `list-posts-without-terms` DOES list them.~~ Duplicate — fixed by
+  #1419 (they now take the orphan path); struck for the same reason as above.
+- ~~`Updating author terms with new counts` is misleading here too.~~ Duplicate —
+  the pass was deleted and the write path replaced by #1425; struck for the same
+  reason as above.
 - Grammar: `Found 1 posts`, `1 records affected` (never pluralised).
 - A post whose author is missing is counted in `Found N posts` but produces
   `0 records affected` after the skip postmeta warning; the run still ends with
@@ -621,26 +858,92 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   leaves the count at 2; after the backfill it is still 2. The feature pins 2 to
   document those semantics (an author term's count survives having every one of
   its relationships removed), not as a guard against the API swap.
+- **Parameter validation and skip reporting, resolved together.**
+  - ~~An invalid ID range throws an uncaught `Exception` from a private SQL builder.
+    The operator gets a doubled PHP stack trace on STDOUT and only WP core's generic
+    "There has been a critical error on this website" on STDERR, so nothing tells
+    them which parameter was wrong — the message even names PHP variables rather
+    than CLI flags.~~ **FIXED.** Validated in `__invoke()` with `WP_CLI::error()`,
+    naming the flags as typed. The `throw` stays in the builder as an unreachable
+    backstop.
+  - ~~`--specific-post-ids` is an `elseif` that short-circuits the range validation,
+    so an invalid range combined with specific IDs is silently ignored.~~ **FIXED**
+    by the same guard, which is now unconditional. The precedence itself is
+    unchanged but no longer silent: combining them warns that the range is ignored.
+  - ~~Posts with `post_author = 0` are excluded by `AND post_author <> 0`, while
+    `list-posts-without-terms` DOES list them, so the two diagnostics disagree about
+    the same site.~~ **FIXED** by dropping the exclusion. `get_user_by( 'id', 0 )`
+    returns false, so such posts take the existing orphan path — warned, marked with
+    the skip meta, and excluded from later batches — rather than needing a new branch.
+  - ~~A post whose author is missing is counted in `Found N posts` but yields
+    `0 records affected`, and the run still ends `Success: Done!` with nothing
+    explaining the gap.~~ **FIXED.** Skips are counted and reported. The new string
+    is pluralised with `_n()` from the outset.
+- ~~The raw `$wpdb->insert` into `term_relationships` bypasses
+  `wp_set_object_terms()`, and with it the `set_object_terms` action that CAP hooks
+  to clear its own `coauthors_post_<id>` cache — which caches an EMPTY array. On a
+  host with a persistent object cache, the environment this command exists for, a
+  backfilled post kept reporting no co-authors to the front end, template tags and
+  REST until it was saved or the cache flushed.~~ **FIXED** (decision taken
+  2026-09-05: ship on reasoning, with a mechanism proxy). The write goes through
+  `wp_set_object_terms()` — non-append, deliberately, since the query selects only
+  posts with no author terms so set and append coincide — wrapped in
+  `wp_defer_term_counting()` so counting resumes with one recount per term. The
+  cache staleness itself is invisible in wp-env, so the scenario pins the mechanism
+  instead: a `--require` fixture hooks `set_object_terms` and asserts it fires
+  during the backfill, which the raw insert never did. That is the action CAP's
+  invalidation listens to. Two useful discoveries along the way, recorded so they
+  are not re-learnt: `wp_set_object_terms()` only writes `term_order` on NON-append
+  calls, and even then only when its mid-function term lookup is not served from
+  cache (`wp_update_term_count()` cleans term caches without bumping the query
+  salt), so `term_order` is nondeterministic and must not be pinned. A forced-count
+  scenario also guards the deleted "Updating author terms with new counts" pass:
+  counts come from the deferred recount, which the raw insert bypassed entirely.
+  The `update_author_term()` WP_Error dereference that could write a relationship
+  row with no `term_taxonomy_id` is guarded too, and both failure paths now mark
+  the skip meta — which also removes the batch-starvation source, since a post the
+  run cannot complete drops out of the next batch.
+- CORRECTION to the earlier note claiming `--specific-post-ids` can loop forever:
+  it cannot. `if ( $count >= $count_of_posts_with_missing_author_terms ) break;`
+  bounds the run, and `$count` increments per record processed whether or not it
+  succeeded. The real symptom is STARVATION — a post that cannot be completed is
+  re-selected by every batch and consumes the budget, so the others are never
+  reached and the progress line repeats for the same post. On a large site that is
+  indistinguishable from a hang, which is probably how it was recorded as a loop.
+
 ## delete-postmeta-that-skip-author-term-backfill
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
 
-- Success/failure per post is reported with bare emoji (`Success: 👍` /
-  `Error: 👎`). Confirmed live: both survive the wp-env output filter and pin
-  as exact-match assertions (the `Error: 👎` line splits to STDERR with exit 1).
-- `WP_CLI::error( '👎' )` (php/class-wp-cli.php:335) aborts the whole loop on the
-  FIRST post whose meta cannot be deleted (e.g. an ID without the meta), leaving
-  any later IDs in `--specific-post-ids` unprocessed, with exit code 1 — even if
-  earlier deletions succeeded. Confirmed and pinned 2026-09-02 in the
-  "stops at the first post that does not have it" scenario: given
-  `--specific-post-ids=<no-meta-post>,<has-meta-post>`, STDOUT holds only the
-  `Deleting postmeta key ... for Post ID <no-meta-post>` line, STDERR is
-  `Error: 👎`, rc 1, and the second post STILL has its
-  `_cap_skip_backfill` meta. A partial run is therefore indistinguishable from a
-  total failure, and re-running is the only recovery.
-- With no `--specific-post-ids` the lookup WP_Query uses defaults
-  (`post_type=post`, `post_status=publish`), so skip metas on drafts, pages or
-  other post types are never found in the no-args mode. Noted; not pinned.
+- ~~Success/failure per post is reported with bare emoji (`Success: 👍` /
+  `Error: 👎`), carrying no post ID and so no diagnostic value.~~ **FIXED.** Each
+  line now names the meta key and the post, which also matters for the harness:
+  `FeatureContext` splits STDERR back out with `array_diff`, which compares values,
+  so identical emoji lines would all have been removed together. Distinct lines are
+  a prerequisite for the split behaving per-line. The pre-emptive
+  `Deleting postmeta key ... for Post ID N` line is dropped with them — it was pure
+  duplication once the outcome line carried the ID, and it halved the output of a
+  bare run over thousands of posts.
+- ~~`WP_CLI::error( '👎' )` aborts the whole loop on the FIRST post whose meta
+  cannot be deleted (e.g. an ID without the meta), leaving any later IDs in
+  `--specific-post-ids` unprocessed, with exit code 1 — even if earlier deletions
+  succeeded. A partial run is indistinguishable from a total failure, and
+  re-running is the only recovery.~~ **FIXED.** A post that never carried the marker
+  is now a warning, and the loop carries on. The run exits 0, which is the
+  deliberate part: the command's contract is that the named posts end up without the
+  marker, and that holds. `delete_post_meta()` returning false cannot distinguish
+  "never had it" — the common `--specific-post-ids` typo — from a database error, so
+  failing the whole run on it was over-reading a weak signal. The scenario that
+  pinned the abort is inverted: it now asserts the *second* post's meta really is
+  gone, which is what fails against the old code.
+- ~~With no `--specific-post-ids` the lookup WP_Query uses defaults, so skip metas
+  on drafts, pages or other post types are never found.~~ **STALE, not fixed as
+  written** — there is no `WP_Query` in this command any more; the bare lookup is a
+  direct prepared read of the postmeta table, superseded by the struck entry below.
+  (The struck entry's own wording is also inaccurate: it says the query "now passes
+  `post_type=any`, `post_status=any` and `posts_per_page=-1`", which describes an
+  approach that was tried and replaced. Another reminder that "Noted; not pinned"
+  entries are the ones to distrust.)
 - When there is nothing to delete the command prints nothing at all (no summary,
   exit 0). Pinned.
 
@@ -671,14 +974,38 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 
 - The command only ever prints CSV-ish lines; there is no summary and no
   success message, and an empty result prints nothing (exit 0). Pinned.
-- Post titles go through `addslashes()` (php/class-wp-cli.php:818), so an
-  apostrophe renders as `\'` in the output — PHP-style escaping inside
-  CSV-style quoting. Pinned.
-- Only `publish` posts are inspected (WP_Query default status with no logged-in
-  user), so drafts without terms are silently excluded. Pinned.
-- `$assoc_args` is merged straight into the WP_Query args (wp_parse_args at
-  :807), so ANY WP_Query var (e.g. `--year=`) is accepted, not just the
-  documented `--post_type`. Noted; not pinned.
+- ~~Post titles go through `addslashes()`, so an apostrophe renders as `\'` in
+  the output — PHP-style escaping inside CSV-style quoting.~~ **FIXED.** Every
+  field is wrapped in `"` and joined with `,`, which is CSV, and CSV escapes an
+  embedded quote by doubling it rather than with a backslash. A title containing
+  a quote therefore produced a line no CSV parser could read back, and
+  apostrophes and backslashes were mangled for no reason at all — neither needs
+  escaping in CSV. `addslashes()` is replaced by doubling `"`, and it appeared
+  nowhere else in the plugin. Two scenarios now pin it: an apostrophe printed
+  literally, and a quoted title round-tripping as `""`.
+- ~~Only `publish` posts are inspected (WP_Query default status with no logged-in
+  user), so drafts without terms are silently excluded.~~ **FIXED.** The query
+  now passes `post_status => 'any'`. This is the command whose entire purpose is
+  finding posts that lack author terms, and drafts are exactly where they go
+  missing, so the omission defeated the diagnostic. There was also no way to work
+  around it: the synopsis declares only `[--post_type]`, and WP-CLI treats an
+  undeclared argument as fatal, so `--post_status=draft` exited 1. `'any'` still
+  excludes trashed and auto-draft posts, which a new scenario pins so the
+  boundary cannot drift. No opt-in flag was added: this is a read-only
+  diagnostic, so a narrow default buys no safety, and the two comparable fixes in
+  this catalogue (`update-author-terms` and
+  `delete-postmeta-that-skip-author-term-backfill`) both widened rather than
+  adding a flag.
+- ~~`$assoc_args` is merged straight into the WP_Query args, so ANY WP_Query var
+  (e.g. `--year=`) is accepted, not just the documented `--post_type`.~~ **NEVER
+  TRUE**, rather than fixed. The pre-split code already declared
+  `@synopsis [--post_type=<ptype>]`, and WP-CLI rejects an undeclared associative
+  argument as a fatal parameter error, so `--year` has never reached
+  `wp_parse_args`. The entry was reasoned from reading the merge without
+  accounting for WP-CLI's synopsis gate, and it was explicitly "Noted; not
+  pinned" — the note's own methodology gave it away. The vestigial `'year' => ''`
+  default it described has been deleted. Worth treating the other "not pinned"
+  entries with the same suspicion, since they are the ones never executed.
 
 
 - Hardened 2026-09-02 after adversarial review: 7 scenarios.
@@ -700,33 +1027,44 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   so the ordering regex keys on the post titles rather than on saved IDs.
 - The draft scenario now asserts the draft genuinely has no author term before the
   command runs, so its empty output can only be explained by the post_status
-  filter.
+  filter. (Since the post_status fix it asserts the draft IS listed, and the
+  no-author-term check still rules out the other explanation.)
 ## update-author-terms
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
 
-- The `changed from A to B` message NEVER shows the corrected count. Confirmed
-  live: with a term count forced to 5 (real count 1), the command prints
-  `Term cap-admin (N) changed from 5 to 5 and the description was refreshed`,
-  yet a fresh process then reads count 1 from the DB. Cause:
-  `update_author_term_post_count()` writes the correct count via a direct
-  `$wpdb->update`, but the command re-reads the term after
-  `wp_cache_delete( $term_id, 'author' )` — the wrong cache group (core caches
-  terms in the `terms` group) — so `get_term_by( 'id', ... )` returns the stale
-  cached object and `$new_count` always equals `$old_count`. Pinned: misleading
-  `5 to 5` message plus the state assertion that the DB count really is 1.
+- ~~The `changed from A to B` message NEVER shows the corrected count, because
+  the command re-read the term after `wp_cache_delete( $term_id, 'author' )` —
+  the wrong cache group, since core caches terms in the `terms` group — so
+  `get_term_by( 'id', ... )` returned the stale cached object and `$new_count`
+  always equalled `$old_count`.~~ **FIXED.** `update_author_term_post_count()`
+  writes the corrected count via a direct `$wpdb->update`, which leaves core's
+  term cache stale. The command now invalidates it with
+  `clean_term_cache( $term_id, $taxonomy )`, matching what `reassign-terms`
+  already does. The scenario that pinned `changed from 5 to 5` now pins
+  `changed from 5 to 1`, alongside the existing assertion that the DB count is 1.
+  Note the fix belongs in the command rather than in
+  `update_author_term_post_count()`: core's `wp_update_term_count_now()` calls
+  `clean_term_cache()` after the `update_count_callback`, so the method is
+  correctly invalidated on its normal path and only this direct caller was
+  affected.
 - `Term X (N) changed from A to B and the description was refreshed` is printed
   even when NO co-author matches the term slug: `update_author_term( false )`
   returns false and `update_author_term_post_count()` returns a silent WP_Error,
   so nothing is refreshed at all. Confirmed and pinned in the orphan-term
   scenario (`changed from 0 to 0`).
-- The guest author pass queries the `guest-author` CPT with WP_Query's default
+- ~~The guest author pass queries the `guest-author` CPT with WP_Query's default
   post_status (`publish`), but guest author posts created via
   `CoAuthors_Guest_Authors::create()` (and hence `create-guest-authors`) are
-  DRAFTS (`wp_insert_post` default). Confirmed live: the pass reports
-  `Now inspecting or updating 0 Guest Authors.` even when guest authors exist;
-  publishing the guest-author post makes it visible and its term is created.
-  Pinned in the drafts-invisible and published-guest-author scenarios.
+  DRAFTS (`wp_insert_post` default), so the pass reported
+  `Now inspecting or updating 0 Guest Authors.` even when guest authors
+  existed.~~ **FIXED.** The query now passes `post_status => 'any'`, so the pass
+  sees drafts — which is the ordinary case, not the exception — while still
+  excluding trashed and auto-draft profiles. The whole guest-author half of the
+  command was previously dead on any site whose profiles were created by the CLI
+  or programmatically. A new scenario covers a term being created for a *draft*
+  guest author, mirroring the published one; the drafts-invisible scenario now
+  pins `Now inspecting or updating 1 Guest Authors.`
 - `wp term list author --field=slug` returns name-ascending order (`cap-admin`
   before `cap-ghost`/`cap-guest-one`) — confirmed, relied on by exact
   assertions.
@@ -790,8 +1128,11 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 
 - Hardened 2026-09-02 after adversarial review: 10 scenarios, all green.
 - **The sanitisation layer is now pinned** (features/fixtures/guest-authors-dirty.csv),
-  because this is the ONLY one of the three commands that sanitises and the difference
-  would otherwise vanish in a refactor. Live results for the row
+  because at the time this was the ONLY one of the three commands that sanitises and
+  the difference would otherwise vanish in a refactor. (The creator now sanitises
+  for all three with the admin fallback; CSV remains the only one layering STRICTER
+  per-cell sanitisers — `sanitize_email`, `esc_url_raw`, non-strict `sanitize_user`
+  — on top, and these pins are what hold that layer in place.) Live results for the row
   `<b>Dirty</b> Name,Dirty Login!,DIRTY@Example.com,example.com/x?a=1&b=2,<script>alert(1)</script><em>Bio</em>,abc,,`:
   - `Processing author Dirty Login! (DIRTY@Example.com)` — the log echoes the RAW
     cells; sanitisation happens after it.
@@ -847,6 +1188,17 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   create-author.feature (which runs first and uses the same login). See the correction
   in the shared test-environment section.
 
+- ~~A CSV row supplying exactly ONE of `first_name`/`last_name` matches neither
+  branch of the name-splitting logic — the `if` needs both name columns empty AND a
+  space in `display_name`, the `elseif` needs BOTH populated — so the supplied name
+  is silently discarded.~~ **FIXED**, and fixed in the same change as the creator's
+  `Undefined array key` warnings, deliberately. Those warnings were the only
+  operator-visible symptom of this gap, so silencing them alone would have made a
+  data-losing import completely quiet. The condition is now "take whichever name
+  columns the row supplies, and fall back to splitting `display_name` only when it
+  supplies neither", which is both shorter than what it replaced and covers the case
+  that fell through.
+
 ## create-guest-authors-from-wxr
 
 (Calibrated against the live env 2026-09-01; all scenarios green.)
@@ -861,16 +1213,12 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   `Fatal error: Uncaught Error: Failed opening required
   '.../wordpress-importer/parsers.php'` display copy (plus the full stack trace).
   Pinned via `should contain:` on `Fatal error` / `wordpress-importer/parsers.php`.
-- The clean `Error: Failed to read WXR file.` exit (php/class-wp-cli.php:1009) is
-  UNREACHABLE with the wordpress-importer version that `wp plugin install` fetches
-  today (0.9.6). Feeding a non-XML file does not return a `WP_Error`: `WXR_Parser`
-  falls through to `WXR_Parser_XML_Processor`, which fatals with
-  `Uncaught Error: Class "WordPress\DataLiberation\EntityReader\WXREntityReader"
-  not found` in wordpress-importer/parsers/class-wxr-parser-xml-processor.php:357,
-  because CAP `require`s only parsers.php (line 1002) without the importer's
-  autoloader for the Data Liberation library. Exit code 1 via the same
-  critical-error handler. The draft's clean-error scenario was rewritten as
-  "Fatal error on a file that is not a WXR file" (pinned: exit 1, `Fatal error`,
+- ~~The clean `Error: Failed to read WXR file.` exit is UNREACHABLE with importer
+  0.9.6: `WXR_Parser` falls through to `WXR_Parser_XML_Processor`, which fatals on a
+  missing Data Liberation class because CAP requires only parsers.php without the
+  toolkit.~~ **FIXED** — see the resolution above; the fatal-pinning scenario became
+  "A file that is not a WXR is reported, not fatal". Historical calibration detail
+  of the old fatal (pinned then: exit 1, `Fatal error`,
   the xml-processor path, and 0 guest authors created). A valid WXR file parses
   fine (the SimpleXML parser succeeds before the fallback chain is reached).
 - The WXR flow never sets `website`, `description`, or `avatar` keys, so
@@ -926,8 +1274,9 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   instead of borrowing the CSV group's fixture, and asserts only rc 1, loose
   `/Fatal error/` + `/wordpress-importer/` matches, `STDERR should not match /Failed to
   read WXR file/` and 0 guest authors. Same fatal as with a CSV file
-  (`Class "WordPress\DataLiberation\EntityReader\WXREntityReader" not found`), so
-  CAP's clean `Failed to read WXR file.` branch stays dead at the pinned version.
+  (`Class "WordPress\DataLiberation\EntityReader\WXREntityReader" not found`) —
+  historical; resolved by the toolkit load above. Note a CSV handed to the WXR
+  command now gets the clean parse error too, for the same reason.
 - A valid WXR with NO `<wp:author>` nodes (features/fixtures/no-authors.wxr) prints
   exactly `All done!`, exits 0 and creates nothing — `$import_data['authors']` is an
   empty array rather than an undefined key, so the `foreach` at :1017 is quiet. Now

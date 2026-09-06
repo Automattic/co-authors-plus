@@ -28,7 +28,6 @@
         <include>
 			<file>co-authors-plus.php</file>
 			<file>template-tags.php</file>
-			<file>upgrade.php</file>
 			<directory>php</directory>
         </include>
 		<exclude>

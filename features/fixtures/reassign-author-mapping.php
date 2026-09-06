@@ -4,7 +4,7 @@
  *
  * The reassign-terms subcommand documents an --author-mapping=<file> flag whose
  * file is expected to define $cli_user_map (old user_login => new user_login).
- * See php/class-wp-cli.php reassign_terms().
+ * See php/cli/class-reassign-terms-command.php.
  *
  * @package Automattic\CoAuthorsPlus
  */

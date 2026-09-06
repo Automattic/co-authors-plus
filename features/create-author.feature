@@ -10,14 +10,7 @@ Feature: A single guest author can be created
 	Scenario: Create a guest author with every supported field
 		When I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=jane@example.com --first_name=Jane --last_name=Doe --website=https://example.com/jane --description="Jane writes about testing"`
 		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "avatar"
-		"""
+		And STDOUT should not match /Undefined array key/
 		And STDOUT should contain:
 		"""
 		Success: -- Created as guest author #
@@ -62,37 +55,10 @@ Feature: A single guest author can be created
 		cap-jane-doe
 		"""
 
-	Scenario: Omitted optional fields raise undefined array key warnings but still create the profile
+	Scenario: Omitted optional fields are defaulted, not warned about
 		When I run `wp co-authors-plus create-author --display_name=Minimal --user_login=minimal`
 		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "user_email"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "first_name"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "last_name"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "website"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "description"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "avatar"
-		"""
+		And STDOUT should not match /Undefined array key/
 		And STDOUT should contain:
 		"""
 		Success: -- Created as guest author #
@@ -115,8 +81,17 @@ Feature: A single guest author can be created
 		0
 		"""
 
-	Scenario: Field values are stored exactly as given, without sanitisation
-		When I run `wp co-authors-plus create-author --display_name="<b>Raw</b> Name" --user_login="Raw User!" --user_email=raw@example.com --website=example.com/raw --description="<script>x</script>bio"`
+	# Sanitised as the admin edit screen sanitises the same values: each declared
+	# sanitiser, falling back to sanitize_text_field. So tags are stripped from the
+	# name and login, the script tag leaves only its text, the website is schemed
+	# by its declared esc_url_raw, and — deliberately — the login's space and
+	# punctuation survive, because the admin fallback keeps them too. This pins
+	# parity, not perfection. The
+	# provenance meta keeps the login exactly as the source supplied it.
+	# Contrast create-guest-authors-from-csv, which layers stricter per-cell
+	# sanitisers (sanitize_email, esc_url_raw) on top before the creator runs.
+	Scenario: Field values are sanitised as the admin edit screen would sanitise them
+		When I run `wp co-authors-plus create-author --display_name="<b>Raw</b> Name" --user_login="<b>Raw</b> User!" --user_email=raw@example.com --website=example.com/raw --description="<script>x</script>bio"`
 		Then the return code should be 0
 		And STDOUT should contain:
 		"""
@@ -128,21 +103,20 @@ Feature: A single guest author can be created
 		Then STDOUT should be:
 		"""
 		post_id,meta_key,meta_value
-		{RAW_ID},cap-display_name,"<b>Raw</b> Name"
+		{RAW_ID},cap-display_name,"Raw Name"
 		{RAW_ID},cap-user_login,"Raw User!"
 		{RAW_ID},cap-user_email,raw@example.com
-		{RAW_ID},cap-website,example.com/raw
-		{RAW_ID},cap-description,<script>x</script>bio
-		{RAW_ID},_original_author_login,"Raw User!"
+		{RAW_ID},cap-website,http://example.com/raw
+		{RAW_ID},cap-description,xbio
+		{RAW_ID},_original_author_login,"<b>Raw</b> User!"
 		"""
 		When I run `wp post get {RAW_ID} --field=post_title`
 		Then STDOUT should be:
 		"""
-		<b>Raw</b> Name
+		Raw Name
 		"""
-		# Only the post_name (and hence the term slug) is sanitised, by
-		# CoAuthors_Guest_Authors::create() itself. Contrast
-		# create-guest-authors-from-csv, which sanitises every cell before storing it.
+		# The slug lands where it always did: sanitize_title strips the same tags, so
+		# sanitising the login does not move the post_name or the term slug.
 		When I run `wp post get {RAW_ID} --field=post_name`
 		Then STDOUT should be:
 		"""
@@ -154,7 +128,13 @@ Feature: A single guest author can be created
 		cap-raw-user
 		"""
 
-	Scenario: A user_login that collides with an existing user reuses that user's author term
+	# get_author_term() matches on the cap-<nicename> slug alone, so a profile
+	# sharing a real user's login would adopt that user's author term and rewrite
+	# its description — the user's own posts then resolve to the guest author. The
+	# guard's comment always said logins must not collide with existing users; now
+	# the code agrees, unless the profile is being created as that user's linked
+	# account, which is the allowance the edit screen has always made.
+	Scenario: A user_login that collides with an existing user is refused
 		Given I run `wp user create jane-doe jane-user@example.com --display_name="Jane Doe" --role=author --porcelain`
 		And save STDOUT as {USER_ID}
 		And I run `wp post create --post_title="Post by Jane" --post_author={USER_ID} --post_status=publish --porcelain`
@@ -162,29 +142,26 @@ Feature: A single guest author can be created
 		And I run `wp term list author --object_ids={POST_ID} --field=term_id`
 		And save STDOUT as {USER_TERM_ID}
 		And STDOUT should not be empty
-		When I run `wp co-authors-plus create-author --display_name="Jane Guest" --user_login=jane-doe --user_email=jane-guest@example.com`
-		Then the return code should be 0
-		And STDOUT should contain:
+		When I try `wp co-authors-plus create-author --display_name="Jane Guest" --user_login=jane-doe --user_email=jane-guest@example.com`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
-		Success: -- Created as guest author #
+		Warning: -- Failed to create guest author: user_login cannot duplicate existing guest author or mapped user
 		"""
-		# The duplicate guards only look at guest authors, and get_author_term() matches
-		# on the `cap-<nicename>` slug alone, so the new profile ADOPTS the existing
-		# user's term rather than getting one of its own.
-		When I run `wp post list --post_type=guest-author --format=ids`
-		And save STDOUT as {GUEST_AUTHOR_ID}
-		And I run `wp term list author --object_ids={GUEST_AUTHOR_ID} --field=term_id`
+		When I run `wp post list --post_type=guest-author --format=count`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+		# The user's term survives untouched: same term, description not rewritten.
+		When I run `wp term list author --object_ids={POST_ID} --field=term_id`
 		Then STDOUT should be:
 		"""
 		{USER_TERM_ID}
 		"""
-		# The shared term's description (what CAP searches on) is rewritten with the
-		# guest author's values, so the real user's post now points at the guest author.
 		When I run `wp term list author --object_ids={POST_ID} --field=description`
-		Then STDOUT should contain:
-		"""
-		Jane Guest
-		"""
+		Then STDOUT should not match /Jane Guest/
 
 	Scenario: The avatar field used when creating a profile is not exposed as a parameter
 		When I try `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --avatar=5`
@@ -200,17 +177,10 @@ Feature: A single guest author can be created
 		"""
 
 	Scenario: A guest author is not created without a display_name
-		When I run `wp co-authors-plus create-author --user_login=no-display-name`
-		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "display_name"
-		"""
-		And STDOUT should contain:
+		When I try `wp co-authors-plus create-author --user_login=no-display-name`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
 		Warning: -- Failed to create guest author: display_name is a required field
 		"""
@@ -221,17 +191,10 @@ Feature: A single guest author can be created
 		"""
 
 	Scenario: A guest author is not created without a user_login
-		When I run `wp co-authors-plus create-author --display_name="No Login"`
-		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "user_login"
-		"""
-		And STDOUT should contain:
+		When I try `wp co-authors-plus create-author --display_name="No Login"`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
 		Warning: -- Failed to create guest author: user_login is a required field
 		"""
@@ -241,14 +204,11 @@ Feature: A single guest author can be created
 		0
 		"""
 
-	Scenario: Running without any parameters still attempts creation and warns
-		When I run `wp co-authors-plus create-author`
-		Then the return code should be 0
-		And STDOUT should contain:
-		"""
-		-- Not found; creating profile.
-		"""
-		And STDOUT should contain:
+	Scenario: Running without any parameters fails with a non-zero exit code
+		When I try `wp co-authors-plus create-author`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
 		"""
 		Warning: -- Failed to create guest author: display_name is a required field
 		"""
@@ -267,7 +227,7 @@ Feature: A single guest author can be created
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}); skipping.
+		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}, user_login jane-doe); skipping.
 		"""
 		When I run `wp post list --post_type=guest-author --format=count`
 		Then STDOUT should be:
@@ -275,6 +235,9 @@ Feature: A single guest author can be created
 		1
 		"""
 
+	# The requested login is janet-other, the reported one is jane-doe. That contrast
+	# is the point: without the login in the message an operator would reasonably
+	# conclude janet-other now exists, when it does not.
 	Scenario: An existing user_email is matched even when the user_login differs
 		Given I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=jane@example.com`
 		And I run `wp post list --post_type=guest-author --format=ids`
@@ -283,7 +246,7 @@ Feature: A single guest author can be created
 		When I run `wp co-authors-plus create-author --display_name="Janet Other" --user_login=janet-other --user_email=jane@example.com`
 		Then STDOUT should be:
 		"""
-		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}); skipping.
+		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}, user_login jane-doe); skipping.
 		"""
 		When I run `wp post list --post_type=guest-author --format=count`
 		Then STDOUT should be:
@@ -299,7 +262,7 @@ Feature: A single guest author can be created
 		When I run `wp co-authors-plus create-author --display_name="Jane Doe" --user_login=jane-doe --user_email=different@example.com`
 		Then STDOUT should be:
 		"""
-		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}); skipping.
+		Warning: -- Author already exists (ID #{GUEST_AUTHOR_ID}, user_login jane-doe); skipping.
 		"""
 		When I run `wp post meta get {GUEST_AUTHOR_ID} cap-user_email`
 		Then STDOUT should be:
