@@ -474,13 +474,20 @@ PHP 8.4) rather than inferred from reading the source.
   the scenario matches the path with a wildcard, so it passes either way. It ships on
   the reasoning that a site with `WP_PLUGIN_DIR` set elsewhere would otherwise be
   told the importer is missing when it is merely somewhere else.
-- STILL OPEN: `Failed to read WXR file.` remains unreachable. A file that is not a
-  WXR still fatals inside wordpress-importer 0.9.6's parser fallback chain rather
-  than returning a `WP_Error`, and the crash happens inside `parse()` before any
-  return value exists to check. Turning that into a clean error means validating the
-  file before handing it over, which is a larger piece of work than a guard. The
-  scenario pinning the fatal records the current behaviour and says why the branch
-  cannot fire.
+- ~~`Failed to read WXR file.` is unreachable: a file that is not a WXR fatals
+  inside wordpress-importer 0.9.6's parser fallback chain rather than returning a
+  `WP_Error`.~~ **FIXED**, and the earlier framing of the fix was wrong twice over.
+  It is not "validate the file first" and not the importer's bug: the fallback
+  parser (`WXR_Parser_XML_Processor`) needs the importer's bundled php-toolkit,
+  which only the importer's own bootstrap loads — CAP half-loaded the parser by
+  requiring `parsers.php` alone, breaking the parser's error contract. Loading the
+  toolkit under the exact guard the bootstrap uses
+  (`class_exists( 'WordPress\XML\XMLProcessor' )`, plus `file_exists` so older
+  importers without a toolkit keep their self-contained chain) makes garbage return
+  `WP_Error( 'WXR_parse_error', ... )` — verified live before patching — and the
+  dead branch both reachable and pinned. Valid files are untouched: SimpleXML still
+  returns first, confirmed against the good fixture. The error now appends the
+  parser's reason after CAP's own prefix; only CAP's half is pinned.
 
 ## remove-terms-from-revisions
 
@@ -1206,16 +1213,12 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   `Fatal error: Uncaught Error: Failed opening required
   '.../wordpress-importer/parsers.php'` display copy (plus the full stack trace).
   Pinned via `should contain:` on `Fatal error` / `wordpress-importer/parsers.php`.
-- The clean `Error: Failed to read WXR file.` exit (php/class-wp-cli.php:1009) is
-  UNREACHABLE with the wordpress-importer version that `wp plugin install` fetches
-  today (0.9.6). Feeding a non-XML file does not return a `WP_Error`: `WXR_Parser`
-  falls through to `WXR_Parser_XML_Processor`, which fatals with
-  `Uncaught Error: Class "WordPress\DataLiberation\EntityReader\WXREntityReader"
-  not found` in wordpress-importer/parsers/class-wxr-parser-xml-processor.php:357,
-  because CAP `require`s only parsers.php (line 1002) without the importer's
-  autoloader for the Data Liberation library. Exit code 1 via the same
-  critical-error handler. The draft's clean-error scenario was rewritten as
-  "Fatal error on a file that is not a WXR file" (pinned: exit 1, `Fatal error`,
+- ~~The clean `Error: Failed to read WXR file.` exit is UNREACHABLE with importer
+  0.9.6: `WXR_Parser` falls through to `WXR_Parser_XML_Processor`, which fatals on a
+  missing Data Liberation class because CAP requires only parsers.php without the
+  toolkit.~~ **FIXED** — see the resolution above; the fatal-pinning scenario became
+  "A file that is not a WXR is reported, not fatal". Historical calibration detail
+  of the old fatal (pinned then: exit 1, `Fatal error`,
   the xml-processor path, and 0 guest authors created). A valid WXR file parses
   fine (the SimpleXML parser succeeds before the fallback chain is reached).
 - The WXR flow never sets `website`, `description`, or `avatar` keys, so
@@ -1271,8 +1274,9 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   instead of borrowing the CSV group's fixture, and asserts only rc 1, loose
   `/Fatal error/` + `/wordpress-importer/` matches, `STDERR should not match /Failed to
   read WXR file/` and 0 guest authors. Same fatal as with a CSV file
-  (`Class "WordPress\DataLiberation\EntityReader\WXREntityReader" not found`), so
-  CAP's clean `Failed to read WXR file.` branch stays dead at the pinned version.
+  (`Class "WordPress\DataLiberation\EntityReader\WXREntityReader" not found`) —
+  historical; resolved by the toolkit load above. Note a CSV handed to the WXR
+  command now gets the clean parse error too, for the same reason.
 - A valid WXR with NO `<wp:author>` nodes (features/fixtures/no-authors.wxr) prints
   exactly `All done!`, exits 0 and creates nothing — `$import_data['authors']` is an
   empty array rather than an undefined key, so the `foreach` at :1017 is quiet. Now
