@@ -74,12 +74,14 @@ class CoauthorsLinksSingleTest extends TestCase {
 		$this->assertIsObject( $guest_author_2, 'Could not retrieve second guest author object.' );
 
 		// Create a post and assign both guest authors as co-authors.
+		// add_coauthors() resolves names via user_nicename by default, so pass
+		// the nicename rather than the display name.
 		$post            = $this->create_post();
 		$GLOBALS['post'] = $post;
 
 		$coauthors_plus->add_coauthors(
 			$post->ID,
-			array( $guest_author_1->user_login, $guest_author_2->user_login )
+			array( $guest_author_1->user_nicename, $guest_author_2->user_nicename )
 		);
 
 		$output = coauthors_links( null, null, null, null, false );
