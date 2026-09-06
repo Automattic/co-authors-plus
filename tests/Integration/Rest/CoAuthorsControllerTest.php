@@ -185,6 +185,34 @@ class CoAuthorsControllerTest extends TestCase {
 	}
 
 	/**
+	 * @covers ::has_public_posts
+	 */
+	public function test_has_public_posts_is_cached(): void {
+
+		$author  = $this->create_author( 'cached-author' );
+		$post_id = self::factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'draft',
+			)
+		);
+		$this->_cap->add_coauthors( $post_id, array( $author->user_nicename ) );
+
+		$coauthor = $this->_cap->get_coauthor_by( 'user_nicename', 'cached-author' );
+
+		$this->assertFalse( $this->controller->has_public_posts( $coauthor ) );
+
+		// Publishing the post does not change the result while the cached value is live.
+		wp_publish_post( $post_id );
+
+		$this->assertFalse( $this->controller->has_public_posts( $coauthor ) );
+
+		wp_cache_flush();
+
+		$this->assertTrue( $this->controller->has_public_posts( $coauthor ) );
+	}
+
+	/**
 	 * @covers ::get_item_permissions_check
 	 */
 	public function test_get_item_allows_editor_for_any_author(): void {

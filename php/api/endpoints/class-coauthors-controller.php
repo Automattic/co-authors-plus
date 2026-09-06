@@ -203,10 +203,14 @@ class CoAuthors_Controller extends WP_REST_Controller {
 	 * any visitor could read. Guest authors and WP users are handled by the
 	 * same co-author term lookup so the check is consistent across both.
 	 *
+	 * The result is cached in the object cache for five minutes, so it can lag
+	 * behind newly published or unpublished posts by up to that long.
+	 *
 	 * @since 4.0.0
 	 * @param WP_User|stdClass $coauthor
 	 */
 	public function has_public_posts( $coauthor ): bool {
+		global $wpdb;
 
 		$term = $this->coauthors_plus->get_author_term( $coauthor );
 
@@ -214,28 +218,34 @@ class CoAuthors_Controller extends WP_REST_Controller {
 			return false;
 		}
 
-		$public_post_types = get_post_types( array( 'public' => true ) );
+		$public_post_types = array_values( get_post_types( array( 'public' => true ) ) );
 
-		$query = new \WP_Query(
-			array(
-				'post_type'              => array_values( $public_post_types ),
-				'post_status'            => 'publish',
-				'posts_per_page'         => 1,
-				'fields'                 => 'ids',
-				'no_found_rows'          => true,
-				'update_post_meta_cache' => false,
-				'update_post_term_cache' => false,
-				'tax_query'              => array(
-					array(
-						'taxonomy' => $this->coauthors_plus->coauthor_taxonomy,
-						'field'    => 'term_id',
-						'terms'    => $term->term_id,
-					),
-				),
+		if ( empty( $public_post_types ) ) {
+			return false;
+		}
+
+		$cache_key = 'author-has-public-posts-' . md5( $term->term_taxonomy_id . '|' . implode( ',', $public_post_types ) );
+		$found     = false;
+		$cached    = wp_cache_get( $cache_key, 'co-authors-plus', false, $found );
+
+		if ( $found ) {
+			return (bool) $cached;
+		}
+
+		$post_type_placeholders = implode( ',', array_fill( 0, count( $public_post_types ), '%s' ) );
+
+		$post_id = $wpdb->get_var(
+			$wpdb->prepare(
+				"SELECT p.ID FROM {$wpdb->posts} AS p INNER JOIN {$wpdb->term_relationships} AS tr ON p.ID = tr.object_id WHERE tr.term_taxonomy_id = %d AND p.post_type IN ( {$post_type_placeholders} ) AND p.post_status = 'publish' LIMIT 1", // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- Placeholders are built from array counts; values are passed to prepare().
+				array_merge( array( $term->term_taxonomy_id ), $public_post_types )
 			)
-		);
+		); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Single-row existence check is cheaper than WP_Query.
 
-		return ! empty( $query->posts );
+		$has_public_posts = null !== $post_id;
+
+		wp_cache_set( $cache_key, (int) $has_public_posts, 'co-authors-plus', 5 * MINUTE_IN_SECONDS );
+
+		return $has_public_posts;
 	}
 
 	/**
