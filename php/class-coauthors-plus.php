@@ -1685,6 +1685,7 @@ class CoAuthors_Plus {
 		// Set the co-authors
 		$coauthors        = array_unique( array_merge( $existing_coauthors, $coauthors ) );
 		$coauthor_objects = array();
+		$unresolved       = array();
 		foreach ( $coauthors as &$author_name ) {
 			if ( $this->is_rest_save && has_filter( 'coauthors_post_get_coauthor_by_field' ) ) {
 				_deprecated_hook(
@@ -1700,6 +1701,25 @@ class CoAuthors_Plus {
 			$coauthor_objects[] = $author;
 			$term               = $this->update_author_term( $author );
 
+			if ( false === $author ) {
+				$unresolved[ $author_name ] = $field;
+
+				/**
+				 * Fires when a co-author name cannot be resolved to a user or guest author.
+				 *
+				 * The name is still stored as an author term, but no co-author backs
+				 * it, so it will not appear in the post's byline.
+				 *
+				 * @since 4.2.0
+				 *
+				 * @param string $author_name The co-author name as passed by the caller.
+				 * @param string $field       The field used to look up the co-author.
+				 * @param int    $post_id     The post the co-author was assigned to.
+				 * @param bool   $append      Whether the name was appended to the existing bylines.
+				 */
+				do_action( 'coauthors_unresolved_coauthor', $author_name, $field, $post_id, $append );
+			}
+
 			// A WP_Error is an object too, and its ->slug would blank the author.
 			if ( is_object( $term ) && ! is_wp_error( $term ) ) {
 				$author_name = $term->slug;
@@ -1708,6 +1728,19 @@ class CoAuthors_Plus {
 
 		// Break the reference, so later writes cannot alias the last element.
 		unset( $author_name );
+
+		if ( ! empty( $unresolved ) ) {
+			_doing_it_wrong(
+				__METHOD__,
+				sprintf(
+					/* translators: 1: comma-separated list of co-author names, 2: comma-separated list of lookup fields. */
+					esc_html__( 'The co-author name(s) %1$s could not be resolved to any user or guest author via %2$s. They will not appear in the post byline. Hook into the coauthors_unresolved_coauthor action to detect this.', 'co-authors-plus' ),
+					esc_html( implode( ', ', array_keys( $unresolved ) ) ),
+					esc_html( implode( ', ', array_unique( $unresolved ) ) )
+				),
+				'4.2.0'
+			);
+		}
 
 		/*
 		 * The author taxonomy is registered with 'sort' => true (see
