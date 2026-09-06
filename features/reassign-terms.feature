@@ -119,10 +119,10 @@ Feature: Author terms can be reassigned between co-authors
 		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term={NEWUSER_ID}`
 		Then STDOUT should be:
 		"""
-		Success: Converted 'olduser' term to 'newuser'
+		Success: There's already a 'newuser' term for 'olduser'. Reassigning 0 posts and then deleting the term
 		Reassignment complete. Here are your results:
-		- 1 authors were successfully reassigned terms
-		- 0 authors had their old term merged to their new term
+		- 0 authors were successfully reassigned terms
+		- 1 authors had their old term merged to their new term
 		- 0 authors were missing old terms
 		"""
 		When I run `wp term list author --field=slug`

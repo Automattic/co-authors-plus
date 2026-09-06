@@ -91,6 +91,16 @@ class CoAuthors_Plus {
 		// Keep an existing co-author's search term (and its cache) in step when the user's profile changes.
 		add_action( 'profile_update', array( $this, 'update_author_term_on_profile_update' ) );
 
+		// Create the author term proactively when a user is registered, added to a
+		// blog, or promoted to a role that can edit posts. The term is gated by the
+		// co-author capability, so the callback is safe on every user lifecycle
+		// event. Ensures the term exists before anyone searches, avoiding stale
+		// cache issues on persistent object caches.
+		add_action( 'user_register', array( $this, 'create_author_term_on_user_registration' ) );
+		add_action( 'add_user_to_blog', array( $this, 'create_author_term_on_user_registration' ) );
+		add_action( 'set_user_role', array( $this, 'create_author_term_on_user_registration' ) );
+		add_action( 'add_user_role', array( $this, 'create_author_term_on_user_registration' ) );
+
 		add_filter( 'get_usernumposts', array( $this, 'filter_count_user_posts' ), 10, 4 );
 
 		// Action to set up co-author auto-suggest
@@ -2496,6 +2506,47 @@ class CoAuthors_Plus {
 		if ( $this->get_author_term( $user ) ) {
 			$this->update_author_term( $user );
 		}
+	}
+
+	/**
+	 * Create an author term for a new or changed user.
+	 *
+	 * Runs on user registration, on being added to a blog, and on role changes.
+	 * The term is created only for users with the co-author capability on the
+	 * current site, so subscribers and users without a role never get a term.
+	 * Creating terms proactively (rather than only lazily during the author
+	 * search back-fill) avoids the stale search results that a persistent object
+	 * cache can surface when a brand-new author has no term yet.
+	 *
+	 * On multisite, user_register fires before the user is a member of any blog,
+	 * so the capability check returns false and add_user_to_blog covers them.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param int $user_id The ID of the user.
+	 * @return void
+	 */
+	public function create_author_term_on_user_registration( $user_id ): void {
+		$user = get_user_by( 'id', $user_id );
+		if ( ! $user ) {
+			return;
+		}
+
+		// Only create a term if the user has the required capability on the
+		// current site. On multisite, user_register fires before the user is
+		// added to any blog, so user_can() correctly returns false until
+		// add_user_to_blog fires.
+		$capability = apply_filters( 'coauthors_edit_author_cap', 'edit_posts' );
+		if ( ! user_can( $user, $capability ) ) {
+			return;
+		}
+
+		// Avoid creating a duplicate term if one already exists.
+		if ( $this->get_author_term( $user ) ) {
+			return;
+		}
+
+		$this->update_author_term( $user );
 	}
 
 	/**
