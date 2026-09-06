@@ -224,16 +224,21 @@ Feature: Guest authors can be created from the author nodes of a WXR file
 		2
 		"""
 
-	Scenario: Fatal error in the importer when the file is not a WXR file
+	# The importer's fallback parser used to fatal here, because CAP loaded
+	# parsers.php without the bundled toolkit the fallback needs — so the branch
+	# reporting this error could never run. With the toolkit loaded the same way
+	# the importer's own bootstrap loads it, the parser returns the WP_Error it
+	# was always meant to. Only CAP's half of the message is pinned; the reason
+	# after the colon belongs to wordpress-importer.
+	Scenario: A file that is not a WXR is reported, not fatal
 		When I try `wp co-authors-plus create-guest-authors-from-wxr --file=features/fixtures/not-a-wxr.xml`
 		Then the return code should be 1
-		# The crash comes from wordpress-importer 0.9.6's parser fallback chain, so only
-		# the fact that CAP dies inside that plugin is pinned, not the class or file.
-		And STDOUT should match /Fatal error/
-		And STDOUT should match /wordpress-importer/
-		# CAP's own `Failed to read WXR file.` branch is unreachable: the parser fatals
-		# rather than returning a WP_Error.
-		And STDERR should not match /Failed to read WXR file/
+		And STDOUT should be empty
+		And STDERR should contain:
+		"""
+		Error: Failed to read WXR file:
+		"""
+		And STDERR should not match /Fatal error/
 		When I run `wp post list --post_type=guest-author --format=count`
 		Then STDOUT should be:
 		"""

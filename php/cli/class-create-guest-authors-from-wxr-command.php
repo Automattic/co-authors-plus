@@ -84,11 +84,23 @@ class Create_Guest_Authors_From_Wxr_Command {
 			require_once $parser_path;
 		}
 
+		// The 0.9.x importer's fallback parser needs the bundled toolkit, which only
+		// the importer's own bootstrap loads. Without it, a file that is not a WXR
+		// fatals inside the fallback instead of returning the WP_Error the branch
+		// below reads — the branch was unreachable for exactly this reason. Guarded
+		// as the bootstrap guards it; older importers have no toolkit and their
+		// fallback chain is self-contained.
+		$toolkit_path = WP_PLUGIN_DIR . '/wordpress-importer/php-toolkit/load.php';
+
+		if ( ! class_exists( 'WordPress\\XML\\XMLProcessor' ) && file_exists( $toolkit_path ) ) {
+			require_once $toolkit_path;
+		}
+
 		$parser      = new WXR_Parser();
 		$import_data = $parser->parse( $parsed_args['file'] );
 
 		if ( is_wp_error( $import_data ) ) {
-			WP_CLI::error( 'Failed to read WXR file.' );
+			WP_CLI::error( 'Failed to read WXR file: ' . $import_data->get_error_message() );
 		}
 
 		// Get author nodes.
