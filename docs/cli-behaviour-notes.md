@@ -615,16 +615,31 @@ PHP 8.4) rather than inferred from reading the source.
   that user's author term" (term_id equality + the rewritten description). Note this
   makes the `term-creation-failed` / "The author slug may conflict with an existing
   user" error string unreachable from this path.
-- **No sanitisation at all.** `create_author()` hands `$assoc_args` straight to
-  `create_guest_author()`, so `--display_name="<b>Raw</b> Name"` is stored (and used as
-  `post_title`) verbatim, `--user_login="Raw User!"` is stored verbatim, an unschemed
-  `--website=example.com/raw` is stored as typed, and `--description="<script>x</script>bio"`
-  lands in `cap-description` unfiltered. Only `post_name` is normalised, by
-  `create()`'s own `sanitize_title()` (`cap-raw-user`), which is also what the term
-  slug becomes. This is the exact opposite of `create-guest-authors-from-csv`, which
-  sanitises every cell — a shared `build_guest_author_data()` helper during the split
-  would silently change one command or the other. Pinned in "Field values are stored
-  exactly as given, without sanitisation".
+- ~~**No sanitisation at all.** `create_author()` hands `$assoc_args` straight to
+  the creator, which stores every field verbatim — tags in the display name and
+  login, script tags in the description — while only `post_name` is normalised.~~
+  **FIXED**, and this is also the write-path unification PR #1406 deliberately
+  deferred. `Guest_Author_Service` now exposes its sanitiser as
+  `sanitize_profile()` — each field's declared `sanitize_function`, falling back to
+  `sanitize_text_field`, exactly what the admin edit screen applies — and the shared
+  `Guest_Author_Creator` runs every profile through it BEFORE its duplicate lookups
+  and before `create()`'s collision guard, so both vet the value that will actually
+  be stored. Sanitise-first also closed a live variant of the term hijack: a raw
+  `--user_login="<b>jane</b>"` used to miss the guard's user lookup while still
+  producing the slug `cap-jane`. Deliberate limits, pinned as parity rather than
+  perfection: the website field stays unschemed and the login keeps spaces and
+  punctuation, because the admin fallback keeps them too (declaring `esc_url_raw`
+  on the website field would change the admin screen and is its own follow-up);
+  `avatar` is an attachment ID, not a declared field, and bypasses the sanitiser so
+  it still reaches `set_post_thumbnail()`; and the provenance meta records the login
+  exactly as the source supplied it. One non-idempotency to know about, inherited
+  from the admin screen bug-for-bug: `sanitize_text_field` strips `%xx` octets, so
+  a percent-encoded URL sanitised twice loses them — no pinned fixture contains
+  one. CSV keeps its stricter per-cell layer on top; every second pass over its
+  pinned output was verified to be the identity. This was the exact opposite of
+  `create-guest-authors-from-csv`, which sanitises every cell — a shared `build_guest_author_data()` helper during the split
+  would have silently changed one command or the other. Now pinned in "Field values
+  are sanitised as the admin edit screen would sanitise them".
 - The six `Undefined array key` warnings are now pinned as six separate
   `STDOUT should contain:` steps instead of one ordered `.*`-chained regex: their order
   is just the literal order of the array literal at :1156-1163, so a behaviour-preserving
@@ -778,15 +793,17 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   one placeholder per value. Pinned with `--post-statuses=publish,draft`.
 - The skip-postmeta warning interpolates `$wpdb->users`, which is `wp_users` in
   the wp-env tests container (default prefix). Pinned exactly.
-- `--specific-post-ids` takes precedence over `--above-post-id`/`--below-post-id`
-  (elseif at :1235-1239), so an invalid range combined with specific IDs is
-  silently ignored. Noted from source; not pinned.
-- Posts with `post_author = 0` are excluded by the SQL (`post_author <> 0` at
-  :1265) and are therefore invisible to this command, while
-  `list-posts-without-terms` DOES list them. Pinned.
-- `Updating author terms with new counts` is misleading here too:
-  `update_author_term()` only refreshes descriptions; the direct
-  `$wpdb->insert` into term_relationships never updates term counts either.
+- ~~`--specific-post-ids` takes precedence over the range, so an invalid range
+  combined with specific IDs is silently ignored.~~ Duplicate of the entry struck
+  under the resolution block below — fixed by #1419 (unconditional validation plus
+  a stated-precedence warning). This copy predates that block and was missed when
+  it landed; struck now so the catalogue stops disagreeing with itself.
+- ~~Posts with `post_author = 0` are excluded by the SQL and invisible to this
+  command, while `list-posts-without-terms` DOES list them.~~ Duplicate — fixed by
+  #1419 (they now take the orphan path); struck for the same reason as above.
+- ~~`Updating author terms with new counts` is misleading here too.~~ Duplicate —
+  the pass was deleted and the write path replaced by #1425; struck for the same
+  reason as above.
 - Grammar: `Found 1 posts`, `1 records affected` (never pluralised).
 - A post whose author is missing is counted in `Found N posts` but produces
   `0 records affected` after the skip postmeta warning; the run still ends with
@@ -1101,8 +1118,11 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 
 - Hardened 2026-09-02 after adversarial review: 10 scenarios, all green.
 - **The sanitisation layer is now pinned** (features/fixtures/guest-authors-dirty.csv),
-  because this is the ONLY one of the three commands that sanitises and the difference
-  would otherwise vanish in a refactor. Live results for the row
+  because at the time this was the ONLY one of the three commands that sanitises and
+  the difference would otherwise vanish in a refactor. (The creator now sanitises
+  for all three with the admin fallback; CSV remains the only one layering STRICTER
+  per-cell sanitisers — `sanitize_email`, `esc_url_raw`, non-strict `sanitize_user`
+  — on top, and these pins are what hold that layer in place.) Live results for the row
   `<b>Dirty</b> Name,Dirty Login!,DIRTY@Example.com,example.com/x?a=1&b=2,<script>alert(1)</script><em>Bio</em>,abc,,`:
   - `Processing author Dirty Login! (DIRTY@Example.com)` — the log echoes the RAW
     cells; sanitisation happens after it.

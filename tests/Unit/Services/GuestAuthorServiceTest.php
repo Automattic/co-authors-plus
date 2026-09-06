@@ -192,4 +192,28 @@ final class GuestAuthorServiceTest extends TestCase {
 
 		$this->assertSame( $expected, $service->find_by( 'user_login', 'jane-doe' ) );
 	}
+	/**
+	 * The sanitiser is exposed on its own so the CLI creator can share it. An
+	 * absent key stays absent — unlike profile(), which fills gaps with empty
+	 * strings — so a caller can distinguish "not supplied" from "cleared".
+	 */
+	public function test_sanitize_profile_skips_absent_keys_and_drops_undeclared_ones(): void {
+		list( $service ) = $this->service();
+
+		Functions\expect( 'sanitize_text_field' )->once()->andReturnUsing(
+			static function ( $value ) {
+				return 'clean:' . $value;
+			}
+		);
+
+		$this->assertSame(
+			array( 'display_name' => 'clean:Jane Doe' ),
+			$service->sanitize_profile(
+				array(
+					'display_name' => 'Jane Doe',
+					'linked_account' => 'jane-doe',
+				)
+			)
+		);
+	}
 }

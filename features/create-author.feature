@@ -81,8 +81,16 @@ Feature: A single guest author can be created
 		0
 		"""
 
-	Scenario: Field values are stored exactly as given, without sanitisation
-		When I run `wp co-authors-plus create-author --display_name="<b>Raw</b> Name" --user_login="Raw User!" --user_email=raw@example.com --website=example.com/raw --description="<script>x</script>bio"`
+	# Sanitised as the admin edit screen sanitises the same values: each declared
+	# sanitiser, falling back to sanitize_text_field. So tags are stripped from the
+	# name and login, the script tag leaves only its text, and — deliberately —
+	# the unschemed website and the login's space and punctuation survive, because
+	# the admin fallback keeps them too. This pins parity, not perfection. The
+	# provenance meta keeps the login exactly as the source supplied it.
+	# Contrast create-guest-authors-from-csv, which layers stricter per-cell
+	# sanitisers (sanitize_email, esc_url_raw) on top before the creator runs.
+	Scenario: Field values are sanitised as the admin edit screen would sanitise them
+		When I run `wp co-authors-plus create-author --display_name="<b>Raw</b> Name" --user_login="<b>Raw</b> User!" --user_email=raw@example.com --website=example.com/raw --description="<script>x</script>bio"`
 		Then the return code should be 0
 		And STDOUT should contain:
 		"""
@@ -94,21 +102,20 @@ Feature: A single guest author can be created
 		Then STDOUT should be:
 		"""
 		post_id,meta_key,meta_value
-		{RAW_ID},cap-display_name,"<b>Raw</b> Name"
+		{RAW_ID},cap-display_name,"Raw Name"
 		{RAW_ID},cap-user_login,"Raw User!"
 		{RAW_ID},cap-user_email,raw@example.com
 		{RAW_ID},cap-website,example.com/raw
-		{RAW_ID},cap-description,<script>x</script>bio
-		{RAW_ID},_original_author_login,"Raw User!"
+		{RAW_ID},cap-description,xbio
+		{RAW_ID},_original_author_login,"<b>Raw</b> User!"
 		"""
 		When I run `wp post get {RAW_ID} --field=post_title`
 		Then STDOUT should be:
 		"""
-		<b>Raw</b> Name
+		Raw Name
 		"""
-		# Only the post_name (and hence the term slug) is sanitised, by
-		# CoAuthors_Guest_Authors::create() itself. Contrast
-		# create-guest-authors-from-csv, which sanitises every cell before storing it.
+		# The slug lands where it always did: sanitize_title strips the same tags, so
+		# sanitising the login does not move the post_name or the term slug.
 		When I run `wp post get {RAW_ID} --field=post_name`
 		Then STDOUT should be:
 		"""
