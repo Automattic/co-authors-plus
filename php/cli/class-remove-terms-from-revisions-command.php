@@ -57,7 +57,18 @@ class Remove_Terms_From_Revisions_Command {
 
 		$ids = $wpdb->get_col( "SELECT ID FROM $wpdb->posts WHERE post_type='revision' AND post_status='inherit'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WP-CLI one-time maintenance command.
 
-		WP_CLI::log( 'Found ' . count( $ids ) . ' revisions to look through' );
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of revisions. */
+				_n(
+					'Found %s revision to look through',
+					'Found %s revisions to look through',
+					count( $ids ),
+					'co-authors-plus'
+				),
+				number_format_i18n( count( $ids ) )
+			)
+		);
 		$affected = 0;
 		foreach ( $ids as $post_id ) {
 
@@ -70,6 +81,17 @@ class Remove_Terms_From_Revisions_Command {
 			wp_set_post_terms( $post_id, array(), $this->coauthors_plus->coauthor_taxonomy );
 			$affected++;
 		}
-		WP_CLI::log( "All done! {$affected} revisions had author terms removed" );
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of revisions. */
+				_n(
+					'All done! %s revision had author terms removed',
+					'All done! %s revisions had author terms removed',
+					$affected,
+					'co-authors-plus'
+				),
+				number_format_i18n( $affected )
+			)
+		);
 	}
 }

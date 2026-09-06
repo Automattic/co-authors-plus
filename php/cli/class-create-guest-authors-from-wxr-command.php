@@ -126,7 +126,19 @@ class Create_Guest_Authors_From_Wxr_Command {
 
 		if ( $failed > 0 ) {
 			// A bad author node does not abort the import, so say how many were dropped.
-			WP_CLI::warning( sprintf( '%d of %d authors could not be created.', $failed, count( $authors ) ) );
+			WP_CLI::warning(
+				sprintf(
+					/* translators: 1: Count of failed authors. 2: Total count of authors. */
+					_n(
+						'%1$s of %2$s author could not be created.',
+						'%1$s of %2$s authors could not be created.',
+						count( $authors ),
+						'co-authors-plus'
+					),
+					number_format_i18n( $failed ),
+					number_format_i18n( count( $authors ) )
+				)
+			);
 		}
 
 		WP_CLI::log( 'All done!' );

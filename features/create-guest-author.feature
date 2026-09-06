@@ -7,9 +7,9 @@ Feature: Guest authors can be created
 		When I run `wp co-authors-plus create-guest-authors`
 		Then STDOUT should be:
       """
-      Attempting to create guest author profiles for 1 users.
+      Attempting to create a guest author profile for 1 user.
       All done! Here are your results:
-      - 1 guest author profiles were created
+      - 1 guest author profile was created
       - 0 users already had guest author profiles
       """
 
@@ -18,10 +18,10 @@ Feature: Guest authors can be created
 		Then I run the previous command again
 		Then STDOUT should be:
       """
-      Attempting to create guest author profiles for 1 users.
+      Attempting to create a guest author profile for 1 user.
       All done! Here are your results:
       - 0 guest author profiles were created
-      - 1 users already had guest author profiles
+      - 1 user already had a guest author profile
       """
 
 	Scenario: Process a chunk of users with --offset and --number
@@ -46,6 +46,6 @@ Feature: Guest authors can be created
       """
       Attempting to create guest author profiles for 3 users.
       All done! Here are your results:
-      - 1 guest author profiles were created
+      - 1 guest author profile was created
       - 2 users already had guest author profiles
       """

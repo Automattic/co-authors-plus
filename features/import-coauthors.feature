@@ -49,7 +49,7 @@ Feature: Guest authors and their post assignments can be imported
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-in.json`
 		Then STDOUT should be:
 		"""
-		Success: Created 1 profiles and linked 1 posts.
+		Success: Done. Profiles created: 1. Posts linked: 1.
 		"""
 		And the return code should be 0
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
@@ -62,7 +62,7 @@ Feature: Guest authors and their post assignments can be imported
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-in.json`
 		Then STDOUT should be:
 		"""
-		Success: Created 0 profiles and linked 0 posts. 1 profiles already existed.
+		Success: Done. Profiles created: 0. Posts linked: 0. 1 profile already existed.
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -103,9 +103,15 @@ Feature: Guest authors and their post assignments can be imported
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-order.json`
 		Then STDOUT should be:
 		"""
-		Success: Created 3 profiles and linked 3 posts.
+		Success: Done. Profiles created: 3. Posts linked: 3.
 		"""
 		And the return code should be 0
+		# A second identical run, so the existed summary's plural branch runs.
+		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-order.json`
+		Then STDOUT should be:
+		"""
+		Success: Done. Profiles created: 0. Posts linked: 0. 3 profiles already existed.
+		"""
 		When I run `wp eval 'echo implode( ",", wp_list_pluck( wp_get_object_terms( {NEW_POST_ID}, "author", array( "orderby" => "term_order" ) ), "slug" ) );'`
 		Then STDOUT should be:
 		"""
@@ -120,7 +126,7 @@ Feature: Guest authors and their post assignments can be imported
 		Then STDOUT should be:
 		"""
 		Dry run: nothing will be written.
-		Success: Would create 1 profiles and linked 1 posts.
+		Success: Dry run. Profiles to create: 1. Posts to link: 1.
 		"""
 		When I run `wp post list --post_type=guest-author --format=count`
 		Then STDOUT should be:
@@ -139,7 +145,7 @@ Feature: Guest authors and their post assignments can be imported
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-skip.json --skip-create`
 		Then STDOUT should contain:
 		"""
-		Success: Created 0 profiles and linked 0 posts.
+		Success: Done. Profiles created: 0. Posts linked: 0.
 		"""
 		And STDOUT should contain:
 		"""
@@ -156,10 +162,18 @@ Feature: Guest authors and their post assignments can be imported
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-missing.json`
 		Then STDOUT should contain:
 		"""
-		1 assignments had no matching post on this site.
+		1 assignment had no matching post on this site.
 		"""
 		And STDOUT should contain:
 		"""
 		No post found with slug "not-here".
+		"""
+		And the return code should be 0
+		# Two refs, so the summary's plural branch runs.
+		When I run `wp eval 'file_put_contents( "/tmp/cap-missing2.json", wp_json_encode( array( "version" => "4.1.1", "guest_authors" => array( array( "profile" => array( "display_name" => "Kim Poe", "user_login" => "kim-poe" ), "post_refs" => array( array( "post_slug" => "not-here", "post_type" => "post", "position" => 0 ), array( "post_slug" => "also-not-here", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
+		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-missing2.json`
+		Then STDOUT should contain:
+		"""
+		2 assignments had no matching post on this site.
 		"""
 		And the return code should be 0

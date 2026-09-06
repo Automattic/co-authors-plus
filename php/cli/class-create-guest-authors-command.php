@@ -84,7 +84,18 @@ class Create_Guest_Authors_Command {
 		$created  = 0;
 		$skipped  = 0;
 
-		WP_CLI::log( "Attempting to create guest author profiles for {$count} users." );
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of users. */
+				_n(
+					'Attempting to create a guest author profile for %s user.',
+					'Attempting to create guest author profiles for %s users.',
+					$count,
+					'co-authors-plus'
+				),
+				number_format_i18n( $count )
+			)
+		);
 
 		$progress = \WP_CLI\Utils\make_progress_bar( 'Processing guest authors...', $count );
 		foreach ( $users as $user ) {
@@ -99,7 +110,29 @@ class Create_Guest_Authors_Command {
 		}
 		$progress->finish();
 		WP_CLI::log( 'All done! Here are your results:' );
-		WP_CLI::log( "- {$created} guest author profiles were created" );
-		WP_CLI::log( "- {$skipped} users already had guest author profiles" );
+		WP_CLI::log(
+			'- ' . sprintf(
+				/* translators: Count of guest author profiles. */
+				_n(
+					'%s guest author profile was created',
+					'%s guest author profiles were created',
+					$created,
+					'co-authors-plus'
+				),
+				number_format_i18n( $created )
+			)
+		);
+		WP_CLI::log(
+			'- ' . sprintf(
+				/* translators: Count of users. */
+				_n(
+					'%s user already had a guest author profile',
+					'%s users already had guest author profiles',
+					$skipped,
+					'co-authors-plus'
+				),
+				number_format_i18n( $skipped )
+			)
+		);
 	}
 }

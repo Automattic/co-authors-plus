@@ -199,6 +199,13 @@ Feature: Guest authors can be created from the author nodes of a WXR file
 		cap-wxr-good-one
 		cap-wxr-good-two
 		"""
+		# A file whose only author node fails, so the tally's singular branch runs.
+		When I run `wp co-authors-plus create-guest-authors-from-wxr --file=features/fixtures/guest-authors-invalid-single.wxr`
+		Then the return code should be 0
+		And STDOUT should contain:
+		"""
+		Warning: 1 of 1 author could not be created.
+		"""
 
 	Scenario: Importing the same WXR file twice skips the existing guest authors
 		Given I run `wp co-authors-plus create-guest-authors-from-wxr --file=features/fixtures/guest-authors.wxr`

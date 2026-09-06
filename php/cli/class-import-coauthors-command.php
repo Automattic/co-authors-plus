@@ -171,21 +171,39 @@ class Import_Coauthors_Command {
 		if ( $summary['posts_not_found'] > 0 ) {
 			WP_CLI::log(
 				sprintf(
-					'%d assignments had no matching post on this site.',
-					$summary['posts_not_found']
+					/* translators: Count of byline assignments. */
+					_n(
+						'%s assignment had no matching post on this site.',
+						'%s assignments had no matching post on this site.',
+						$summary['posts_not_found'],
+						'co-authors-plus'
+					),
+					number_format_i18n( $summary['posts_not_found'] )
 				)
 			);
 		}
 
+		// Label form rather than a sentence, so neither count needs verb agreement
+		// and the old 'Would create N profiles and linked N posts' tense clash goes.
 		$message = sprintf(
-			'%s %d profiles and linked %d posts.',
-			$dry_run ? 'Would create' : 'Created',
-			$summary['authors_created'],
-			$summary['posts_linked']
+			$dry_run
+				? 'Dry run. Profiles to create: %1$s. Posts to link: %2$s.'
+				: 'Done. Profiles created: %1$s. Posts linked: %2$s.',
+			number_format_i18n( $summary['authors_created'] ),
+			number_format_i18n( $summary['posts_linked'] )
 		);
 
 		if ( $summary['authors_skipped'] > 0 ) {
-			$message .= sprintf( ' %d profiles already existed.', $summary['authors_skipped'] );
+			$message .= ' ' . sprintf(
+				/* translators: Count of guest author profiles. */
+				_n(
+					'%s profile already existed.',
+					'%s profiles already existed.',
+					$summary['authors_skipped'],
+					'co-authors-plus'
+				),
+				number_format_i18n( $summary['authors_skipped'] )
+			);
 		}
 
 		WP_CLI::success( $message );

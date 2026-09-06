@@ -137,7 +137,18 @@ class Create_Author_Terms_For_Posts_Command {
 			$below_post_id
 		);
 
-		WP_CLI::log( sprintf( 'Found %d posts with missing author terms.', $count_of_posts_with_missing_author_terms ) );
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of posts. */
+				_n(
+					'Found %s post with missing author terms.',
+					'Found %s posts with missing author terms.',
+					$count_of_posts_with_missing_author_terms,
+					'co-authors-plus'
+				),
+				number_format_i18n( $count_of_posts_with_missing_author_terms )
+			)
+		);
 
 		$authors      = array();
 		$author_terms = array();
@@ -249,7 +260,18 @@ class Create_Author_Terms_For_Posts_Command {
 
 		wp_defer_term_counting( false );
 
-		WP_CLI::log( sprintf( '%d records affected', $affected ) );
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of database records. */
+				_n(
+					'%s record affected',
+					'%s records affected',
+					$affected,
+					'co-authors-plus'
+				),
+				number_format_i18n( $affected )
+			)
+		);
 
 		if ( $skipped > 0 ) {
 			WP_CLI::warning(
