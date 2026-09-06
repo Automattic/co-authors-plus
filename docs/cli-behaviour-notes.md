@@ -627,15 +627,18 @@ PHP 8.4) rather than inferred from reading the source.
   be stored. Sanitise-first also closed a live variant of the term hijack: a raw
   `--user_login="<b>jane</b>"` used to miss the guard's user lookup while still
   producing the slug `cap-jane`. Deliberate limits, pinned as parity rather than
-  perfection: the website field stays unschemed and the login keeps spaces and
-  punctuation, because the admin fallback keeps them too (declaring `esc_url_raw`
-  on the website field would change the admin screen and is its own follow-up);
+  perfection: the login keeps spaces and punctuation, because the admin
+  fallback keeps them too (the website field followed on: it now declares
+  `sanitize_url` — `esc_url_raw` is its alias, and the `esc_` name is a WP 2.8-era
+  accident core corrected in 5.9 — which schemes unschemed values and preserves
+  percent-encoding on every write path at once, admin screen included,
+  deliberately);
   `avatar` is an attachment ID, not a declared field, and bypasses the sanitiser so
   it still reaches `set_post_thumbnail()`; and the provenance meta records the login
-  exactly as the source supplied it. One non-idempotency to know about, inherited
-  from the admin screen bug-for-bug: `sanitize_text_field` strips `%xx` octets, so
-  a percent-encoded URL sanitised twice loses them — no pinned fixture contains
-  one. CSV keeps its stricter per-cell layer on top; every second pass over its
+  exactly as the source supplied it. ~~One non-idempotency inherited from the admin screen: `sanitize_text_field`
+  strips `%xx` octets from a percent-encoded URL on a second save.~~ **FIXED** by
+  the website field's `sanitize_url` declaration; pinned by an integration test
+  that fails under the fallback. CSV keeps its stricter per-cell layer on top; every second pass over its
   pinned output was verified to be the identity. This was the exact opposite of
   `create-guest-authors-from-csv`, which sanitises every cell — a shared `build_guest_author_data()` helper during the split
   would have silently changed one command or the other. Now pinned in "Field values
