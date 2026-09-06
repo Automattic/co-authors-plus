@@ -1405,11 +1405,18 @@ class CoAuthors_Guest_Authors {
 
 			// The user login field shouldn't collide with any existing users
 			if ( 'user_login' == $field['key'] && $existing_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $args['user_login'], true ) ) {
-				if ( 'guest-author' == $existing_coauthor->type ) {
+				// A matching WordPress user is only allowed when this profile is being
+				// created as that user's linked account, mirroring the allowance
+				// manage_guest_author_filter_post_data() makes on the edit screen.
+				// Anything else silently adopted the user's author term and rewrote
+				// its description, so the user's own posts resolved to the new
+				// guest author.
+				$linked_account = isset( $args['linked_account'] ) ? $args['linked_account'] : '';
+				if ( 'guest-author' === $existing_coauthor->type || $existing_coauthor->user_login !== $linked_account ) {
 					return new WP_Error( 'duplicate-field', __( 'user_login cannot duplicate existing guest author or mapped user', 'co-authors-plus' ) );
-				}
+				}//end if
 			}
-		}
+		}//end foreach
 
 		// Create the primary post object
 		$new_post = array(

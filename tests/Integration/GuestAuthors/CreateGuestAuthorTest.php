@@ -213,4 +213,105 @@ class CreateGuestAuthorTest extends TestCase {
 		$this->assertIsInt( $post_id, 'An empty guest-author post should insert, not be rejected as empty content.' );
 		$this->assertGreaterThan( 0, $post_id );
 	}
+	/**
+	 * A user_login matching an existing WordPress user is refused, so the new
+	 * profile cannot adopt the user's author term and rewrite its description.
+	 *
+	 * Fails against the old guard, which only rejected guest author matches:
+	 * create() then returns an int and the description gains "Jane Guest".
+	 *
+	 * @covers ::create
+	 */
+	public function test_create_rejects_user_login_of_existing_wp_user(): void {
+
+		global $coauthors_plus;
+
+		$user = self::factory()->user->create_and_get(
+			array(
+				'user_login'   => 'jane-doe',
+				'display_name' => 'Jane Doe',
+				'role'         => 'author',
+			)
+		);
+
+		$term = $coauthors_plus->update_author_term( $user );
+		$this->assertInstanceOf( \WP_Term::class, $term );
+
+		$response = $coauthors_plus->guest_authors->create(
+			array(
+				'display_name' => 'Jane Guest',
+				'user_login'   => 'jane-doe',
+			)
+		);
+
+		$this->assertInstanceOf( \WP_Error::class, $response );
+		$this->assertSame( 'duplicate-field', $response->get_error_code() );
+
+		$description = get_term( $term->term_id, $coauthors_plus->coauthor_taxonomy )->description;
+		$this->assertStringNotContainsString( 'Jane Guest', $description, 'The rejected profile must not rewrite the term description.' );
+	}
+
+	/**
+	 * The one allowed collision: the profile is being created as the matching
+	 * user's linked account, which is how create_guest_author_from_user_id()
+	 * works for every user whose display name equals their login.
+	 *
+	 * This passes today too. Its job is to fail against an over-tightened guard
+	 * that rejects every user collision, which would break create-guest-authors
+	 * for the stock admin user among others.
+	 *
+	 * @covers ::create
+	 */
+	public function test_create_allows_collision_for_linked_account(): void {
+
+		global $coauthors_plus;
+
+		self::factory()->user->create(
+			array(
+				'user_login'   => 'jane-doe',
+				'display_name' => 'Jane Doe',
+				'role'         => 'author',
+			)
+		);
+
+		$guest_author_id = $coauthors_plus->guest_authors->create(
+			array(
+				'display_name'   => 'Jane Doe',
+				'user_login'     => 'jane-doe',
+				'linked_account' => 'jane-doe',
+			)
+		);
+
+		$this->assertIsInt( $guest_author_id );
+	}
+
+	/**
+	 * The linked_account value must not open the door for a guest author
+	 * duplicate: the guest-author half of the guard wins whatever it claims.
+	 *
+	 * @covers ::create
+	 */
+	public function test_linked_account_does_not_bypass_guest_author_duplicates(): void {
+
+		global $coauthors_plus;
+
+		$guest_author_id = $coauthors_plus->guest_authors->create(
+			array(
+				'display_name' => 'Solo Guest',
+				'user_login'   => 'solo-guest',
+			)
+		);
+		$this->assertIsInt( $guest_author_id );
+
+		$response = $coauthors_plus->guest_authors->create(
+			array(
+				'display_name'   => 'Impostor',
+				'user_login'     => 'solo-guest',
+				'linked_account' => 'solo-guest',
+			)
+		);
+
+		$this->assertInstanceOf( \WP_Error::class, $response );
+		$this->assertSame( 'duplicate-field', $response->get_error_code() );
+	}
 }
