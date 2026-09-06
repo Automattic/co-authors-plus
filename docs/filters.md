@@ -28,7 +28,7 @@ Text placed after a list of co-authors. Defaults to `''`.
 
 ### `coauthors_posts_link`
 
-Arguments used to render a single co-author's posts-link (`text`, `title`, `url`). Filter the array to customise the markup emitted by `coauthors_posts_links()`.
+Arguments used to render a single co-author's posts-link. Filter the associative array to customise the markup emitted by `coauthors_posts_links()`. Available keys include `before_html`, `href`, `rel`, `title`, `class`, `text`, and `after_html`.
 
 - **Parameters:** `array $args`, `stdClass $author`
 - **File:** `template-tags.php`
@@ -76,9 +76,16 @@ Post types counted towards a co-author's published post count.
 
 The `WP_User` used as the default author when a post has none. Defaults to the current user.
 
+### `coauthors_plus_is_author_query`
+
+Whether Co-Authors Plus should rewrite an author query to include co-author taxonomy terms. Returning `false` leaves the query as a standard WordPress `post_author` query.
+
+- **Parameters:** `bool $is_author`, `WP_Query $query`
+- **File:** `php/class-coauthors-plus.php`
+
 ### `coauthors_plus_should_query_post_author`
 
-Whether to combine the `post_author` column query with the taxonomy query. Returning `false` switches to a simpler taxonomy-only query on sites where `post_author` isn't reliable.
+Whether to combine the `post_author` column query with the taxonomy query. Returning `false` keeps the Co-Authors Plus rewrite but switches to taxonomy-only matching on sites where `post_author` isn't reliable.
 
 ## Permissions
 
