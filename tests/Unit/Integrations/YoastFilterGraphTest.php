@@ -53,6 +53,8 @@ final class YoastFilterGraphTest extends TestCase {
 
 	const PRESENTATION_CLASS = 'Yoast\\WP\\SEO\\Presentations\\Indexable_Author_Archive_Presentation';
 
+	const SCHEMA_TYPES_CLASS = 'Yoast\\WP\\SEO\\Config\\Schema_Types';
+
 	/**
 	 * Regression coverage for issue #1113.
 	 *
@@ -105,6 +107,134 @@ final class YoastFilterGraphTest extends TestCase {
 			Yoast::filter_graph( $data, $context ),
 			'filter_graph() must return the graph unchanged when the context post has no ID.'
 		);
+	}
+
+	/**
+	 * Regression coverage for issue #1360.
+	 *
+	 * The PHP array_filter() function preserves keys, so removing the
+	 * Yoast-generated Person node from the middle of the graph used to leave a
+	 * numeric key gap behind it. With the key gap in place, json_encode()
+	 * serialized @graph as a JSON object rather than an array, and JSON-LD
+	 * consumers expanding that object discarded every node. The filtered graph
+	 * must come back as a contiguous list instead.
+	 *
+	 * The merge at the end of filter_graph() re-indexes as a side effect, but it is
+	 * skipped whenever no author resolves, which is the path this test drives: a
+	 * post carrying an author term whose slug matches no user and no guest author.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_reindexes_the_graph_when_a_person_node_is_removed(): void {
+		Functions\when( 'is_singular' )->justReturn( true );
+
+		$this->stub_get_coauthors_dependencies();
+		$this->mock_schema_types();
+
+		$context           = new \stdClass();
+		$context->post     = new \stdClass();
+		$context->post->ID = 42;
+
+		// Yoast's typical piece order on a post: the Person node sits before the
+		// trailing block schema, so removing it leaves a gap behind it.
+		$data = array(
+			array(
+				'@type' => 'Article',
+				'@id'   => 'https://example.com/#article',
+			),
+			array(
+				'@type' => 'WebPage',
+				'@id'   => 'https://example.com/#webpage',
+			),
+			array(
+				'@type' => 'ImageObject',
+				'@id'   => 'https://example.com/#mainimage',
+			),
+			array(
+				'@type' => 'BreadcrumbList',
+				'@id'   => 'https://example.com/#breadcrumb',
+			),
+			array(
+				'@type' => 'WebSite',
+				'@id'   => 'https://example.com/#website',
+			),
+			array(
+				'@type' => 'Organization',
+				'@id'   => 'https://example.com/#organization',
+			),
+			array(
+				'@type' => 'Person',
+				'@id'   => 'https://example.com/#person',
+			),
+			array(
+				'@type' => 'HowTo',
+				'@id'   => 'https://example.com/#howto',
+			),
+		);
+
+		$result = Yoast::filter_graph( $data, $context );
+
+		$this->assertSame(
+			array_values( $result ),
+			$result,
+			'filter_graph() must return the graph as a contiguous list so @graph stays a JSON array.'
+		);
+
+		$decoded = json_decode( json_encode( $result ) );
+		$this->assertIsArray(
+			$decoded,
+			'@graph must serialize as a JSON array, not a JSON object.'
+		);
+
+		$this->assertSame(
+			array( 'Article', 'WebPage', 'ImageObject', 'BreadcrumbList', 'WebSite', 'Organization', 'HowTo' ),
+			array_column( $result, '@type' ),
+			'The Person node must be removed and every other node kept, in order.'
+		);
+
+		$this->assertSame(
+			array(),
+			$result[0]['author'],
+			'The article node must carry the (empty) co-author reference list.'
+		);
+	}
+
+	/**
+	 * Let get_coauthors() run to completion and return an empty list, the way it
+	 * does when a post carries an author term whose slug matches no user and no
+	 * guest author. With guest authors forced, it skips the post_author fallback
+	 * and so needs no $wpdb.
+	 */
+	private function stub_get_coauthors_dependencies(): void {
+		Functions\when( 'cap_get_coauthor_terms_for_post' )->justReturn( array() );
+
+		$GLOBALS['coauthors_plus'] = (object) array( 'force_guest_authors' => true );
+	}
+
+	/**
+	 * Stand in for Yoast's Schema_Types service, constructed inside filter_graph().
+	 *
+	 * Overload replaces the class definition for the remainder of the process, so
+	 * only one test in a run may use this.
+	 */
+	private function mock_schema_types(): void {
+		$types = \Mockery::mock( 'overload:' . self::SCHEMA_TYPES_CLASS );
+		$types->shouldReceive( 'get_article_type_options' )
+			->zeroOrMoreTimes()
+			->andReturn(
+				array(
+					array( 'value' => 'Article' ),
+				)
+			);
+	}
+
+	/**
+	 * Clean up the global seeded by stub_get_coauthors_dependencies().
+	 */
+	protected function tear_down(): void {
+		unset( $GLOBALS['coauthors_plus'] );
+
+		parent::tear_down();
 	}
 
 	/**
