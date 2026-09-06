@@ -88,7 +88,18 @@ class Create_Terms_For_Posts_Command {
 		$affected    = 0;
 		$count       = 0;
 		$total_posts = $posts->found_posts;
-		WP_CLI::log( "Now inspecting or updating {$posts->found_posts} total posts." );
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of posts. */
+				_n(
+					'Now inspecting or updating %s post.',
+					'Now inspecting or updating %s posts.',
+					(int) $posts->found_posts,
+					'co-authors-plus'
+				),
+				number_format_i18n( (int) $posts->found_posts )
+			)
+		);
 		while ( $posts->post_count ) {
 
 			foreach ( $posts->posts as $single_post ) {
@@ -129,6 +140,18 @@ class Create_Terms_For_Posts_Command {
 			$args['paged']++;
 			$posts = new WP_Query( $args );
 		}//end while
-		WP_CLI::success( "Done! Of {$total_posts} posts, {$affected} now have author terms." );
+		WP_CLI::success(
+			sprintf(
+				/* translators: 1: Count of posts given author terms. 2: Total count of posts. */
+				_n(
+					'Done! Author terms added to %1$s of %2$s post.',
+					'Done! Author terms added to %1$s of %2$s posts.',
+					$total_posts,
+					'co-authors-plus'
+				),
+				number_format_i18n( $affected ),
+				number_format_i18n( $total_posts )
+			)
+		);
 	}
 }

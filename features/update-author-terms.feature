@@ -26,7 +26,7 @@ Feature: Author terms can be recounted and recreated
 		When I run `wp co-authors-plus update-author-terms`
 		Then STDOUT should be:
 		"""
-		Now updating 1 terms
+		Now updating 1 term
 		Term cap-admin ({TERM_ID}) changed from 1 to 1 and the description was refreshed
 		Now inspecting or updating 0 Guest Authors.
 		Success: All done
@@ -50,7 +50,7 @@ Feature: Author terms can be recounted and recreated
 		When I run `wp co-authors-plus update-author-terms`
 		Then STDOUT should be:
 		"""
-		Now updating 1 terms
+		Now updating 1 term
 		Term cap-admin ({TERM_ID}) changed from 5 to 1 and the description was refreshed
 		Now inspecting or updating 0 Guest Authors.
 		Success: All done
@@ -67,7 +67,7 @@ Feature: Author terms can be recounted and recreated
 		When I run `wp co-authors-plus update-author-terms`
 		Then STDOUT should be:
 		"""
-		Now updating 1 terms
+		Now updating 1 term
 		Term cap-ghost ({TERM_ID}) changed from 0 to 0 and the description was refreshed
 		Created author term for admin
 		Now inspecting or updating 0 Guest Authors.
@@ -86,7 +86,7 @@ Feature: Author terms can be recounted and recreated
 		And I run `wp co-authors-plus update-author-terms`
 		Then STDOUT should be:
 		"""
-		Now updating 1 terms
+		Now updating 1 term
 		Term cap-admin ({TERM_ID}) changed from 0 to 0 and the description was refreshed
 		Now inspecting or updating 0 Guest Authors.
 		Success: All done
@@ -126,9 +126,9 @@ Feature: Author terms can be recounted and recreated
 		When I run `wp co-authors-plus update-author-terms`
 		Then STDOUT should be:
 		"""
-		Now updating 1 terms
+		Now updating 1 term
 		Term cap-admin ({TERM_ID}) changed from 0 to 0 and the description was refreshed
-		Now inspecting or updating 1 Guest Authors.
+		Now inspecting or updating 1 Guest Author.
 		Success: All done
 		"""
 
@@ -142,7 +142,7 @@ Feature: Author terms can be recounted and recreated
 		"""
 		Now updating 0 terms
 		Created author term for admin
-		Now inspecting or updating 1 Guest Authors.
+		Now inspecting or updating 1 Guest Author.
 		Created author term for Guest Author guest-one
 		Success: All done
 		"""
@@ -171,7 +171,7 @@ Feature: Author terms can be recounted and recreated
 		"""
 		Now updating 0 terms
 		Created author term for admin
-		Now inspecting or updating 1 Guest Authors.
+		Now inspecting or updating 1 Guest Author.
 		Created author term for Guest Author guest-one
 		Success: All done
 		"""

@@ -18,9 +18,10 @@ PHP 8.4) rather than inferred from reading the source.
 
 (Calibrated against the live env 2026-09-01; all scenarios green.)
 
-- Summary lines never pluralise: `- 1 posts now have the proper co-author`,
-  `- 1 posts already had the co-author assigned` even for a single post
-  (php/class-wp-cli.php:415-425). Confirmed.
+- ~~Summary lines never pluralise: `- 1 posts now have the proper co-author`,
+  `- 1 posts already had the co-author assigned` even for a single post.~~ **FIXED** by the pluralisation sweep: `_n()` with `%s` and `number_format_i18n()`, both branches pinned.
+  The "already had" plural needed a two-post extension of the re-run scenario;
+  nothing else ever reached it, because the count is truthiness-guarded.
 - When a run matches nothing, the output is just `All done! Here are your results:`
   with no result lines at all — there is no "0 posts" line and no per-post output.
   Confirmed.
@@ -265,11 +266,13 @@ PHP 8.4) rather than inferred from reading the source.
 - The two summary lines this added are pluralised with `_n()` from the outset,
   following `assign-user-to-coauthor`, and both branches are covered by scenarios —
   one post and two. The general pluralisation sweep across the older strings is
-  still deferred to its own pass, but that is a reason to leave existing strings
-  alone, not a licence to add new broken ones. Note the new strings use `%s` rather
+  now done, but the principle stands: it was a reason to leave existing strings
+  alone, never a licence to add new broken ones. The new strings used `%s` rather
   than the precedent's `%d`: `number_format_i18n()` returns a thousands-separated
-  string, and `%d` truncates `1,234` to `1`. The precedent has that bug; it is
-  logged here rather than fixed in passing, since it belongs to another command.
+  string, and `%d` truncates `1,234` to `1`. ~~The precedent has that bug.~~
+  **FIXED** in the sweep, pinned by a unit test that stubs the formatter to return
+  `1,234` and asserts it survives into the output — Behat cannot stage a thousand
+  posts, so the formatting contract is tested instead of the volume.
 
 ## (shared test environment — affects everyone's calibration)
 
@@ -329,10 +332,13 @@ PHP 8.4) rather than inferred from reading the source.
 - "Error: Term 'x' doesn't exist, skipping" is emitted via `WP_CLI::log` to STDOUT
   and the exit code stays 0 (line 580), so scripted callers cannot detect the miss
   from the exit code. Confirmed.
-- Summary lines never pluralise: `- 1 authors were successfully reassigned terms`
-  (lines 610-612). Confirmed.
-- The merge message's post count comes straight from `$old_term->count` and read
-  `Reassigning 1 posts` for one published post carrying the term — CAP's custom
+- ~~Summary lines never pluralise: `- 1 authors were successfully reassigned
+  terms`.~~ **FIXED** by the pluralisation sweep: `_n()` with `%s` and `number_format_i18n()`, both branches pinned. The singular of the missing-terms line reads "was missing an
+  old term", since each author misses exactly one. The merge message's plural
+  (`Reassigning 2 posts`) needed a new two-post merge scenario: the merge path can
+  never report zero, so no existing pin exercised it.
+- The merge message's post count comes straight from `$old_term->count` (it read
+  `Reassigning 1 posts` before the sweep; now `1 post`) — CAP's custom
   `_update_users_posts_count` had run on `wp post term add`. Confirmed.
 
 - Re-calibrated 2026-09-02 after adversarial review: 11 scenarios, all green.
@@ -417,8 +423,8 @@ PHP 8.4) rather than inferred from reading the source.
   unobserved. A `get_terms()` `WP_Error` is now caught too — without that,
   `array_filter()` on a non-array would have turned a PHP warning into a fatal.
 - ~~The success message reads "All done! Grab a cold one (Affogatto)".~~ **FIXED** —
-  the drink is an *affogato*. "Now migrating up to 1 terms" still does not
-  pluralise; that belongs to the pluralisation sweep, which is deliberately left as
+  the drink is an *affogato*. ~~"Now migrating up to 1 terms" still does not
+  pluralise~~ — **FIXED** by the sweep, which was deliberately left as
   one dedicated pass rather than scattered through fix PRs, since it touches nearly
   every command and feature file.
 - Terms are processed in `get_terms` default order (name ASC). Still true, but no
@@ -504,8 +510,9 @@ PHP 8.4) rather than inferred from reading the source.
   init. Revisions are still read via direct SQL on `post_type='revision' AND
   post_status='inherit'`.
 - All output is `WP_CLI::log` — there is no `WP_CLI::success` and the exit code is
-  always 0. Count lines never pluralise: "Found 1 revisions to look through",
-  "1 revisions had author terms removed". Confirmed.
+  always 0 (deliberately left; see the correction below — siblings exit 0 too).
+  ~~Count lines never pluralise: "Found 1 revisions to look through", "1 revisions
+  had author terms removed".~~ **FIXED** by the pluralisation sweep: `_n()` with `%s` and `number_format_i18n()`, both branches pinned.
 - Current plugin code no longer adds author terms to revisions
   (`coauthors_update_post` bails for unsupported post types such as `revision`),
   so the characterisation scenarios attach terms to revisions manually to
@@ -731,7 +738,10 @@ PHP 8.4) rather than inferred from reading the source.
 - The command walks every supported post type (post AND page by default), unlike
   `create-author-terms-for-posts` which defaults to `post` only. Pinned in the
   "Pages are inspected by default" scenario.
-- Never-pluralised grammar: `Of 1 posts, 1 now have author terms.`
+- ~~Never-pluralised grammar: `Of 1 posts, 1 now have author terms.`~~ **FIXED**,
+  and reworded rather than merely pluralised: two counts share the sentence, so it
+  became `Done! Author terms added to %1$s of %2$s post(s).`, where only the
+  trailing noun needs agreement and one `_n()` selection (on the total) covers it.
 - ~~The two per-post log lines use DIFFERENT identifiers for the same term: the
   "Skipping" line prints term NAMES while the "Added" line prints the user's
   `user_nicename` — neither shows the `cap-` prefixed slug that is actually
@@ -814,7 +824,7 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 - ~~`Updating author terms with new counts` is misleading here too.~~ Duplicate —
   the pass was deleted and the write path replaced by #1425; struck for the same
   reason as above.
-- Grammar: `Found 1 posts`, `1 records affected` (never pluralised).
+- ~~Grammar: `Found 1 posts`, `1 records affected` (never pluralised).~~ **FIXED** by the pluralisation sweep: `_n()` with `%s` and `number_format_i18n()`, both branches pinned.
 - A post whose author is missing is counted in `Found N posts` but produces
   `0 records affected` after the skip postmeta warning; the run still ends with
   `Success: Done!`.
@@ -1070,8 +1080,9 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   assertions.
 - Author terms are created for EVERY user returned by `get_users()` regardless
   of role or post count.
-- Grammar: `Now updating 1 terms`; final message is `Success: All done` (no
-  full stop), unlike other subcommands' `All done!`.
+- ~~Grammar: `Now updating 1 terms`.~~ **FIXED** by the pluralisation sweep: `_n()` with `%s` and `number_format_i18n()`, both branches pinned. The final message is still
+  `Success: All done` (no full stop), unlike other subcommands' `All done!` —
+  cosmetic, deliberately untouched.
 
 
 - Hardened 2026-09-02 after adversarial review: 8 scenarios.
@@ -1123,8 +1134,8 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
     CSV path can produce those warnings. The created profile then has no
     `cap-first_name`/`cap-last_name` meta at all. Pinned with
     features/fixtures/guest-authors-single-name.csv (display_name `Prince`).
-  - Count line does not pluralise: a one-row CSV logs `Found 1 authors in CSV`
-    (:1090). Pinned.
+  - ~~Count line does not pluralise: a one-row CSV logs `Found 1 authors in
+    CSV`.~~ **FIXED** by the pluralisation sweep, both branches pinned.
 
 - Hardened 2026-09-02 after adversarial review: 10 scenarios, all green.
 - **The sanitisation layer is now pinned** (features/fixtures/guest-authors-dirty.csv),

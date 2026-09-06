@@ -77,7 +77,18 @@ class Migrate_Author_Terms_Command {
 			static fn ( $author_term ): bool => ! Prefix::slug_has_prefix( $author_term->slug )
 		);
 
-		WP_CLI::log( 'Now migrating up to ' . count( $author_terms ) . ' terms' );
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of author terms. */
+				_n(
+					'Now migrating up to %s term',
+					'Now migrating up to %s terms',
+					count( $author_terms ),
+					'co-authors-plus'
+				),
+				number_format_i18n( count( $author_terms ) )
+			)
+		);
 
 		foreach ( $author_terms as $author_term ) {
 			// A prefixed term was accidentally created, and the old term needs to be merged into the new (WordPress.com VIP).

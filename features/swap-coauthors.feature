@@ -127,7 +127,7 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{POST_ID} has been assigned "author2" as a co-author
 		Success: All done!
 		"""
@@ -153,7 +153,7 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{POST_ID_1} will be assigned "author2" as a co-author
 		Success: All done!
 		"""
@@ -184,7 +184,7 @@ Feature: One co-author can be swapped with another on their posts
 		"""
 		Warning: The --dry flag is deprecated; use --dry-run instead.
 		Swapping authorship from author1 to author2
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{POST_ID_1} will be assigned "author2" as a co-author
 		Success: All done!
 		"""
@@ -208,7 +208,7 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{POST_ID_1} has been assigned "author2" as a co-author
 		Success: All done!
 		"""
@@ -223,7 +223,7 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{POST_ID_2} has been assigned "author2" as a co-author
 		Success: All done!
 		"""
@@ -261,7 +261,7 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{POST_ID_1} has been assigned "author2" as a co-author
 		Success: All done!
 		"""
@@ -289,7 +289,7 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{POST_ID} has been assigned "author2" as a co-author
 		Success: All done!
 		"""
@@ -302,7 +302,7 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to author2
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{PAGE_ID} has been assigned "author2" as a co-author
 		Success: All done!
 		"""
@@ -377,7 +377,7 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		Swapping authorship from author1 to jane-doe
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{POST_ID} has been assigned "jane-doe" as a co-author
 		1 post kept its original post_author, because no co-author assigned to it has a WordPress account
 		Success: All done!
@@ -427,7 +427,7 @@ Feature: One co-author can be swapped with another on their posts
 		Then STDOUT should be:
 		"""
 		Swapping authorship from jane-doe to author2
-		Found 1 posts to update.
+		Found 1 post to update.
 		1: Post #{POST_ID} has been assigned "author2" as a co-author
 		Success: All done!
 		"""

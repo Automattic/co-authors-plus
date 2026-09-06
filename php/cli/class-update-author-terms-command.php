@@ -61,7 +61,18 @@ class Update_Author_Terms_Command {
 				'hide_empty' => false,
 			) 
 		);
-		WP_CLI::log( 'Now updating ' . count( $author_terms ) . ' terms' );
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of author terms. */
+				_n(
+					'Now updating %s term',
+					'Now updating %s terms',
+					count( $author_terms ),
+					'co-authors-plus'
+				),
+				number_format_i18n( count( $author_terms ) )
+			)
+		);
 		foreach ( $author_terms as $author_term ) {
 			$old_count = $author_term->count;
 			$coauthor  = $coauthors_plus->get_coauthor_by( 'user_nicename', $author_term->slug );
@@ -96,7 +107,18 @@ class Update_Author_Terms_Command {
 			);
 
 			$posts = new WP_Query( $args );
-			WP_CLI::log( "Now inspecting or updating {$posts->found_posts} Guest Authors." );
+			WP_CLI::log(
+				sprintf(
+					/* translators: Count of guest authors. */
+					_n(
+						'Now inspecting or updating %s Guest Author.',
+						'Now inspecting or updating %s Guest Authors.',
+						(int) $posts->found_posts,
+						'co-authors-plus'
+					),
+					number_format_i18n( (int) $posts->found_posts )
+				)
+			);
 
 			while ( $posts->post_count ) {
 				foreach ( $posts->posts as $guest_author_id ) {

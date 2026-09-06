@@ -20,7 +20,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Now migrating up to 1 terms
+		Now migrating up to 1 term
 		Term someone ({TERM_ID}) isn't prefixed, adding one
 		Success: All done! Grab a cold one (Affogato)
 		"""
@@ -36,7 +36,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		And I run `wp co-authors-plus migrate-author-terms`
 		Then STDOUT should be:
 		"""
-		Now migrating up to 1 terms
+		Now migrating up to 1 term
 		Term legacy-author ({TERM_ID}) isn't prefixed, adding one
 		Success: All done! Grab a cold one (Affogato)
 		"""
@@ -75,7 +75,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		And I run `wp co-authors-plus migrate-author-terms`
 		Then STDOUT should be:
 		"""
-		Now migrating up to 1 terms
+		Now migrating up to 1 term
 		Term someone ({BARE_ID}) has a new term too: cap-someone ({PREFIXED_ID}). Merging
 		Term someone ({BARE_ID}) isn't prefixed, adding one
 		Success: All done! Grab a cold one (Affogato)
@@ -121,7 +121,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Now migrating up to 1 terms
+		Now migrating up to 1 term
 		Term guardian ({TERM_ID}) isn't prefixed, adding one
 		Success: All done! Grab a cold one (Affogato)
 		"""
@@ -151,7 +151,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Now migrating up to 1 terms
+		Now migrating up to 1 term
 		Term someone ({BARE_ID}) has a new term too: cap-someone ({PREFIXED_ID}). Merging
 		Term someone ({BARE_ID}) isn't prefixed, adding one
 		Success: All done! Grab a cold one (Affogato)
@@ -172,7 +172,7 @@ Feature: Legacy author terms can be migrated to prefixed slugs
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Now migrating up to 1 terms
+		Now migrating up to 1 term
 		Term someone ({TERM_ID}) isn't prefixed, adding one
 		Success: All done! Grab a cold one (Affogato)
 		"""
