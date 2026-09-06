@@ -56,6 +56,8 @@ Returns rich co-author data (display name, avatar, email, etc.) for a given post
 
 Available to anonymous requesters when the post is publicly viewable (`is_post_publicly_viewable()`). Otherwise the requester must have `read_post` permission for that post ID. Tightened in 4.0 to stop draft/private/scheduled posts from leaking author data.
 
+The response array passes through the `rest_coauthors_prepare_items` filter (added in 4.2.0) before serialization, which is the supported extension point for limiting, reordering, or replacing the returned list. The Co-Authors block is the main consumer of this endpoint, but the filter applies to every response from it. See [filters.md](./filters.md).
+
 **Defined in** `php/api/endpoints/class-coauthors-controller.php`.
 
 ### `GET /coauthors/v1/coauthors/{user_nicename}`
