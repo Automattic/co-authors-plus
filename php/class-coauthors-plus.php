@@ -2114,6 +2114,7 @@ class CoAuthors_Plus {
 		// instead of the user details. If the term is missing, we probably need to
 		// back-fill with user details. Let's do this first... easier than running
 		// an upgrade script that could break on a lot of users
+		$cap         = apply_filters( 'coauthors_edit_author_cap', 'edit_posts' );
 		$args        = array(
 			'count_total'    => false,
 			'search'         => sprintf( '*%s*', $search ),
@@ -2123,22 +2124,31 @@ class CoAuthors_Plus {
 				'user_email',
 				'user_login',
 			),
-			'capability'     => array( apply_filters( 'coauthors_edit_author_cap', 'edit_posts' ) ),
+			'capability'     => array( $cap ),
 			'fields'         => 'all_with_meta',
 		);
+		$args        = apply_filters( 'coauthors_search_authors_get_users_args', $args );
 		$found_users = get_users( $args );
 
 		foreach ( $found_users as $found_user ) {
+			// get_users()'s 'capability' arg bounds the query but isn't the
+			// correctness guarantee; skip back-filling a term for anyone who
+			// doesn't actually hold the capability.
+			if ( ! $found_user->has_cap( $cap ) ) {
+				continue;
+			}
 			$term = $this->get_author_term( $found_user );
 			if ( empty( $term ) || empty( $term->description ) ) {
 				$this->update_author_term( $found_user );
 			}
 		}
 
+		// Raised from 10 to 50 (#1057) so large sites' autocomplete stops silently
+		// truncating matches. Adjust further via the filter below.
 		$args = array(
 			'search' => $search,
 			'get'    => 'all',
-			'number' => 10,
+			'number' => 50,
 		);
 		$args = apply_filters( 'coauthors_search_authors_get_terms_args', $args );
 		add_filter( 'terms_clauses', array( $this, 'filter_terms_clauses' ) );

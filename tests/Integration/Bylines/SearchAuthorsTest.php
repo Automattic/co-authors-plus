@@ -171,4 +171,101 @@ class SearchAuthorsTest extends TestCase {
 		$this->assertArrayNotHasKey( $this->author1->user_login, $authors );
 		$this->assertArrayHasKey( $author2->user_login, $authors );
 	}
+
+	/**
+	 * Checks search_authors() returns all matches when more than 10 share a prefix.
+	 *
+	 * @covers ::search_authors
+	 */
+	public function test_search_authors_returns_all_results_beyond_default_limit(): void {
+
+		global $coauthors_plus;
+
+		$prefix  = 'maxtest';
+		$editors = array();
+
+		for ( $i = 1; $i <= 7; $i++ ) {
+			$editors[] = $this->create_editor( "{$prefix}_editor_{$i}" );
+		}
+
+		$guest_logins = array();
+		for ( $i = 1; $i <= 6; $i++ ) {
+			$guest_logins[] = "{$prefix}_guest_{$i}";
+			$this->create_guest_author( "{$prefix}_guest_{$i}" );
+		}
+
+		$authors = $coauthors_plus->search_authors( $prefix );
+
+		$this->assertGreaterThanOrEqual( 13, count( $authors ) );
+
+		foreach ( $editors as $editor ) {
+			$this->assertArrayHasKey( $editor->user_login, $authors );
+		}
+		foreach ( $guest_logins as $guest_login ) {
+			$this->assertArrayHasKey( $guest_login, $authors );
+		}
+	}
+
+	/**
+	 * Checks search_authors() excludes a subscriber sharing a prefix with an editor.
+	 *
+	 * @covers ::search_authors
+	 */
+	public function test_search_authors_excludes_low_cap_users_from_keyword_search(): void {
+
+		global $coauthors_plus;
+
+		$prefix     = 'capcheck';
+		$editor     = $this->create_editor( "{$prefix}_editor" );
+		$subscriber = $this->create_subscriber( "{$prefix}_subscriber" );
+
+		$authors = $coauthors_plus->search_authors( $prefix );
+
+		$this->assertArrayHasKey( $editor->user_login, $authors );
+		$this->assertArrayNotHasKey( $subscriber->user_login, $authors );
+	}
+
+	/**
+	 * Checks search_authors() does not create an author term for a subscriber.
+	 *
+	 * @covers ::search_authors
+	 */
+	public function test_search_authors_does_not_backfill_terms_for_low_cap_users(): void {
+
+		global $coauthors_plus;
+
+		$prefix     = 'termgrowth';
+		$subscriber = $this->create_subscriber( "{$prefix}_subscriber" );
+
+		$this->assertEmpty( $coauthors_plus->get_author_term( $subscriber ) );
+
+		$coauthors_plus->search_authors( $prefix );
+
+		$this->assertEmpty( $coauthors_plus->get_author_term( $subscriber ) );
+	}
+
+	/**
+	 * Checks search_authors() still includes a user granted the capability
+	 * directly rather than through a role, now that role__in is gone.
+	 *
+	 * Regression test for the case GaryJones reproduced on wp-env WP 7.1:
+	 * capability combined with role__in incorrectly dropped a subscriber
+	 * granted edit_posts directly as a per-user capability.
+	 *
+	 * @covers ::search_authors
+	 */
+	public function test_search_authors_includes_user_with_directly_granted_capability(): void {
+
+		global $coauthors_plus;
+
+		$prefix     = 'directcap';
+		$editor     = $this->create_editor( "{$prefix}_editor" );
+		$subscriber = $this->create_subscriber( "{$prefix}_subscriber" );
+		$subscriber->add_cap( 'edit_posts' );
+
+		$authors = $coauthors_plus->search_authors( $prefix );
+
+		$this->assertArrayHasKey( $editor->user_login, $authors );
+		$this->assertArrayHasKey( $subscriber->user_login, $authors );
+	}
 }
