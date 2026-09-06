@@ -162,9 +162,9 @@ add_action(
 			return;
 		}
 
-		$creator       = new Guest_Author_Creator( $coauthors_plus );
 		$assignments   = new Coauthor_Assignment_Service( $coauthors_plus );
 		$guest_authors = new Guest_Author_Service( $coauthors_plus->guest_authors );
+		$creator       = new Guest_Author_Creator( $coauthors_plus, $guest_authors );
 
 		WP_CLI::add_command(
 			'co-authors-plus export-coauthors',
