@@ -83,9 +83,10 @@ Feature: A single guest author can be created
 
 	# Sanitised as the admin edit screen sanitises the same values: each declared
 	# sanitiser, falling back to sanitize_text_field. So tags are stripped from the
-	# name and login, the script tag leaves only its text, and — deliberately —
-	# the unschemed website and the login's space and punctuation survive, because
-	# the admin fallback keeps them too. This pins parity, not perfection. The
+	# name and login, the script tag leaves only its text, the website is schemed
+	# by its declared esc_url_raw, and — deliberately — the login's space and
+	# punctuation survive, because the admin fallback keeps them too. This pins
+	# parity, not perfection. The
 	# provenance meta keeps the login exactly as the source supplied it.
 	# Contrast create-guest-authors-from-csv, which layers stricter per-cell
 	# sanitisers (sanitize_email, esc_url_raw) on top before the creator runs.
@@ -105,7 +106,7 @@ Feature: A single guest author can be created
 		{RAW_ID},cap-display_name,"Raw Name"
 		{RAW_ID},cap-user_login,"Raw User!"
 		{RAW_ID},cap-user_email,raw@example.com
-		{RAW_ID},cap-website,example.com/raw
+		{RAW_ID},cap-website,http://example.com/raw
 		{RAW_ID},cap-description,xbio
 		{RAW_ID},_original_author_login,"<b>Raw</b> User!"
 		"""

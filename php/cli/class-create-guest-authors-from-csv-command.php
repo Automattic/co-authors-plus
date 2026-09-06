@@ -112,7 +112,7 @@ class Create_Guest_Authors_From_Csv_Command {
 				'display_name' => sanitize_text_field( $author['display_name'] ),
 				'user_login'   => sanitize_user( $author['user_login'] ),
 				'user_email'   => sanitize_email( $author['user_email'] ),
-				'website'      => esc_url_raw( $author['website'] ),
+				'website'      => sanitize_url( $author['website'] ),
 				'description'  => wp_filter_post_kses( $author['description'] ),
 				'avatar'       => absint( $author['avatar'] ),
 			);

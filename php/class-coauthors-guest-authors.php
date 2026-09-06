@@ -1219,10 +1219,18 @@ class CoAuthors_Guest_Authors {
 				'group' => 'slug',
 			),
 			array(
-				'key'   => 'website',
-				'label' => __( 'Website', 'co-authors-plus' ),
-				'group' => 'contact-info',
-				'input' => 'url',
+				'key'               => 'website',
+				'label'             => __( 'Website', 'co-authors-plus' ),
+				'group'             => 'contact-info',
+				'input'             => 'url',
+				// A URL, so the text fallback is wrong for it: sanitize_text_field kept
+				// unschemed values (invalid in Yoast's sameAs output) and strips %xx
+				// octets from an already-encoded URL on a second save. Declaring the
+				// sanitiser here covers the admin save, the service and the CLI at once.
+				// sanitize_url() is esc_url() in the 'db' context — the storage-side
+				// cleaner, un-deprecated in WP 5.9 as the name for exactly this; the
+				// better-known esc_url_raw() is its alias.
+				'sanitize_function' => 'sanitize_url',
 			),
 			array(
 				'key'               => 'description',
