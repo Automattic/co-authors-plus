@@ -168,7 +168,20 @@ class Reassign_Terms_Command {
 					continue;
 				}
 
-				WP_CLI::log( "Success: There's already a '{$new_user}' term for '{$old_user}'. Reassigning {$old_term->count} posts and then deleting the term" );
+				WP_CLI::log(
+					sprintf(
+						/* translators: 1: New co-author login. 2: Old co-author login. 3: Count of posts. */
+						_n(
+							'Success: There\'s already a \'%1$s\' term for \'%2$s\'. Reassigning %3$s post and then deleting the term',
+							'Success: There\'s already a \'%1$s\' term for \'%2$s\'. Reassigning %3$s posts and then deleting the term',
+							$old_term->count,
+							'co-authors-plus'
+						),
+						$new_user,
+						$old_user,
+						number_format_i18n( $old_term->count )
+					)
+				);
 				$term_args = array(
 					'default'       => $new_term->term_id,
 					'force_default' => true,
@@ -194,8 +207,41 @@ class Reassign_Terms_Command {
 		}//end foreach
 
 		WP_CLI::log( 'Reassignment complete. Here are your results:' );
-		WP_CLI::log( "- $results->success authors were successfully reassigned terms" );
-		WP_CLI::log( "- $results->new_term_exists authors had their old term merged to their new term" );
-		WP_CLI::log( "- $results->old_term_missing authors were missing old terms" );
+		WP_CLI::log(
+			'- ' . sprintf(
+				/* translators: Count of authors. */
+				_n(
+					'%s author was successfully reassigned terms',
+					'%s authors were successfully reassigned terms',
+					$results->success,
+					'co-authors-plus'
+				),
+				number_format_i18n( $results->success )
+			)
+		);
+		WP_CLI::log(
+			'- ' . sprintf(
+				/* translators: Count of authors. */
+				_n(
+					'%s author had their old term merged to their new term',
+					'%s authors had their old term merged to their new term',
+					$results->new_term_exists,
+					'co-authors-plus'
+				),
+				number_format_i18n( $results->new_term_exists )
+			)
+		);
+		WP_CLI::log(
+			'- ' . sprintf(
+				/* translators: Count of authors. */
+				_n(
+					'%s author was missing an old term',
+					'%s authors were missing old terms',
+					$results->old_term_missing,
+					'co-authors-plus'
+				),
+				number_format_i18n( $results->old_term_missing )
+			)
+		);
 	}
 }

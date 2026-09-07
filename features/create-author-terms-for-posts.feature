@@ -87,10 +87,10 @@ Feature: Missing author terms can be backfilled for targeted posts
 		When I run `wp co-authors-plus create-author-terms-for-posts --post-statuses=draft`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_ID} (1/1 or 100.00%)
 		Success: Inserted term relationship for post {POST_ID} and author 1 (admin).
-		1 records affected
+		1 record affected
 		Success: Done!
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
@@ -132,10 +132,10 @@ Feature: Missing author terms can be backfilled for targeted posts
 		When I run `wp co-authors-plus create-author-terms-for-posts --post-types=page`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {PAGE_ID} (1/1 or 100.00%)
 		Success: Inserted term relationship for post {PAGE_ID} and author 1 (admin).
-		1 records affected
+		1 record affected
 		Success: Done!
 		"""
 
@@ -149,10 +149,10 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And I run `wp co-authors-plus create-author-terms-for-posts --specific-post-ids={POST_A}`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_A} (1/1 or 100.00%)
 		Success: Inserted term relationship for post {POST_A} and author 1 (admin).
-		1 records affected
+		1 record affected
 		Success: Done!
 		"""
 		When I run `wp term list author --object_ids={POST_A} --field=slug`
@@ -173,10 +173,10 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And STDOUT should be:
 		"""
 		Warning: --above-post-id and --below-post-id are ignored when --specific-post-ids is given.
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_B} (1/1 or 100.00%)
 		Success: Inserted term relationship for post {POST_B} and author 1 (admin).
-		1 records affected
+		1 record affected
 		Success: Done!
 		"""
 		When I run `wp term list author --object_ids={POST_B} --field=slug`
@@ -198,10 +198,10 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And I run `wp co-authors-plus create-author-terms-for-posts --above-post-id={POST_A} --below-post-id={POST_C}`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_B} (1/1 or 100.00%)
 		Success: Inserted term relationship for post {POST_B} and author 1 (admin).
-		1 records affected
+		1 record affected
 		Success: Done!
 		"""
 		When I run `wp term list author --object_ids={POST_A} --format=count`
@@ -225,10 +225,10 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And I run `wp co-authors-plus create-author-terms-for-posts --above-post-id={POST_A}`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_B} (1/1 or 100.00%)
 		Success: Inserted term relationship for post {POST_B} and author 1 (admin).
-		1 records affected
+		1 record affected
 		Success: Done!
 		"""
 		When I run `wp term list author --object_ids={POST_A} --format=count`
@@ -247,10 +247,10 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And I run `wp co-authors-plus create-author-terms-for-posts --below-post-id={POST_B}`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_A} (1/1 or 100.00%)
 		Success: Inserted term relationship for post {POST_A} and author 1 (admin).
-		1 records affected
+		1 record affected
 		Success: Done!
 		"""
 		When I run `wp term list author --object_ids={POST_A} --field=slug`
@@ -286,7 +286,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And I run `wp co-authors-plus create-author-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_ID} (1/1 or 100.00%)
 		Warning: Post Author ID 999 does not exist in wp_users table, inserting skip postmeta (`_cap_skip_backfill`).
 		0 records affected
@@ -324,7 +324,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		When I run `wp co-authors-plus create-author-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_ID} (1/1 or 100.00%)
 		Warning: Post Author ID 0 does not exist in wp_users table, inserting skip postmeta (`_cap_skip_backfill`).
 		0 records affected
@@ -403,10 +403,10 @@ Feature: Missing author terms can be backfilled for targeted posts
 		And I run `wp co-authors-plus create-author-terms-for-posts --unbatched`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_ID} (1/1 or 100.00%)
 		Success: Inserted term relationship for post {POST_ID} and author 1 (admin).
-		1 records affected
+		1 record affected
 		Success: Done!
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
@@ -432,7 +432,7 @@ Feature: Missing author terms can be backfilled for targeted posts
 		When I run `wp co-authors-plus create-author-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Found 1 posts with missing author terms.
+		Found 1 post with missing author terms.
 		Processing post {POST_ID} (1/1 or 100.00%)
 		Warning: Post Author ID 999 does not exist in wp_users table, inserting skip postmeta (`_cap_skip_backfill`).
 		0 records affected

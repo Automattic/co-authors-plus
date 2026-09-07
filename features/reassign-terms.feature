@@ -13,7 +13,7 @@ Feature: Author terms can be reassigned between co-authors
 		"""
 		Success: Converted 'olduser' term to 'newuser'
 		Reassignment complete. Here are your results:
-		- 1 authors were successfully reassigned terms
+		- 1 author was successfully reassigned terms
 		- 0 authors had their old term merged to their new term
 		- 0 authors were missing old terms
 		"""
@@ -37,7 +37,7 @@ Feature: Author terms can be reassigned between co-authors
 		Reassignment complete. Here are your results:
 		- 0 authors were successfully reassigned terms
 		- 0 authors had their old term merged to their new term
-		- 1 authors were missing old terms
+		- 1 author was missing an old term
 		"""
 		When I run `wp term list author --field=slug`
 		Then STDOUT should be:
@@ -57,10 +57,10 @@ Feature: Author terms can be reassigned between co-authors
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Success: There's already a 'newuser' term for 'olduser'. Reassigning 1 posts and then deleting the term
+		Success: There's already a 'newuser' term for 'olduser'. Reassigning 1 post and then deleting the term
 		Reassignment complete. Here are your results:
 		- 0 authors were successfully reassigned terms
-		- 1 authors had their old term merged to their new term
+		- 1 author had their old term merged to their new term
 		- 0 authors were missing old terms
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
@@ -121,7 +121,7 @@ Feature: Author terms can be reassigned between co-authors
 		"""
 		Success: Converted 'olduser' term to 'newuser'
 		Reassignment complete. Here are your results:
-		- 1 authors were successfully reassigned terms
+		- 1 author was successfully reassigned terms
 		- 0 authors had their old term merged to their new term
 		- 0 authors were missing old terms
 		"""
@@ -219,7 +219,7 @@ Feature: Author terms can be reassigned between co-authors
 		Reassignment complete. Here are your results:
 		- 0 authors were successfully reassigned terms
 		- 0 authors had their old term merged to their new term
-		- 1 authors were missing old terms
+		- 1 author was missing an old term
 		"""
 		When I run `wp term create author orphan --porcelain`
 		And save STDOUT as {ORPHAN_ID}
@@ -231,7 +231,7 @@ Feature: Author terms can be reassigned between co-authors
 		Reassignment complete. Here are your results:
 		- 0 authors were successfully reassigned terms
 		- 0 authors had their old term merged to their new term
-		- 1 authors were missing old terms
+		- 1 author was missing an old term
 		"""
 		When I run `wp term list author --fields=term_id,slug --format=csv`
 		Then STDOUT should be:
@@ -269,7 +269,7 @@ Feature: Author terms can be reassigned between co-authors
 		"""
 		Success: Converted 'olduser' term to 'newuser'
 		Reassignment complete. Here are your results:
-		- 1 authors were successfully reassigned terms
+		- 1 author was successfully reassigned terms
 		- 0 authors had their old term merged to their new term
 		- 0 authors were missing old terms
 		"""
@@ -300,7 +300,7 @@ Feature: Author terms can be reassigned between co-authors
 		Warning: The --new_term flag is deprecated; use --new-term instead.
 		Success: Converted 'olduser' term to 'newuser'
 		Reassignment complete. Here are your results:
-		- 1 authors were successfully reassigned terms
+		- 1 author was successfully reassigned terms
 		- 0 authors had their old term merged to their new term
 		- 0 authors were missing old terms
 		"""
@@ -318,4 +318,37 @@ Feature: Author terms can be reassigned between co-authors
 		And STDERR should contain:
 		"""
 		unknown --author_mapping parameter
+		"""
+
+	# Two posts carrying the old term, so the merge message's plural branch runs;
+	# the merge path can never report zero, so no other scenario reaches it.
+	Scenario: Merging reports how many posts move across
+		When I run `wp user create olduser olduser@example.com --role=author`
+		And I run `wp user create newuser newuser@example.com --role=author`
+		And I run `wp co-authors-plus create-guest-authors`
+		And I run `wp post create --post_title="First shared" --post_status=publish --porcelain`
+		And save STDOUT as {POST_A}
+		And I run `wp post term add {POST_A} author cap-olduser`
+		And I run `wp post create --post_title="Second shared" --post_status=publish --porcelain`
+		And save STDOUT as {POST_B}
+		And I run `wp post term add {POST_B} author cap-olduser`
+		And I run `wp co-authors-plus reassign-terms --old-term=olduser --new-term=newuser`
+		Then the return code should be 0
+		And STDOUT should be:
+		"""
+		Success: There's already a 'newuser' term for 'olduser'. Reassigning 2 posts and then deleting the term
+		Reassignment complete. Here are your results:
+		- 0 authors were successfully reassigned terms
+		- 1 author had their old term merged to their new term
+		- 0 authors were missing old terms
+		"""
+		When I run `wp term list author --object_ids={POST_A} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-newuser
+		"""
+		When I run `wp term list author --object_ids={POST_B} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-newuser
 		"""

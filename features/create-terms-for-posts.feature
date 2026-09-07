@@ -8,8 +8,8 @@ Feature: Author terms can be created for all posts
 		When I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 0 total posts.
-		Success: Done! Of 0 posts, 0 now have author terms.
+		Now inspecting or updating 0 posts.
+		Success: Done! Author terms added to 0 of 0 posts.
 		"""
 
 	Scenario: Add author terms to posts that are missing them, then skip them on a second run
@@ -22,12 +22,12 @@ Feature: Author terms can be created for all posts
 		And I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 2 total posts.
+		Now inspecting or updating 2 posts.
 		No co-authors found for post #{POST_A}.
 		1/2) Added - Post #{POST_A} 'First post' now has this author term: cap-admin
 		No co-authors found for post #{POST_B}.
 		2/2) Added - Post #{POST_B} 'Second post' now has this author term: cap-admin
-		Success: Done! Of 2 posts, 2 now have author terms.
+		Success: Done! Author terms added to 2 of 2 posts.
 		"""
 		When I run `wp term list author --object_ids={POST_A} --field=slug`
 		Then STDOUT should be:
@@ -37,10 +37,10 @@ Feature: Author terms can be created for all posts
 		When I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 2 total posts.
+		Now inspecting or updating 2 posts.
 		1/2) Skipping - Post #{POST_A} 'First post' already has these terms: cap-admin
 		2/2) Skipping - Post #{POST_B} 'Second post' already has these terms: cap-admin
-		Success: Done! Of 2 posts, 0 now have author terms.
+		Success: Done! Author terms added to 0 of 2 posts.
 		"""
 
 	Scenario: Skip posts that already have author terms while fixing those without
@@ -52,11 +52,11 @@ Feature: Author terms can be created for all posts
 		And I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 2 total posts.
+		Now inspecting or updating 2 posts.
 		1/2) Skipping - Post #{POST_A} 'First post' already has these terms: cap-admin
 		No co-authors found for post #{POST_B}.
 		2/2) Added - Post #{POST_B} 'Second post' now has this author term: cap-admin
-		Success: Done! Of 2 posts, 1 now have author terms.
+		Success: Done! Author terms added to 1 of 2 posts.
 		"""
 		When I run `wp term list author --object_ids={POST_B} --field=slug`
 		Then STDOUT should be:
@@ -71,10 +71,10 @@ Feature: Author terms can be created for all posts
 		And I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 1 total posts.
+		Now inspecting or updating 1 post.
 		No co-authors found for post #{PAGE_ID}.
 		1/1) Added - Post #{PAGE_ID} 'About page' now has this author term: cap-admin
-		Success: Done! Of 1 posts, 1 now have author terms.
+		Success: Done! Author terms added to 1 of 1 post.
 		"""
 		When I run `wp term list author --object_ids={PAGE_ID} --field=slug`
 		Then STDOUT should be:
@@ -91,10 +91,10 @@ Feature: Author terms can be created for all posts
 		And I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 1 total posts.
+		Now inspecting or updating 1 post.
 		No co-authors found for post #{POST_ID}.
 		1/1) Added - Post #{POST_ID} 'Writer post' now has this author term: cap-writer
-		Success: Done! Of 1 posts, 1 now have author terms.
+		Success: Done! Author terms added to 1 of 1 post.
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -110,10 +110,10 @@ Feature: Author terms can be created for all posts
 		And I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 1 total posts.
+		Now inspecting or updating 1 post.
 		No co-authors found for post #{POST_ID}.
 		Warning: 1/1) Skipping - Post #{POST_ID} 'Orphan post' has no author term for user ID 999.
-		Success: Done! Of 1 posts, 0 now have author terms.
+		Success: Done! Author terms added to 0 of 1 post.
 		"""
 		And the return code should be 0
 		When I run `wp term list author --object_ids={POST_ID} --format=count`
@@ -136,12 +136,12 @@ Feature: Author terms can be created for all posts
 		And I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 2 total posts.
+		Now inspecting or updating 2 posts.
 		No co-authors found for post #{POST_A}.
 		1/2) Added - Post #{POST_A} 'Alpha post' now has this author term: cap-alpha
 		No co-authors found for post #{POST_B}.
 		2/2) Added - Post #{POST_B} 'Beta post' now has this author term: cap-beta
-		Success: Done! Of 2 posts, 2 now have author terms.
+		Success: Done! Author terms added to 2 of 2 posts.
 		"""
 		When I run `wp term list author --object_ids={POST_A} --field=slug`
 		Then STDOUT should be:
@@ -166,8 +166,8 @@ Feature: Author terms can be created for all posts
 		And I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 0 total posts.
-		Success: Done! Of 0 posts, 0 now have author terms.
+		Now inspecting or updating 0 posts.
+		Success: Done! Author terms added to 0 of 0 posts.
 		"""
 		When I run `wp term list author --object_ids={DRAFT_ID} --format=count`
 		Then STDOUT should be:
@@ -194,9 +194,9 @@ Feature: Author terms can be created for all posts
 		When I run `wp co-authors-plus create-terms-for-posts`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 1 total posts.
+		Now inspecting or updating 1 post.
 		1/1) Skipping - Post #{POST_ID} 'Ghostwritten post' already has these terms: cap-writer
-		Success: Done! Of 1 posts, 0 now have author terms.
+		Success: Done! Author terms added to 0 of 1 post.
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -232,10 +232,10 @@ Feature: Author terms can be created for all posts
 		And I run `wp co-authors-plus create-terms-for-posts --post-statuses=draft`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 1 total posts.
+		Now inspecting or updating 1 post.
 		No co-authors found for post #{DRAFT_ID}.
 		1/1) Added - Post #{DRAFT_ID} 'Draft post' now has this author term: cap-admin
-		Success: Done! Of 1 posts, 1 now have author terms.
+		Success: Done! Author terms added to 1 of 1 post.
 		"""
 		When I run `wp term list author --object_ids={DRAFT_ID} --field=slug`
 		Then STDOUT should be:
@@ -256,12 +256,12 @@ Feature: Author terms can be created for all posts
 		And I run `wp co-authors-plus create-terms-for-posts --post-statuses=publish,draft`
 		Then STDOUT should be:
 		"""
-		Now inspecting or updating 2 total posts.
+		Now inspecting or updating 2 posts.
 		No co-authors found for post #{POST_A}.
 		1/2) Added - Post #{POST_A} 'Published post' now has this author term: cap-admin
 		No co-authors found for post #{POST_B}.
 		2/2) Added - Post #{POST_B} 'Draft post' now has this author term: cap-admin
-		Success: Done! Of 2 posts, 2 now have author terms.
+		Success: Done! Author terms added to 2 of 2 posts.
 		"""
 		When I run `wp term list author --object_ids={POST_A} --field=slug`
 		Then STDOUT should be:

@@ -108,7 +108,7 @@ Feature: Guest authors can be created from a CSV file
 		Then the return code should be 0
 		And STDOUT should contain:
 		"""
-		Found 1 authors in CSV
+		Found 1 author in CSV
 		"""
 		And STDOUT should contain:
 		"""
@@ -188,7 +188,7 @@ Feature: Guest authors can be created from a CSV file
 		Then the return code should be 0
 		And STDOUT should contain:
 		"""
-		Found 1 authors in CSV
+		Found 1 author in CSV
 		"""
 		And STDOUT should contain:
 		"""
@@ -266,6 +266,17 @@ Feature: Guest authors can be created from a CSV file
 		Then STDOUT should be:
 		"""
 		cap-valid-person
+		"""
+		# A one-row file whose only row fails, so the tally's singular branch runs.
+		When I run `wp co-authors-plus create-guest-authors-from-csv --file=features/fixtures/guest-authors-invalid-single.csv`
+		Then the return code should be 0
+		And STDOUT should contain:
+		"""
+		Found 1 author in CSV
+		"""
+		And STDOUT should contain:
+		"""
+		Warning: 1 of 1 author could not be created.
 		"""
 
 	Scenario: A CSV file with only a header row creates nothing

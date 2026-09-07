@@ -186,10 +186,32 @@ class Assign_Coauthors_Command {
 
 		WP_CLI::log( 'All done! Here are your results:' );
 		if ( $posts_already_associated ) {
-			WP_CLI::log( "- {$posts_already_associated} posts already had the co-author assigned" );
+			WP_CLI::log(
+				'- ' . sprintf(
+					/* translators: Count of posts. */
+					_n(
+						'%s post already had the co-author assigned',
+						'%s posts already had the co-author assigned',
+						$posts_already_associated,
+						'co-authors-plus'
+					),
+					number_format_i18n( $posts_already_associated )
+				)
+			);
 		}
 		if ( $posts_missing_coauthor ) {
-			WP_CLI::log( "- {$posts_missing_coauthor} posts reference co-authors that don't exist. These are:" );
+			WP_CLI::log(
+				'- ' . sprintf(
+					/* translators: Count of posts. */
+					_n(
+						'%s post references a co-author that doesn\'t exist. This is:',
+						'%s posts reference co-authors that don\'t exist. These are:',
+						$posts_missing_coauthor,
+						'co-authors-plus'
+					),
+					number_format_i18n( $posts_missing_coauthor )
+				)
+			);
 			WP_CLI::log( '  ' . implode( ', ', array_unique( $missing_coauthors ) ) );
 		}
 		if ( $posts_missing_meta_value ) {
@@ -208,7 +230,18 @@ class Assign_Coauthors_Command {
 			);
 		}
 		if ( $posts_associated ) {
-			WP_CLI::log( "- {$posts_associated} posts now have the proper co-author" );
+			WP_CLI::log(
+				'- ' . sprintf(
+					/* translators: Count of posts. */
+					_n(
+						'%s post now has the proper co-author',
+						'%s posts now have the proper co-author',
+						$posts_associated,
+						'co-authors-plus'
+					),
+					number_format_i18n( $posts_associated )
+				)
+			);
 		}
 		if ( $posts_keeping_author ) {
 			WP_CLI::log(

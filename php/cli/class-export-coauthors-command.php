@@ -121,7 +121,19 @@ class Export_Coauthors_Command {
 			)
 		);
 
-		WP_CLI::success( sprintf( 'Exported %d guest authors to %s', count( $entries ), $file ) );
+		WP_CLI::success(
+			sprintf(
+				/* translators: 1: Count of guest authors. 2: File path. */
+				_n(
+					'Exported %1$s guest author to %2$s',
+					'Exported %1$s guest authors to %2$s',
+					count( $entries ),
+					'co-authors-plus'
+				),
+				number_format_i18n( count( $entries ) ),
+				$file
+			)
+		);
 	}
 
 	/**

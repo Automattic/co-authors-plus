@@ -22,7 +22,7 @@ Feature: Author terms can be removed from post revisions
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Found 1 revisions to look through
+		Found 1 revision to look through
 		All done! 0 revisions had author terms removed
 		"""
 
@@ -43,9 +43,9 @@ Feature: Author terms can be removed from post revisions
 		Then the return code should be 0
 		And STDOUT should be:
 		"""
-		Found 1 revisions to look through
+		Found 1 revision to look through
 		#{REVISION_ID}: Removing cap-admin
-		All done! 1 revisions had author terms removed
+		All done! 1 revision had author terms removed
 		"""
 		When I run `wp term list author --object_ids={REVISION_ID} --field=slug`
 		Then STDOUT should be empty
@@ -73,12 +73,12 @@ Feature: Author terms can be removed from post revisions
 		Then the return code should be 0
 		And STDOUT should contain:
 		"""
-		Found 1 revisions to look through
+		Found 1 revision to look through
 		"""
 		And STDOUT should match /Removing (cap-admin,cap-alice|cap-alice,cap-admin)/
 		And STDOUT should contain:
 		"""
-		All done! 1 revisions had author terms removed
+		All done! 1 revision had author terms removed
 		"""
 		When I run `wp term list author --object_ids={REVISION_ID} --field=slug`
 		Then STDOUT should be empty
@@ -105,7 +105,7 @@ Feature: Author terms can be removed from post revisions
 		"""
 		Found 2 revisions to look through
 		#{REV_B}: Removing cap-admin
-		All done! 1 revisions had author terms removed
+		All done! 1 revision had author terms removed
 		"""
 
 	Scenario: Running the command twice reports nothing left to remove
@@ -119,7 +119,7 @@ Feature: Author terms can be removed from post revisions
 		And I run the previous command again
 		Then STDOUT should be:
 		"""
-		Found 1 revisions to look through
+		Found 1 revision to look through
 		All done! 0 revisions had author terms removed
 		"""
 

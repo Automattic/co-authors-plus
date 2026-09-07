@@ -27,10 +27,10 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		2: Post #{POST_ID_2} already has "author1" associated as a co-author
 		3: Post #{POST_ID_3} does not have "ghostwriter" associated as a co-author but there is not a co-author profile
 		All done! Here are your results:
-		- 1 posts already had the co-author assigned
-		- 1 posts reference co-authors that don't exist. These are:
+		- 1 post already had the co-author assigned
+		- 1 post references a co-author that doesn't exist. This is:
 		  ghostwriter
-		- 1 posts now have the proper co-author
+		- 1 post now has the proper co-author
 		"""
 		When I run `wp term list author --object_ids={POST_ID_1} --field=slug`
 		Then STDOUT should be:
@@ -54,19 +54,26 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		And I run `wp post create --post_title="Imported post" --post_status=publish --porcelain`
 		And save STDOUT as {POST_ID}
 		And I run `wp post meta update {POST_ID} _original_import_author author1`
+		And I run `wp post create --post_title="Second import" --post_status=publish --porcelain`
+		And save STDOUT as {POST_B}
+		And I run `wp post meta update {POST_B} _original_import_author author1`
 		And I run `wp co-authors-plus assign-coauthors`
 		Then STDOUT should be:
 		"""
 		1: Post #{POST_ID} has been assigned "author1" as the author
+		2: Post #{POST_B} has been assigned "author1" as the author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 2 posts now have the proper co-author
 		"""
+		# Two posts, so the plural branch of the "already had" summary runs too;
+		# nothing else ever pins it, because the count is truthiness-guarded.
 		When I run the previous command again
 		Then STDOUT should be:
 		"""
 		1: Post #{POST_ID} already has "author1" associated as a co-author
+		2: Post #{POST_B} already has "author1" associated as a co-author
 		All done! Here are your results:
-		- 1 posts already had the co-author assigned
+		- 2 posts already had the co-author assigned
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -89,7 +96,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		1: Post #{POST_ID} has been assigned "author1" as the author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 1 post now has the proper co-author
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -117,7 +124,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		1: Post #{POST_ID} has been assigned "author1" as the author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 1 post now has the proper co-author
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -171,7 +178,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		1: Post #{POST_ID} has been assigned "author2" as the author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 1 post now has the proper co-author
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -199,7 +206,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		1: Post #{POST_ID} has been assigned "author2" as the author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 1 post now has the proper co-author
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -219,7 +226,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		1: Post #{POST_ID} has been assigned "author3" as the author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 1 post now has the proper co-author
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -244,7 +251,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		1: Post #{PAGE_ID} has been assigned "author1" as the author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 1 post now has the proper co-author
 		"""
 		When I run `wp term list author --object_ids={PAGE_ID} --field=slug`
 		Then STDOUT should be:
@@ -262,7 +269,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		1: Post #{POST_ID} has been assigned "author-one" as the author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 1 post now has the proper co-author
 		"""
 		# The raw meta value is "Author One"; the resolved login is "author-one". The
 		# comparison used to be against the raw value, so it never matched what had just
@@ -272,7 +279,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		1: Post #{POST_ID} already has "author-one" associated as a co-author
 		All done! Here are your results:
-		- 1 posts already had the co-author assigned
+		- 1 post already had the co-author assigned
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`
 		Then STDOUT should be:
@@ -296,7 +303,7 @@ Feature: Co-authors can be assigned to posts from a post meta value
 		"""
 		1: Post #{POST_ID} has been assigned "jane-doe" as the author
 		All done! Here are your results:
-		- 1 posts now have the proper co-author
+		- 1 post now has the proper co-author
 		- 1 post kept its original post_author, because no co-author assigned to it has a WordPress account
 		"""
 		When I run `wp term list author --object_ids={POST_ID} --field=slug`

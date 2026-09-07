@@ -160,7 +160,18 @@ class Swap_Coauthors_Command {
 		$posts_total          = 0;
 		$posts_keeping_author = 0;
 
-		WP_CLI::log( "Found $posts->found_posts posts to update." );
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of posts. */
+				_n(
+					'Found %s post to update.',
+					'Found %s posts to update.',
+					(int) $posts->found_posts,
+					'co-authors-plus'
+				),
+				number_format_i18n( (int) $posts->found_posts )
+			)
+		);
 
 		// This command is term-driven. A post whose only link to the from author is
 		// wp_posts.post_author carries no cap- term, matches nothing above, and used to

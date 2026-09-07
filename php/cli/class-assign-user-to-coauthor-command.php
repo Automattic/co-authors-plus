@@ -140,8 +140,8 @@ class Assign_User_To_Coauthor_Command {
 		$success_message = sprintf(
 			/* translators: Count of posts. */
 			_n(
-				'All done! %d post was affected.',
-				'All done! %d posts were affected.',
+				'All done! %s post was affected.',
+				'All done! %s posts were affected.',
 				$affected,
 				'co-authors-plus'
 			),

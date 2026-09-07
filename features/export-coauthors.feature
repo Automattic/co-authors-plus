@@ -20,7 +20,7 @@ Feature: Guest authors and their post assignments can be exported
 		When I run `wp co-authors-plus export-coauthors --file=/tmp/cap-export.json`
 		Then STDOUT should be:
 		"""
-		Success: Exported 1 guest authors to /tmp/cap-export.json
+		Success: Exported 1 guest author to /tmp/cap-export.json
 		"""
 		And the return code should be 0
 
@@ -43,7 +43,7 @@ Feature: Guest authors and their post assignments can be exported
 		And I run `wp co-authors-plus export-coauthors --file=/tmp/cap-export-lonely.json`
 		Then STDOUT should be:
 		"""
-		Success: Exported 1 guest authors to /tmp/cap-export-lonely.json
+		Success: Exported 1 guest author to /tmp/cap-export-lonely.json
 		"""
 		When I run `wp eval 'echo count( json_decode( file_get_contents( "/tmp/cap-export-lonely.json" ), true )["guest_authors"][0]["post_refs"] );'`
 		Then STDOUT should be:
