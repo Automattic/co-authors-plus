@@ -240,6 +240,57 @@ class EndpointsTest extends TestCase {
 		$this->assertCount( 2, $update_response->data );
 	}
 
+	/**
+	 * Formatting an author with an existing term must not write to it: term
+	 * description refreshes belong to the profile-update hook, not to GET
+	 * routes.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_does_not_refresh_existing_term(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author();
+		$term   = $coauthors_plus->update_author_term( $author );
+
+		wp_update_term(
+			$term->term_id,
+			$coauthors_plus->coauthor_taxonomy,
+			array( 'description' => 'stale description' )
+		);
+		wp_cache_delete( 'author-term-' . $author->user_nicename, 'co-authors-plus' );
+
+		$formatted = $this->_api->_format_author_data( $author );
+
+		$this->assertSame( $term->term_id, $formatted['termId'] );
+		$this->assertSame(
+			'stale description',
+			get_term( $term->term_id, $coauthors_plus->coauthor_taxonomy )->description,
+			'Failed to assert that formatting an author for a GET response leaves the term description untouched.'
+		);
+	}
+
+	/**
+	 * An author with no term yet (e.g. the post_author fallback on a pre-CAP
+	 * post) must still be backfilled once, or they would vanish from responses
+	 * and be unselectable in the editor.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_backfills_missing_term(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author();
+
+		$this->assertFalse( $coauthors_plus->get_author_term( $author ) );
+
+		$formatted = $this->_api->_format_author_data( $author );
+
+		$term = $coauthors_plus->get_author_term( $author );
+		$this->assertNotEmpty( $term );
+		$this->assertSame( $term->term_id, $formatted['termId'] );
+	}
+
 	public function data_only_editor_role_can_edit_coauthors(): array {
 		return array(
 			'Subscriber' => array(
