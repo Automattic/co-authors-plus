@@ -273,11 +273,16 @@ class Endpoints {
 	 * so we exclude it from the response rather than feed the editor data it
 	 * can't round-trip.
 	 *
+	 * This is a pure read: it never creates or refreshes the term. Description
+	 * freshness is owned by the profile-update hook, and the one caller that
+	 * can legitimately see a term-less author backfills before formatting
+	 * (see _build_authors_response()).
+	 *
 	 * @param object $author The result from co-authors methods.
 	 * @return array|null
 	 */
 	public function _format_author_data( $author ): ?array {
-		$term = $this->coauthors->update_author_term( $author );
+		$term = $this->coauthors->get_author_term( $author );
 
 		if ( ! $term || is_wp_error( $term ) ) {
 			return null;
@@ -308,6 +313,15 @@ class Endpoints {
 
 		if ( ! empty( $authors ) ) {
 			foreach ( $authors as $author ) {
+				// Self-heal the one term-less case that can reach this response:
+				// the post_author fallback in get_coauthors() on a pre-CAP post.
+				// The editor persists selections by term id, so without a term
+				// the author would be omitted and silently dropped on the next
+				// save. A one-time write per author; the formatter stays pure.
+				if ( ! $this->coauthors->get_author_term( $author ) ) {
+					$this->coauthors->update_author_term( $author );
+				}
+
 				$formatted = $this->_format_author_data( $author );
 				if ( null !== $formatted ) {
 					$response[] = $formatted;
