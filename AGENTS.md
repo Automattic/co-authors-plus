@@ -25,6 +25,7 @@ co-authors-plus/
 │   ├── class-coauthors-plus.php       # Main plugin class (taxonomy, meta boxes, AJAX)
 │   ├── class-coauthors-guest-authors.php  # Guest author CPT management
 │   ├── class-coauthors-template-filters.php # Frontend template filters
+│   ├── class-coauthors-feed-filters.php # Feed byline filters
 │   ├── class-coauthors-wp-list-table.php   # Admin list table
 │   ├── class-coauthors-iterator.php   # Iterator for looping through coauthors
 │   ├── cli/                           # WP-CLI commands, one class each
@@ -46,7 +47,8 @@ co-authors-plus/
 - `php/class-coauthors-guest-authors.php` — `CoAuthors_Guest_Authors`: guest author CPT (`guest-author`), admin UI, avatar handling, privacy export
 - `template-tags.php` — Template functions: `coauthors()`, `get_coauthors()`, `is_coauthor_for_post()`, `coauthors_posts_links()`, etc.
 - `php/class-coauthors-iterator.php` — Enables looping through coauthors; modifies global `$authordata`
-- `php/class-coauthors-template-filters.php` — Frontend filters for `the_author`, `the_author_posts_link`, RSS feeds
+- `php/class-coauthors-template-filters.php` — Frontend filters for `the_author`, `the_author_posts_link`; opt-in via `coauthors_auto_apply_template_tags`
+- `php/class-coauthors-feed-filters.php` — `CoAuthors_Feed_Filters`: co-author bylines in feeds (`the_author` under `is_feed()`, extra `dc:creator` elements on `rss2_item`); on by default, opt out via `coauthors_filter_feed_authors`
 - `php/api/endpoints/class-coauthors-controller.php` — REST API controller (`coauthors/v1`)
 - `php/blocks/` — Five Gutenberg blocks for displaying coauthor information
 - `php/cli/` — WP-CLI commands, one class per subcommand, registered in `register-commands.php`
