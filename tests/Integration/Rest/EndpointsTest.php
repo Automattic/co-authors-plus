@@ -271,24 +271,57 @@ class EndpointsTest extends TestCase {
 	}
 
 	/**
-	 * An author with no term yet (e.g. the post_author fallback on a pre-CAP
-	 * post) must still be backfilled once, or they would vanish from responses
-	 * and be unselectable in the editor.
+	 * The formatter is a pure read: an author with no term is returned as
+	 * null, and no term is created as a side effect of formatting.
 	 *
 	 * @covers \CoAuthors\API\Endpoints::_format_author_data
 	 */
-	public function test_format_author_data_backfills_missing_term(): void {
+	public function test_format_author_data_is_a_pure_read(): void {
 		global $coauthors_plus;
 
 		$author = $this->create_author();
 
 		$this->assertFalse( $coauthors_plus->get_author_term( $author ) );
 
-		$formatted = $this->_api->_format_author_data( $author );
+		$this->assertNull( $this->_api->_format_author_data( $author ) );
+
+		$this->assertFalse(
+			$coauthors_plus->get_author_term( $author ),
+			'Failed to assert that formatting an author does not create a term.'
+		);
+	}
+
+	/**
+	 * The authors route must backfill a term for the post_author fallback on a
+	 * pre-CAP post (no author terms, term-less author), or the author would be
+	 * omitted from the response and silently dropped on the next editor save.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_build_authors_response
+	 */
+	public function test_get_coauthors_backfills_term_for_legacy_post_author(): void {
+		global $coauthors_plus;
+
+		$author  = $this->create_author();
+		$post_id = self::factory()->post->create( array( 'post_author' => $author->ID ) );
+
+		// Recreate the legacy state: no author terms on the post, no term for the author.
+		wp_delete_object_term_relationships( $post_id, $coauthors_plus->coauthor_taxonomy );
+		$term = $coauthors_plus->get_author_term( $author );
+		if ( $term ) {
+			wp_delete_term( $term->term_id, $coauthors_plus->coauthor_taxonomy );
+			wp_cache_delete( 'author-term-' . $author->user_nicename, 'co-authors-plus' );
+		}
+		$this->assertFalse( $coauthors_plus->get_author_term( $author ) );
+
+		$get_request = new \WP_REST_Request( 'GET' );
+		$get_request->set_url_params( array( 'post_id' => $post_id ) );
+
+		$get_response = $this->_api->get_coauthors( $get_request );
 
 		$term = $coauthors_plus->get_author_term( $author );
-		$this->assertNotEmpty( $term );
-		$this->assertSame( $term->term_id, $formatted['termId'] );
+		$this->assertNotEmpty( $term, 'Failed to assert that the authors route backfills a missing author term.' );
+		$this->assertSame( $author->user_nicename, $get_response->data[0]['userNicename'] );
+		$this->assertSame( $term->term_id, $get_response->data[0]['termId'] );
 	}
 
 	public function data_only_editor_role_can_edit_coauthors(): array {
