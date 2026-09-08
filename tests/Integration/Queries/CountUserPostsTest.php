@@ -150,6 +150,42 @@ class CountUserPostsTest extends TestCase {
 	}
 
 	/**
+	 * Test that the post count is served from the object cache until it is cleared.
+	 *
+	 * @covers CoAuthors_Plus::filter_count_user_posts
+	 * @covers CoAuthors_Plus::get_post_count_for_author_term
+	 */
+	public function test_count_user_posts_is_cached(): void {
+		$author = $this->create_author();
+
+		$this->factory()->post->create_many(
+			2,
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		$this->assertSame( 2, count_user_posts( $author->ID ) );
+
+		// A new post does not change the count while the cached value is live.
+		$this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		$this->assertSame( 2, count_user_posts( $author->ID ) );
+
+		wp_cache_flush();
+
+		$this->assertSame( 3, count_user_posts( $author->ID ) );
+	}
+
+	/**
 	 * Test count for guest authors with custom post types.
 	 *
 	 * @covers CoAuthors_Plus::filter_count_user_posts
