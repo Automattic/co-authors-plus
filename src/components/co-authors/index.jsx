@@ -238,7 +238,7 @@ const CoAuthors = () => {
 	 *
 	 * @param {string} query The text to search.
 	 */
-		const onFilterValueChange = useDebounce(
+	const onFilterValueChange = useDebounce(
 		useCallback( ( query ) => {
 			const { fetchAuthors: search, threshold: minLength } =
 				latest.current;
