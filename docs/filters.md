@@ -195,6 +195,19 @@ The `WP_REST_Response` for a single co-author, after the default preparation. Us
 
 - **Parameters:** `WP_REST_Response $response`, `object $author`, `WP_REST_Request $request`
 
+### `rest_coauthors_prepare_items`
+
+The resolved co-authors for a post, before the `coauthors/v1/coauthors` collection endpoint formats them for a REST response. Use this to limit, reorder, or replace the list that endpoint returns. The Co-Authors block's server render and the block editor both read from this endpoint, so their output follows the filtered list; headless clients and other plugins that query the same endpoint see it too.
+
+This is presentation filtering only: co-authors removed here still exist on the post and remain visible through `get_coauthors()`, the byline template tags, the post's `coauthors` REST field, and the Authors panel in the editor sidebar. Do not use this filter for access control.
+
+When you need to change the co-authors everywhere the plugin resolves them, filter `get_coauthors` instead — it runs earlier and applies to template tags and archives as well. Reach for `rest_coauthors_prepare_items` only when the change should affect the REST collection response.
+
+Returning a non-array from the callback yields an empty response. Entries that are not valid co-author objects are dropped, and the surviving entries are reindexed so the response is always a well-formed JSON array.
+
+- **Parameters:** `array $coauthors`, `int $post_id`, `WP_REST_Request $request`
+- **File:** `php/api/endpoints/class-coauthors-controller.php`
+
 ## JavaScript filters (`@wordpress/hooks`)
 
 ### `coAuthors.formatAuthorData.label`
