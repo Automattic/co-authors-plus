@@ -2,6 +2,35 @@
 	margin-top: 16px;
 }
 
+.cap-create-guest-author-trigger {
+	margin-top: 4px;
+	padding: 0;
+}
+
+.cap-create-guest-author-modal .components-modal__content {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+}
+
+.cap-create-guest-author-help {
+	color: #757575;
+	font-size: 12px;
+	margin: 0;
+}
+
+.cap-create-guest-author-error {
+	color: #cc1818;
+	margin: 0;
+}
+
+.cap-create-guest-author-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 8px;
+}
+
 .cap-icon-button-stack {
 	display: flex;
 	flex-wrap: wrap;
