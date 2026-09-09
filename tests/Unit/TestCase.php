@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\Tests\Unit;
 
+use Brain\Monkey\Functions;
 use Yoast\WPTestUtils\BrainMonkey\TestCase as BrainMonkeyTestCase;
 
 /**
@@ -21,4 +22,26 @@ use Yoast\WPTestUtils\BrainMonkey\TestCase as BrainMonkeyTestCase;
  * initialisation will be bypassed.
  */
 abstract class TestCase extends BrainMonkeyTestCase {
+
+	/**
+	 * Let get_coauthors() run to completion without WordPress.
+	 *
+	 * With no co-author terms and guest authors forced, it skips both the term
+	 * lookup results and the post_author fallback (so no $wpdb is needed) and goes
+	 * straight to its `get_coauthors` filter, which the calling test asserts on.
+	 */
+	protected function stub_get_coauthors_dependencies(): void {
+		Functions\when( 'cap_get_coauthor_terms_for_post' )->justReturn( array() );
+
+		$GLOBALS['coauthors_plus'] = (object) array( 'force_guest_authors' => true );
+	}
+
+	/**
+	 * Clean up the global seeded by stub_get_coauthors_dependencies().
+	 */
+	protected function tear_down(): void {
+		unset( $GLOBALS['coauthors_plus'] );
+
+		parent::tear_down();
+	}
 }

@@ -38,14 +38,23 @@ if ( ! function_exists( 'add_action' ) ) {
  */
 require_once dirname( __DIR__, 3 ) . '/template-tags.php';
 
+/*
+ * Load the guarded Yoast Schema_Types stub before the integration class is
+ * autoloaded, so the `new Schema_Types()` inside filter_graph() never reaches
+ * for an absent Yoast autoloader.
+ */
+require_once __DIR__ . '/yoast-stubs.php';
+
 /**
  * Unit coverage for the Yoast integration's public filter callbacks.
  *
  * Yoast SEO itself is not a test dependency (only `yoast/wp-test-utils` is, which
  * ships Mockery). Where the integration depends on Yoast types that are absent at
  * test time we use Mockery to generate them: a mock of the author-archive
- * presentation (so the `is_a()` guard is satisfied) and an `alias:` mock of the
- * static `\WPSEO_Options` accessor. The WordPress request functions the methods
+ * presentation (so the `is_a()` guard is satisfied), an `alias:` mock of the
+ * static `\WPSEO_Options` accessor, and a guarded plain stub class for the
+ * Schema_Types service filter_graph() instantiates (see yoast-stubs.php).
+ * The WordPress request functions the methods
  * call (`is_singular()`, `is_author()`, `get_post_type()`,
  * `get_queried_object_id()`) are replaced with Brain Monkey stubs.
  */
@@ -104,6 +113,89 @@ final class YoastFilterGraphTest extends TestCase {
 			$data,
 			Yoast::filter_graph( $data, $context ),
 			'filter_graph() must return the graph unchanged when the context post has no ID.'
+		);
+	}
+
+	/**
+	 * Regression coverage for issue #1360.
+	 *
+	 * The PHP array_filter() function preserves keys, so removing the
+	 * Yoast-generated Person node from the middle of the graph used to leave a
+	 * numeric key gap behind it. With the key gap in place, json_encode()
+	 * serialized @graph as a JSON object rather than an array, and JSON-LD
+	 * consumers expanding that object discarded every node. The filtered graph
+	 * must come back as a contiguous list instead.
+	 *
+	 * The merge at the end of filter_graph() re-indexes as a side effect, but it is
+	 * skipped whenever no author resolves, which is the path this test drives: a
+	 * post carrying an author term whose slug matches no user and no guest author.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_reindexes_the_graph_when_a_person_node_is_removed(): void {
+		Functions\when( 'is_singular' )->justReturn( true );
+
+		$this->stub_get_coauthors_dependencies();
+
+		$context           = new \stdClass();
+		$context->post     = new \stdClass();
+		$context->post->ID = 42;
+
+		// Yoast's typical piece order on a post: the Person node sits before the
+		// trailing block schema, so removing it leaves a gap behind it.
+		$data = array(
+			array(
+				'@type' => 'Article',
+				'@id'   => 'https://example.com/#article',
+			),
+			array(
+				'@type' => 'WebPage',
+				'@id'   => 'https://example.com/#webpage',
+			),
+			array(
+				'@type' => 'ImageObject',
+				'@id'   => 'https://example.com/#mainimage',
+			),
+			array(
+				'@type' => 'BreadcrumbList',
+				'@id'   => 'https://example.com/#breadcrumb',
+			),
+			array(
+				'@type' => 'WebSite',
+				'@id'   => 'https://example.com/#website',
+			),
+			array(
+				'@type' => 'Organization',
+				'@id'   => 'https://example.com/#organization',
+			),
+			array(
+				'@type' => 'Person',
+				'@id'   => 'https://example.com/#person',
+			),
+			array(
+				'@type' => 'HowTo',
+				'@id'   => 'https://example.com/#howto',
+			),
+		);
+
+		$result = Yoast::filter_graph( $data, $context );
+
+		$this->assertSame(
+			array_values( $result ),
+			$result,
+			'filter_graph() must return the graph as a contiguous list so @graph stays a JSON array.'
+		);
+
+		$this->assertSame(
+			array( 'Article', 'WebPage', 'ImageObject', 'BreadcrumbList', 'WebSite', 'Organization', 'HowTo' ),
+			array_column( $result, '@type' ),
+			'The Person node must be removed and every other node kept, in order.'
+		);
+
+		$this->assertSame(
+			array(),
+			$result[0]['author'],
+			'The article node must carry the (empty) co-author reference list.'
 		);
 	}
 

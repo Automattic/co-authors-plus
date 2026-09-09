@@ -214,11 +214,14 @@ class Yoast {
 
 		if ( $add_to_graph ) {
 			// Clean all Persons from the schema, as the user stored as post owner might be incorrectly added if the post has only guest authors as authors.
-			$data = array_filter(
-				$data,
-				function( $piece ) {
-					return empty( $piece['@type'] ) || $piece['@type'] !== 'Person';
-				}
+			// Re-index the result so json_encode() keeps @graph as a JSON array even when a Person node is removed from the middle. See #1360.
+			$data = array_values(
+				array_filter(
+					$data,
+					function( $piece ) {
+						return empty( $piece['@type'] ) || $piece['@type'] !== 'Person';
+					}
+				)
 			);
 
 			if ( ! empty( $author_data ) ) {
