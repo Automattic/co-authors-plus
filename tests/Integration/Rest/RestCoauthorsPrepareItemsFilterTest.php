@@ -16,7 +16,7 @@ use WP_REST_Request;
 /**
  * @coversDefaultClass \CoAuthors\API\Endpoints\CoAuthors_Controller
  */
-class BlockAuthorsFilterTest extends TestCase {
+class RestCoauthorsPrepareItemsFilterTest extends TestCase {
 
 	private function fetch_authors( int $post_id ): array {
 		$request = new WP_REST_Request( 'GET', '/coauthors/v1/coauthors' );
