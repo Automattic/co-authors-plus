@@ -56,22 +56,39 @@ class MigrateUsersActionTest extends TestCase {
 
 		$this->assertSame( 1, $result['created'] );
 		$this->assertSame( 1, $result['offset'] - (int) $offset );
-		$this->assertSame( 1, $guest_authors->get_guest_author_by( 'linked_account', $user->user_login ) instanceof \WP_User ? 0 : 1 );
+		$guest_author = $guest_authors->get_guest_author_by( 'linked_account', $user->user_login );
+		$this->assertIsObject( $guest_author );
+		$this->assertSame( $user->user_login, $guest_author->linked_account );
 	}
 
 	/**
-	 * Checks that the batch loop reports a terminable state and does not loop forever.
+	 * Checks that a short batch reports a terminable state.
 	 *
 	 * @covers \CoAuthors_Guest_Authors::migrate_guest_authors_batch()
 	 */
-	public function test_migrate_guest_authors_batch_terminates_on_batch(): void {
+	public function test_migrate_guest_authors_batch_terminates_on_short_batch(): void {
 		$guest_authors = $this->_cap->guest_authors;
-		$user          = $this->create_author( 'migration-terminates-user' );
+		$total         = $guest_authors->count_users_via_wpdb();
+		$offset        = max( 0, $total - 1 );
 
-		$result = $guest_authors->migrate_guest_authors_batch( 0, 1000 );
+		$result = $guest_authors->migrate_guest_authors_batch( $offset, 1000 );
 
-		$this->assertArrayHasKey( 'done', $result );
-		$this->assertTrue( $result['done'] || 0 < $result['offset'] );
+		$this->assertSame( true, $result['done'] );
+		$this->assertSame( $total, $result['offset'] );
+	}
+
+	/**
+	 * Checks that a full batch does not report completion.
+	 *
+	 * @covers \CoAuthors_Guest_Authors::migrate_guest_authors_batch()
+	 */
+	public function test_migrate_guest_authors_batch_does_not_terminate_on_full_batch(): void {
+		$this->create_author( 'migration-full-batch-user' );
+
+		$result = $this->_cap->guest_authors->migrate_guest_authors_batch( 0, 1 );
+
+		$this->assertSame( false, $result['done'] );
+		$this->assertSame( 1, $result['offset'] );
 	}
 
 	/**
@@ -96,5 +113,51 @@ class MigrateUsersActionTest extends TestCase {
 				)
 			)
 		);
+	}
+
+	/**
+	 * Checks that the action rejects users without the required capability.
+	 *
+	 * @covers \CoAuthors_Guest_Authors::handle_migrate_guest_authors_action()
+	 */
+	public function test_handle_migrate_guest_authors_action_rejects_unauthorized_user(): void {
+		$user         = $this->create_subscriber( 'migration-action-subscriber' );
+		$current_user = get_current_user_id();
+		$post_backup  = $_POST;
+		wp_set_current_user( $user->ID );
+		$_POST['_wpnonce'] = wp_create_nonce( 'cap_migrate_guest_authors' );
+
+		try {
+			$this->_cap->guest_authors->handle_migrate_guest_authors_action();
+			$this->fail( 'Unauthorized migration did not stop execution.' );
+		} catch ( \WPDieException $exception ) {
+			$this->assertStringContainsString( "You don&#039;t have permission", $exception->getMessage() );
+		} finally {
+			wp_set_current_user( $current_user );
+			$_POST = $post_backup;
+		}
+	}
+
+	/**
+	 * Checks that the action rejects an invalid nonce.
+	 *
+	 * @covers \CoAuthors_Guest_Authors::handle_migrate_guest_authors_action()
+	 */
+	public function test_handle_migrate_guest_authors_action_rejects_invalid_nonce(): void {
+		$user         = $this->factory()->user->create_and_get( array( 'role' => 'administrator' ) );
+		$current_user = get_current_user_id();
+		$post_backup  = $_POST;
+		wp_set_current_user( $user->ID );
+		$_POST['_wpnonce'] = wp_create_nonce( 'invalid-migration-nonce' );
+
+		try {
+			$this->_cap->guest_authors->handle_migrate_guest_authors_action();
+			$this->fail( 'Invalid migration nonce did not stop execution.' );
+		} catch ( \WPDieException $exception ) {
+			$this->assertNotEmpty( $exception->getMessage() );
+		} finally {
+			wp_set_current_user( $current_user );
+			$_POST = $post_backup;
+		}
 	}
 }

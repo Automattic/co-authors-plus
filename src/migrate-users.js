@@ -4,6 +4,8 @@
  * @package
  */
 
+import { _n, sprintf } from '@wordpress/i18n';
+
 ( function () {
 	if ( 'undefined' === typeof window || ! window.coAuthorsMigrateUsers ) {
 		return;
@@ -39,10 +41,14 @@
 
 		button.addEventListener( 'click', () => {
 			button.disabled = true;
+			progress.hidden = false;
 			result.hidden = true;
 			errorNotice.hidden = true;
 
 			let offset = 0;
+			let created = 0;
+			let skipped = 0;
+			let failed = 0;
 
 			const migrateBatch = () => {
 				window
@@ -66,14 +72,28 @@
 							throw new Error( 'Migration failed.' );
 						}
 
+						created += response.data.created || 0;
+						skipped += response.data.skipped || 0;
+						failed += response.data.failed || 0;
+
 						if ( response.data.done ) {
-							result.textContent = settings.createdMessage;
+							result.textContent = buildResultMessage( {
+								created,
+								skipped,
+								failed,
+							} );
+							result.hidden = false;
 							button.disabled = false;
 							return;
 						}
 
+						const previousOffset = offset;
 						if ( 'undefined' !== typeof response.data.offset ) {
 							offset = response.data.offset;
+						}
+						if ( offset <= previousOffset ) {
+							// Stop instead of repeating the same batch.
+							throw new Error( 'Migration stalled.' );
 						}
 
 						if ( progressBar ) {
@@ -91,11 +111,16 @@
 						}
 
 						if ( progressText ) {
-							progressText.textContent =
-								settings.remainingMessage.replace(
-									'%d',
-									response.data.remaining || 0
-								);
+							progressText.textContent = sprintf(
+								// translators: %d: number of users left to process.
+								_n(
+									'%d user remaining.',
+									'%d users remaining.',
+									response.data.remaining || 0,
+									'co-authors-plus'
+								),
+								response.data.remaining || 0
+							);
 						}
 
 						migrateBatch();
@@ -108,6 +133,61 @@
 
 			migrateBatch();
 		} );
+	}
+
+	/**
+	 * Build the completion message from the actual batch results.
+	 *
+	 * @param {Object} data Final migration payload from the server.
+	 * @return {string} Complete message for the result region.
+	 */
+	function buildResultMessage( data ) {
+		const parts = [];
+
+		parts.push(
+			sprintf(
+				// translators: %d: number of guest author profiles created.
+				_n(
+					'%d guest author profile created.',
+					'%d guest author profiles created.',
+					data.created || 0,
+					'co-authors-plus'
+				),
+				data.created || 0
+			)
+		);
+
+		if ( data.skipped > 0 ) {
+			parts.push(
+				sprintf(
+					// translators: %d: number of users that already had a profile.
+					_n(
+						'%d user already had a profile.',
+						'%d users already had a profile.',
+						data.skipped,
+						'co-authors-plus'
+					),
+					data.skipped
+				)
+			);
+		}
+
+		if ( data.failed > 0 ) {
+			parts.push(
+				sprintf(
+					// translators: %d: number of users that could not be migrated.
+					_n(
+						'%d user could not be migrated.',
+						'%d users could not be migrated.',
+						data.failed,
+						'co-authors-plus'
+					),
+					data.failed
+				)
+			);
+		}
+
+		return parts.join( ' ' );
 	}
 
 	if ( 'loading' === document.readyState ) {

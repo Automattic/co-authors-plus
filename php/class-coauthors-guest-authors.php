@@ -531,25 +531,19 @@ class CoAuthors_Guest_Authors {
 		} elseif ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'migrate-users-to-guest-authors' === $_GET['page'] ) {
 			$asset_file = dirname( COAUTHORS_PLUS_FILE ) . '/build/migrate-users.asset.php';
 
-			if ( file_exists( $asset_file ) ) {
-				$asset = require $asset_file;
-
-				wp_register_script(
-					'coauthors-plus-migrate-users',
-					plugins_url( 'build/migrate-users.js', COAUTHORS_PLUS_FILE ),
-					$asset['dependencies'],
-					$asset['version'],
-					true
-				);
-			} else {
-				wp_register_script(
-					'coauthors-plus-migrate-users',
-					plugins_url( 'build/migrate-users.js', COAUTHORS_PLUS_FILE ),
-					array(),
-					COAUTHORS_PLUS_VERSION,
-					true
-				);
+			if ( ! file_exists( $asset_file ) ) {
+				return;
 			}
+
+			$asset = require $asset_file;
+
+			wp_register_script(
+				'coauthors-plus-migrate-users',
+				plugins_url( 'build/migrate-users.js', COAUTHORS_PLUS_FILE ),
+				$asset['dependencies'],
+				$asset['version'],
+				true
+			);
 
 			wp_set_script_translations(
 				'coauthors-plus-migrate-users',
@@ -561,20 +555,9 @@ class CoAuthors_Guest_Authors {
 				'coauthors-plus-migrate-users',
 				'coAuthorsMigrateUsers',
 				array(
-					'url'             => admin_url( 'admin-post.php' ),
-					'action'          => 'cap_migrate_guest_authors',
-					'nonce'           => wp_create_nonce( 'cap_migrate_guest_authors' ),
-					'createdMessage'  => __( 'Guest author profiles were created for all eligible users.', 'co-authors-plus' ),
-					'remainingMessage' => sprintf(
-						/* translators: %d: number of users left to process. */
-						_n(
-							'%d user remaining.',
-							'%d users remaining.',
-							1,
-							'co-authors-plus'
-						),
-						1
-					),
+					'url'    => admin_url( 'admin-post.php' ),
+					'action' => 'cap_migrate_guest_authors',
+					'nonce'  => wp_create_nonce( 'cap_migrate_guest_authors' ),
 				)
 			);
 		} elseif ( in_array( $pagenow, array( 'post.php', 'post-new.php' ) ) && $this->post_type === get_post_type() ) {
@@ -1579,7 +1562,7 @@ class CoAuthors_Guest_Authors {
 			<p><strong><?php echo esc_html( number_format_i18n( $missing ) ); ?></strong> <?php esc_html_e( 'users are ready to migrate.', 'co-authors-plus' ); ?></p>
 			<button type="button" class="button button-primary" id="coauthors-migrate-users"><?php esc_html_e( 'Migrate all users', 'co-authors-plus' ); ?></button>
 			<div id="coauthors-migrate-users-progress" hidden>
-				<p><progress max="100" value="0" aria-label="<?php esc_attr_e( 'Migration progress', 'co-authors-plus' ); ?>"></progress> <span class="coauthors-migrate-users-progress-text" role="status" aria-live="polite"></span></p>
+				<p><progress class="coauthors-migrate-users-progress-bar" max="100" value="0" aria-label="<?php esc_attr_e( 'Migration progress', 'co-authors-plus' ); ?>"></progress> <span class="coauthors-migrate-users-progress-text" role="status" aria-live="polite"></span></p>
 				<p class="notice notice-error coauthors-migrate-users-error" role="alert" hidden><?php esc_html_e( 'Migration failed. Please try again.', 'co-authors-plus' ); ?></p>
 			</div>
 			<div id="coauthors-migrate-users-result" aria-live="polite" hidden></div>
@@ -1614,10 +1597,37 @@ class CoAuthors_Guest_Authors {
 	public function get_users_missing_guest_author_count(): int {
 		global $wpdb;
 
+		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.user_meta__wpdb__users -- This count must match the current site's WP_User_Query population.
+		$users_table = $wpdb->users;
+
+		if ( is_multisite() ) {
+			return (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"
+					SELECT COUNT(DISTINCT users.ID) FROM %i AS users
+					INNER JOIN {$wpdb->usermeta} AS capabilities
+						ON capabilities.user_id = users.ID
+						AND capabilities.meta_key = %s
+					WHERE NOT EXISTS (
+						SELECT 1 FROM {$wpdb->postmeta} AS postmeta
+						INNER JOIN {$wpdb->posts} AS posts ON posts.ID = postmeta.post_id
+						WHERE postmeta.meta_key = %s
+						AND postmeta.meta_value = users.user_login
+						AND posts.post_type = %s
+					)
+					",
+					$users_table,
+					$wpdb->get_blog_prefix() . 'capabilities',
+					'cap-linked_account',
+					'guest-author'
+				)
+			);
+		}//end if
+
 		return (int) $wpdb->get_var(
 			$wpdb->prepare(
 				"
-				SELECT COUNT(*) FROM {$wpdb->users} AS users
+				SELECT COUNT(*) FROM %i AS users
 				WHERE NOT EXISTS (
 					SELECT 1 FROM {$wpdb->postmeta} AS postmeta
 					INNER JOIN {$wpdb->posts} AS posts ON posts.ID = postmeta.post_id
@@ -1626,6 +1636,7 @@ class CoAuthors_Guest_Authors {
 					AND posts.post_type = %s
 				)
 				",
+				$users_table,
 				'cap-linked_account',
 				'guest-author'
 			)
@@ -1643,7 +1654,25 @@ class CoAuthors_Guest_Authors {
 	public function count_users_via_wpdb(): int {
 		global $wpdb;
 
-		return (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->users}" );
+		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.user_meta__wpdb__users -- This total must match the current site's WP_User_Query population.
+		$users_table = $wpdb->users;
+
+		if ( is_multisite() ) {
+			return (int) $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT COUNT(DISTINCT users.ID) FROM %i AS users INNER JOIN {$wpdb->usermeta} AS capabilities ON capabilities.user_id = users.ID AND capabilities.meta_key = %s",
+					$users_table,
+					$wpdb->get_blog_prefix() . 'capabilities'
+				)
+			);
+		}//end if
+
+		return (int) $wpdb->get_var(
+			$wpdb->prepare(
+				'SELECT COUNT(*) FROM %i AS users',
+				$users_table
+			)
+		);
 	}
 
 	/**
