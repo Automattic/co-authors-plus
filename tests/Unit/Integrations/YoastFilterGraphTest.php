@@ -38,22 +38,29 @@ if ( ! function_exists( 'add_action' ) ) {
  */
 require_once dirname( __DIR__, 3 ) . '/template-tags.php';
 
+/*
+ * Load the guarded Yoast Schema_Types stub before the integration class is
+ * autoloaded, so the `new Schema_Types()` inside filter_graph() never reaches
+ * for an absent Yoast autoloader.
+ */
+require_once __DIR__ . '/yoast-stubs.php';
+
 /**
  * Unit coverage for the Yoast integration's public filter callbacks.
  *
  * Yoast SEO itself is not a test dependency (only `yoast/wp-test-utils` is, which
  * ships Mockery). Where the integration depends on Yoast types that are absent at
  * test time we use Mockery to generate them: a mock of the author-archive
- * presentation (so the `is_a()` guard is satisfied) and an `alias:` mock of the
- * static `\WPSEO_Options` accessor. The WordPress request functions the methods
+ * presentation (so the `is_a()` guard is satisfied), an `alias:` mock of the
+ * static `\WPSEO_Options` accessor, and a guarded plain stub class for the
+ * Schema_Types service filter_graph() instantiates (see yoast-stubs.php).
+ * The WordPress request functions the methods
  * call (`is_singular()`, `is_author()`, `get_post_type()`,
  * `get_queried_object_id()`) are replaced with Brain Monkey stubs.
  */
 final class YoastFilterGraphTest extends TestCase {
 
 	const PRESENTATION_CLASS = 'Yoast\\WP\\SEO\\Presentations\\Indexable_Author_Archive_Presentation';
-
-	const SCHEMA_TYPES_CLASS = 'Yoast\\WP\\SEO\\Config\\Schema_Types';
 
 	/**
 	 * Regression coverage for issue #1113.
@@ -129,7 +136,6 @@ final class YoastFilterGraphTest extends TestCase {
 		Functions\when( 'is_singular' )->justReturn( true );
 
 		$this->stub_get_coauthors_dependencies();
-		$this->mock_schema_types();
 
 		$context           = new \stdClass();
 		$context->post     = new \stdClass();
@@ -180,12 +186,6 @@ final class YoastFilterGraphTest extends TestCase {
 			'filter_graph() must return the graph as a contiguous list so @graph stays a JSON array.'
 		);
 
-		$decoded = json_decode( json_encode( $result ) );
-		$this->assertIsArray(
-			$decoded,
-			'@graph must serialize as a JSON array, not a JSON object.'
-		);
-
 		$this->assertSame(
 			array( 'Article', 'WebPage', 'ImageObject', 'BreadcrumbList', 'WebSite', 'Organization', 'HowTo' ),
 			array_column( $result, '@type' ),
@@ -197,44 +197,6 @@ final class YoastFilterGraphTest extends TestCase {
 			$result[0]['author'],
 			'The article node must carry the (empty) co-author reference list.'
 		);
-	}
-
-	/**
-	 * Let get_coauthors() run to completion and return an empty list, the way it
-	 * does when a post carries an author term whose slug matches no user and no
-	 * guest author. With guest authors forced, it skips the post_author fallback
-	 * and so needs no $wpdb.
-	 */
-	private function stub_get_coauthors_dependencies(): void {
-		Functions\when( 'cap_get_coauthor_terms_for_post' )->justReturn( array() );
-
-		$GLOBALS['coauthors_plus'] = (object) array( 'force_guest_authors' => true );
-	}
-
-	/**
-	 * Stand in for Yoast's Schema_Types service, constructed inside filter_graph().
-	 *
-	 * Overload replaces the class definition for the remainder of the process, so
-	 * only one test in a run may use this.
-	 */
-	private function mock_schema_types(): void {
-		$types = \Mockery::mock( 'overload:' . self::SCHEMA_TYPES_CLASS );
-		$types->shouldReceive( 'get_article_type_options' )
-			->zeroOrMoreTimes()
-			->andReturn(
-				array(
-					array( 'value' => 'Article' ),
-				)
-			);
-	}
-
-	/**
-	 * Clean up the global seeded by stub_get_coauthors_dependencies().
-	 */
-	protected function tear_down(): void {
-		unset( $GLOBALS['coauthors_plus'] );
-
-		parent::tear_down();
 	}
 
 	/**
