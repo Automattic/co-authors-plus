@@ -1017,25 +1017,24 @@ class AddCoauthorsTest extends TestCase {
 
 	/**
 	 * Confirms that a name which resolves to no user or guest author is
-	 * reported rather than accepted silently.
+	 * signalled and excluded from the term write, while resolvable names are
+	 * stored as expected, in input order.
 	 *
-	 * The name is still written as an author term (in the caller's raw, unprefixed
-	 * form), but no co-author backs it, so get_coauthors() drops it when reading
-	 * the byline back. Before the signal was added, the only trace was a stray
-	 * term and a byline that quietly lost an author. See issue #1369.
+	 * Before the signal existed the unresolved name was written as a stray,
+	 * unprefixed author term that no read path could map back to a co-author,
+	 * and the byline quietly lost an author. See issue #1369.
 	 *
 	 * @covers ::add_coauthors
 	 */
 	public function test_add_coauthors_reports_unresolvable_name(): void {
-		$this->setExpectedIncorrectUsage( 'CoAuthors_Plus::add_coauthors' );
-
-		$post_id = $this->factory()->post->create(
-			array(
-				'post_author' => $this->editor1->ID,
-				'post_status' => 'publish',
-				'post_type'   => 'post',
-			)
+		$captured = array();
+		$this->spy_on_unresolved_action(
+			function ( $author_name, $field, $post_id, $append ) use ( &$captured ) {
+				$captured[] = array( $author_name, $field, $post_id, $append );
+			}
 		);
+
+		$post_id = $this->create_post( $this->editor1 )->ID;
 
 		$result = $this->_cap->add_coauthors(
 			$post_id,
@@ -1049,11 +1048,16 @@ class AddCoauthorsTest extends TestCase {
 			$this->get_coauthor_logins( $post_id )
 		);
 
-		// The unresolvable name is persisted as a stray unprefixed term, which
-		// no read path can map back to a co-author.
-		$terms = wp_get_post_terms( $post_id, $this->_cap->coauthor_taxonomy );
-		$this->assertIsArray( $terms );
-		$this->assertContains( 'jhon-doe', wp_list_pluck( $terms, 'slug' ) );
+		// The unresolvable name is not attached to the post at all, so no
+		// stray term is left behind.
+		$slugs = wp_list_pluck( wp_get_post_terms( $post_id, $this->_cap->coauthor_taxonomy ), 'slug' );
+		$this->assertNotContains( 'jhon-doe', $slugs );
+		$this->assertCount( 2, $slugs );
+
+		$this->assertSame(
+			array( array( 'jhon-doe', 'user_nicename', $post_id, false ) ),
+			$captured
+		);
 	}
 
 	/**
@@ -1065,8 +1069,7 @@ class AddCoauthorsTest extends TestCase {
 	 */
 	public function test_add_coauthors_fires_action_for_unresolvable_name(): void {
 		$actions = array();
-		add_action(
-			'coauthors_unresolved_coauthor',
+		$this->spy_on_unresolved_action(
 			function ( $author_name, $field, $post_id, $append ) use ( &$actions ) {
 				$actions[] = array(
 					'author_name' => $author_name,
@@ -1074,20 +1077,10 @@ class AddCoauthorsTest extends TestCase {
 					'post_id'     => $post_id,
 					'append'      => $append,
 				);
-			},
-			10,
-			4
+			}
 		);
 
-		$this->setExpectedIncorrectUsage( 'CoAuthors_Plus::add_coauthors' );
-
-		$post_id = $this->factory()->post->create(
-			array(
-				'post_author' => $this->editor1->ID,
-				'post_status' => 'publish',
-				'post_type'   => 'post',
-			)
-		);
+		$post_id = $this->create_post( $this->editor1 )->ID;
 
 		$this->_cap->add_coauthors(
 			$post_id,
@@ -1113,29 +1106,70 @@ class AddCoauthorsTest extends TestCase {
 	}
 
 	/**
+	 * Confirms a name passed as a user_login still resolves when the lookup
+	 * field is user_nicename, and only a truly unresolvable name is signalled.
+	 *
+	 * The classic metabox submits coauthors[] values holding user_login, and
+	 * some WP-CLI commands do the same, while the default lookup field is
+	 * user_nicename. A login that differs from the nicename must not be
+	 * reported as unresolved.
+	 *
+	 * @covers ::add_coauthors
+	 */
+	public function test_add_coauthors_resolves_login_shaped_input_despite_nicename_lookup(): void {
+		$actions = array();
+		$this->spy_on_unresolved_action(
+			function ( $author_name ) use ( &$actions ) {
+				$actions[] = $author_name;
+			}
+		);
+
+		// A user whose login and nicename differ.
+		$user = $this->factory()->user->create_and_get(
+			array(
+				'role'           => 'author',
+				'user_login'     => 'Jane Doe',
+				'user_nicename'  => 'jane-doe-the-second',
+				'display_name'   => 'Jane Doe',
+				'first_name'     => 'Jane',
+				'last_name'      => 'Doe',
+			)
+		);
+
+		$post_id = $this->create_post( $this->editor1 )->ID;
+
+		$this->assertTrue( $this->_cap->add_coauthors( $post_id, array( $user->user_login ) ) );
+
+		$this->assertSame( array(), $actions, 'A user_login that differs from the nicename must resolve, not be reported.' );
+		$this->assertSame(
+			array( $user->user_login ),
+			$this->get_coauthor_logins( $post_id )
+		);
+
+		// The same input in append mode, which re-resolves existing co-authors.
+		$this->assertTrue( $this->_cap->add_coauthors( $post_id, array( $this->author1->user_login ), true ) );
+		$this->assertSame( array(), $actions, 'Append mode must not report the post own co-authors as unresolved.' );
+		$this->assertSame(
+			array( $user->user_login, $this->author1->user_login ),
+			$this->get_coauthor_logins( $post_id )
+		);
+	}
+
+	/**
 	 * Confirms an unresolvable name passed with an alternative query type is
-	 * reported with that lookup field.
+	 * reported with that lookup field, and that resolved names are unaffected.
 	 *
 	 * @covers ::add_coauthors
 	 */
 	public function test_add_coauthors_reports_unresolvable_name_with_alternate_query_type(): void {
 		$captured = array();
-		add_action(
-			'coauthors_unresolved_coauthor',
+		$this->spy_on_unresolved_action(
 			function ( $author_name, $field ) use ( &$captured ) {
 				$captured[] = array( $author_name, $field );
-			},
-			10,
-			2
+			}
 		);
 
-		$post_id = $this->factory()->post->create(
-			array(
-				'post_author' => $this->editor1->ID,
-				'post_status' => 'publish',
-				'post_type'   => 'post',
-			)
-		);
+		$post_id = $this->create_post( $this->editor1 )->ID;
 
 		// author1 resolved by email, so nothing is reported.
 		$this->_cap->add_coauthors(
@@ -1147,37 +1181,25 @@ class AddCoauthorsTest extends TestCase {
 		$this->assertSame( array(), $captured );
 
 		// An address matching no user or guest author is unresolvable by email.
-		$this->setExpectedIncorrectUsage( 'CoAuthors_Plus::add_coauthors' );
 		$this->_cap->add_coauthors( $post_id, array( 'ghost@example.com' ), false, 'email' );
 		$this->assertSame( array( array( 'ghost@example.com', 'email' ) ), $captured );
 	}
 
 	/**
-	 * Confirms append mode reports unresolvable names too, and that the
-	 * resolvable part of the appended list is unaffected.
+	 * Confirms append mode reports unresolvable names, keeps the resolvable
+	 * part of the appended list, and leaves no stray term behind.
 	 *
 	 * @covers ::add_coauthors
 	 */
 	public function test_add_coauthors_reports_unresolvable_name_in_append_mode(): void {
 		$captured = array();
-		add_action(
-			'coauthors_unresolved_coauthor',
+		$this->spy_on_unresolved_action(
 			function ( $author_name, $field, $post_id, $append ) use ( &$captured ) {
 				$captured[] = array( $author_name, $post_id, $append );
-			},
-			10,
-			4
+			}
 		);
 
-		$this->setExpectedIncorrectUsage( 'CoAuthors_Plus::add_coauthors' );
-
-		$post_id = $this->factory()->post->create(
-			array(
-				'post_author' => $this->author1->ID,
-				'post_status' => 'publish',
-				'post_type'   => 'post',
-			)
-		);
+		$post_id = $this->create_post( $this->author1 )->ID;
 
 		$result = $this->_cap->add_coauthors(
 			$post_id,
@@ -1194,14 +1216,90 @@ class AddCoauthorsTest extends TestCase {
 		);
 
 		// The pre-existing author1 byline survives the append, author2 is added,
-		// and the stray term from the unresolvable name is also present.
+		// and the unresolvable name is not attached to the post.
 		$this->assertSame(
 			array( $this->author1->user_login, $this->author2->user_login ),
 			$this->get_coauthor_logins( $post_id )
 		);
-		$terms = wp_get_post_terms( $post_id, $this->_cap->coauthor_taxonomy );
-		$this->assertIsArray( $terms );
-		$this->assertContains( 'jhon-doe', wp_list_pluck( $terms, 'slug' ) );
+		$slugs = wp_list_pluck( wp_get_post_terms( $post_id, $this->_cap->coauthor_taxonomy ), 'slug' );
+		$this->assertNotContains( 'jhon-doe', $slugs );
+		$this->assertCount( 2, $slugs );
+	}
+
+	/**
+	 * Confirms an orphan author term (a term whose co-author was deleted
+	 * outside the plugin) round-tripping through the REST save sync does not
+	 * resolve, is signalled, and does not block the save or leave the post
+	 * with a dead term.
+	 *
+	 * @covers ::add_coauthors
+	 * @covers ::sync_coauthors_on_rest_save
+	 */
+	public function test_orphan_term_on_rest_save_is_signalled_and_dropped(): void {
+		$admin = $this->login_as_admin();
+		$guest = $this->_cap->guest_authors->create(
+			array(
+				'display_name' => 'Orphan Guest',
+				'user_login'   => 'orphan-guest',
+			)
+		);
+		$guest = $this->_cap->guest_authors->get_guest_author_by( 'id', $guest );
+		$post  = $this->create_post( $admin );
+
+		$this->_cap->add_coauthors( $post->ID, array( $guest->user_login ) );
+
+		// Delete the guest author post directly, bypassing the plugin cleanup,
+		// so the author term becomes an orphan.
+		wp_delete_post( $guest->ID, true );
+
+		// Drop the guest author caches so the next lookup goes back to the
+		// database, as it would in a fresh request after the deletion.
+		wp_cache_flush_group( 'coauthors-plus-guest-authors' );
+
+		$orphan_term_id = (int) get_term_by( 'slug', 'cap-orphan-guest', $this->_cap->coauthor_taxonomy )->term_id;
+		$this->assertNotSame( 0, $orphan_term_id, 'The orphan term must exist before the save.' );
+
+		$actions = array();
+		$this->spy_on_unresolved_action(
+			function ( $author_name ) use ( &$actions ) {
+				$actions[] = $author_name;
+			}
+		);
+
+		// Save via the REST API the way the block editor does, submitting the
+		// orphan term alongside the admin's term. sync_coauthors_on_rest_save()
+		// feeds the surviving term slugs back into add_coauthors(), where the
+		// orphan slug can no longer resolve.
+		$admin_term_id = (int) $this->_cap->update_author_term( $admin )->term_id;
+		$request       = new \WP_REST_Request( 'POST', '/wp/v2/posts/' . $post->ID );
+		$request->set_param( 'id', $post->ID );
+		$request->set_param( 'title', 'After orphan term' );
+		$request->set_param( 'coauthors', array( $admin_term_id, $orphan_term_id ) );
+		$response = rest_do_request( $request );
+		$this->assertSame( 200, $response->get_status() );
+
+		$this->assertSame( array( 'cap-orphan-guest' ), $actions );
+		$this->assertSame( array( $admin->user_login ), $this->get_coauthor_logins( $post->ID ) );
+	}
+
+	/**
+	 * Registers a spy on the coauthors_unresolved_coauthor action.
+	 *
+	 * @param callable $callback Invoked with ( $author_name, $field, $post_id, $append ).
+	 */
+	private function spy_on_unresolved_action( callable $callback ): void {
+		add_action( 'coauthors_unresolved_coauthor', $callback, 10, 4 );
+	}
+
+	/**
+	 * Logs in an administrator, who passes current_user_can_set_authors().
+	 *
+	 * @return \WP_User
+	 */
+	private function login_as_admin(): \WP_User {
+		$admin = $this->factory()->user->create_and_get( array( 'role' => 'administrator' ) );
+		wp_set_current_user( $admin->ID );
+		return $admin;
 	}
 
 	/**

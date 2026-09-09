@@ -1685,8 +1685,8 @@ class CoAuthors_Plus {
 		// Set the co-authors
 		$coauthors        = array_unique( array_merge( $existing_coauthors, $coauthors ) );
 		$coauthor_objects = array();
-		$unresolved       = array();
-		foreach ( $coauthors as &$author_name ) {
+		$unresolved_keys  = array();
+		foreach ( $coauthors as $key => &$author_name ) {
 			if ( $this->is_rest_save && has_filter( 'coauthors_post_get_coauthor_by_field' ) ) {
 				_deprecated_hook(
 					'coauthors_post_get_coauthor_by_field',
@@ -1697,18 +1697,29 @@ class CoAuthors_Plus {
 			}
 			$field = apply_filters( 'coauthors_post_get_coauthor_by_field', $query_type, $author_name );
 
-			$author             = $this->get_coauthor_by( $field, $author_name );
+			$author = $this->get_coauthor_by( $field, $author_name );
+			if ( false === $author && 'user_login' !== $field ) {
+				// Callers such as the classic metabox and some WP-CLI commands pass
+				// user_login values regardless of the lookup field, so retry by login.
+				$author = $this->get_coauthor_by( 'user_login', $author_name );
+			}
+			if ( false === $author ) {
+				// Retry with the sanitized title of the name, in case the caller
+				// passed a display-style name that differs from the stored
+				// nicename only by punctuation or case.
+				$author = $this->get_coauthor_by( 'user_nicename', sanitize_title( $author_name ) );
+			}
 			$coauthor_objects[] = $author;
 			$term               = $this->update_author_term( $author );
 
 			if ( false === $author ) {
-				$unresolved[ $author_name ] = $field;
+				$unresolved_keys[] = $key;
 
 				/**
 				 * Fires when a co-author name cannot be resolved to a user or guest author.
 				 *
-				 * The name is still stored as an author term, but no co-author backs
-				 * it, so it will not appear in the post's byline.
+				 * The name is not attached to the post, so it will not appear in
+				 * the post's byline.
 				 *
 				 * @since 4.2.0
 				 *
@@ -1729,27 +1740,25 @@ class CoAuthors_Plus {
 		// Break the reference, so later writes cannot alias the last element.
 		unset( $author_name );
 
-		if ( ! empty( $unresolved ) ) {
-			_doing_it_wrong(
-				__METHOD__,
-				sprintf(
-					/* translators: 1: comma-separated list of co-author names, 2: comma-separated list of lookup fields. */
-					esc_html__( 'The co-author name(s) %1$s could not be resolved to any user or guest author via %2$s. They will not appear in the post byline. Hook into the coauthors_unresolved_coauthor action to detect this.', 'co-authors-plus' ),
-					esc_html( implode( ', ', array_keys( $unresolved ) ) ),
-					esc_html( implode( ', ', array_unique( $unresolved ) ) )
-				),
-				'4.2.0'
-			);
+		// Unresolved names would be stored as author terms without the cap-
+		// prefix, so archive queries and later lookups can never match them.
+		// Drop them from the term write instead of storing a dead term. When
+		// that empties the list, keep the post's existing terms rather than
+		// writing an empty set, which would leave the post termless.
+		if ( ! empty( $unresolved_keys ) ) {
+			$coauthors = array_diff_key( $coauthors, array_flip( $unresolved_keys ) );
 		}
 
-		/*
-		 * The author taxonomy is registered with 'sort' => true (see
-		 * action_init_late()), and this is a non-append call, so
-		 * wp_set_object_terms() writes wp_term_relationships.term_order in the
-		 * order the slugs are passed here. That is what makes the byline order
-		 * round-trip: the read path orders by term_order ASC.
-		 */
-		wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
+		if ( ! empty( $coauthors ) ) {
+			/*
+			 * The author taxonomy is registered with 'sort' => true (see
+			 * action_init_late()), and this is a non-append call, so
+			 * wp_set_object_terms() writes wp_term_relationships.term_order in the
+			 * order the slugs are passed here. That is what makes the byline order
+			 * round-trip: the read path orders by term_order ASC.
+			 */
+			wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
+		}
 
 		// If the original post_author is no longer assigned,
 		// update to the first WP_User $coauthor

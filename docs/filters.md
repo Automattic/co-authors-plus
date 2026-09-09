@@ -229,6 +229,13 @@ Fires while rendering a custom column for a guest author row.
 - **Parameters:** `string $column_name`, `int $author_id`
 - **File:** `php/class-coauthors-wp-list-table.php`
 
+### `coauthors_unresolved_coauthor`
+
+Fires when a co-author name passed to `CoAuthors_Plus::add_coauthors()` cannot be resolved to any WordPress user or guest author. The name is not attached to the post, so it will not appear in the post's byline. Use this action to detect lost bylines during bulk imports or migrations.
+
+- **Parameters:** `string $author_name`, `string $field`, `int $post_id`, `bool $append`
+- **File:** `php/class-coauthors-plus.php`
+
 ## Deprecated
 
 ### `coauthors_post_list_pluck_field`

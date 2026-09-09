@@ -269,7 +269,7 @@ class Swap_Coauthors_Command {
 					// The byline is written either way; a false return means only that post_author
 					// could not be pointed at a WordPress user, which is the norm when the swap
 					// targets a guest author with no account.
-					$post_author_synced = $coauthors_plus->add_coauthors( $post->ID, $coauthors );
+					$post_author_synced = $coauthors_plus->add_coauthors( $post->ID, $coauthors, false, 'user_login' );
 
 					WP_CLI::log( $posts_total . ': Post #' . $post->ID . ' has been assigned "' . $to_userlogin . '" as a co-author' );
 
