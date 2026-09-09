@@ -67,6 +67,138 @@ class CoauthorsPostsLinksTest extends TestCase {
 		);
 	}
 
+		/**
+		 * Test that a guest author byline links to the guest author archive rather
+		 * than the user who originally published the post, with pretty permalinks.
+		 *
+		 * @see https://github.com/Automattic/co-authors-plus/issues/1351
+		 */
+	public function test_coauthors_posts_links_for_single_guest_author_with_pretty_permalinks(): void {
+		$this->assert_single_guest_author_byline_links_to_guest_archive( '/%postname%/' );
+	}
+
+	/**
+	 * Test that a guest author byline links to the guest author archive rather
+	 * than the user who originally published the post, with plain permalinks.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1351
+	 */
+	public function test_coauthors_posts_links_for_single_guest_author_with_plain_permalinks(): void {
+		$this->assert_single_guest_author_byline_links_to_guest_archive( '' );
+	}
+
+		/**
+		 * Test the old-theme pattern used with coauthors_auto_apply_template_tags,
+		 * with pretty permalinks.
+		 *
+		 * @see https://github.com/Automattic/co-authors-plus/issues/1351
+		 */
+	public function test_old_theme_author_link_uses_guest_author_archive_with_pretty_permalinks(): void {
+		$this->assert_old_theme_author_link_uses_guest_author_archive( '/%postname%/' );
+	}
+
+		/**
+		 * Test the old-theme pattern used with coauthors_auto_apply_template_tags,
+		 * with plain permalinks.
+		 *
+		 * @see https://github.com/Automattic/co-authors-plus/issues/1351
+		 */
+	public function test_old_theme_author_link_uses_guest_author_archive_with_plain_permalinks(): void {
+		$this->assert_old_theme_author_link_uses_guest_author_archive( '' );
+	}
+
+		/**
+		 * Assert that an old-theme byline using get_the_author_meta( 'ID' ) for the
+		 * href and get_the_author() for the label points at the guest archive.
+		 *
+		 * The coauthors_auto_apply_template_tags filter is simulated by registering
+		 * the template filters after init, which is how that filter behaves.
+		 *
+		 * @param string $permalink_structure Permalink structure to test with.
+		 */
+	private function assert_old_theme_author_link_uses_guest_author_archive( string $permalink_structure ): void {
+		global $coauthors_plus;
+
+		$this->set_permalink_structure( $permalink_structure );
+
+		$publisher = $this->create_author( 'publisher-bob' );
+		$this->create_guest_author( 'jane-guest' );
+		$post      = $this->create_post( $publisher );
+		$coauthors_plus->add_coauthors( $post->ID, array( 'jane-guest' ), false );
+
+		$filters = new \CoAuthors_Template_Filters();
+		$filters->register_hooks();
+		$this->go_to( get_permalink( $post->ID ) );
+
+		// Old themes render the byline inside the loop, where the_post() sets
+		// $authordata from the post_author field (the original publisher).
+		$link = '';
+		while ( have_posts() ) {
+			the_post();
+			$link = sprintf(
+				'<a href="%s">%s</a>',
+				esc_url( get_author_posts_url( get_the_author_meta( 'ID' ) ) ),
+				esc_html( get_the_author() )
+			);
+		}
+
+		$expected_href = $permalink_structure
+			? home_url( '/author/jane-guest/' )
+			: add_query_arg( 'author_name', 'jane-guest', home_url() );
+
+		$this->assertStringContainsString( $expected_href, $link );
+		$this->assertStringNotContainsString( 'publisher-bob', $link );
+		$this->assertSame( $publisher->ID, (int) get_the_author_meta( 'ID' ) );
+	}
+
+	/**
+	 * Assert that a post whose single coauthor is a guest author renders a byline
+	 * pointing to the guest author's own archive, and not to the user who
+	 * originally published the post.
+	 *
+	 * The expected URL is built from the guest author's nicename directly rather
+	 * than by re-running the production author_link filter, so expected and actual
+	 * cannot share a source of truth.
+	 *
+	 * @param string $permalink_structure Permalink structure to test with.
+	 */
+	private function assert_single_guest_author_byline_links_to_guest_archive( string $permalink_structure ): void {
+		global $coauthors_plus;
+
+		$this->set_permalink_structure( $permalink_structure );
+
+		$publisher    = $this->create_author( 'publisher-bob' );
+		$guest_author = $this->create_guest_author( 'jane-guest' );
+		$guest_object = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $guest_author );
+		$post         = $this->create_post( $publisher );
+		$coauthors_plus->add_coauthors( $post->ID, array( 'jane-guest' ), false );
+
+		$coauthors = get_coauthors( $post->ID );
+		$this->assertCount( 1, $coauthors );
+		$this->assertIsGuestAuthorNotWpUser( $coauthors[0] );
+		$this->assertSame( 'jane-guest', $coauthors[0]->user_nicename );
+
+		// Simulate the frontend rendering of the byline from a fresh URL context.
+		$this->go_to( get_permalink( $post->ID ) );
+
+		$expected_href = $permalink_structure
+			? home_url( '/author/jane-guest/' )
+			: add_query_arg( 'author_name', 'jane-guest', home_url() );
+
+		$byline = coauthors_posts_links( null, null, null, null, false );
+
+		$this->assertSame(
+			'<a href="' . $expected_href . '" title="Posts by jane-guest" class="author url fn" rel="author">jane-guest</a>',
+			$byline,
+			'Guest author post link does not point to the guest author archive.'
+		);
+		$this->assertStringNotContainsString(
+			'publisher-bob',
+			$byline,
+			'Byline must not link to the user who originally published the post.'
+		);
+	}
+
 	/**
 	 * Test that co-author posts link is retrieved via coauthors_posts_links_single() but for multiple authors.
 	 */
