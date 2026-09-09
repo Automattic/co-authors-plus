@@ -14,5 +14,6 @@ module.exports = {
 			'./src/blocks/block-coauthor-name/index.js',
 		'blocks/block-coauthors/index': './src/blocks/block-coauthors/index.js',
 		'blocks-store/index': './src/blocks-store/index.js',
+		'migrate-users': './src/migrate-users.js',
 	},
 };
