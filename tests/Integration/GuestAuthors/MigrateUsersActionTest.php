@@ -131,7 +131,8 @@ class MigrateUsersActionTest extends TestCase {
 			$this->_cap->guest_authors->handle_migrate_guest_authors_action();
 			$this->fail( 'Unauthorized migration did not stop execution.' );
 		} catch ( \WPDieException $exception ) {
-			$this->assertStringContainsString( "You don&#039;t have permission", $exception->getMessage() );
+			$expected = esc_html__( "You don't have permission to perform this action.", 'co-authors-plus' );
+			$this->assertStringContainsString( $expected, $exception->getMessage() );
 		} finally {
 			wp_set_current_user( $current_user );
 			$_POST = $post_backup;
