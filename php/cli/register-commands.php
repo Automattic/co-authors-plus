@@ -13,6 +13,7 @@
 declare( strict_types=1 );
 
 use Automattic\CoAuthorsPlus\CLI\Assign_Coauthors_Command;
+use Automattic\CoAuthorsPlus\CLI\Check_Command;
 use Automattic\CoAuthorsPlus\CLI\Command_Namespace;
 use Automattic\CoAuthorsPlus\CLI\Assign_User_To_Coauthor_Command;
 use Automattic\CoAuthorsPlus\CLI\Create_Author_Command;
@@ -34,6 +35,7 @@ use Automattic\CoAuthorsPlus\CLI\Rename_Coauthor_Command;
 use Automattic\CoAuthorsPlus\CLI\Swap_Coauthors_Command;
 use Automattic\CoAuthorsPlus\CLI\Update_Author_Terms_Command;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Assignment_Service;
+use Automattic\CoAuthorsPlus\Services\Coauthor_Checks_Service;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Export_Service;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Import_Service;
 use Automattic\CoAuthorsPlus\Services\Guest_Author_Service;
@@ -48,6 +50,7 @@ require_once __DIR__ . '/../services/class-coauthor-assignment-service.php';
 require_once __DIR__ . '/../services/class-guest-author-service.php';
 require_once __DIR__ . '/../services/class-coauthor-export-service.php';
 require_once __DIR__ . '/../services/class-coauthor-import-service.php';
+require_once __DIR__ . '/../services/class-coauthor-checks-service.php';
 require_once __DIR__ . '/class-migrate-author-terms-command.php';
 require_once __DIR__ . '/class-reassign-terms-command.php';
 require_once __DIR__ . '/class-remove-terms-from-revisions-command.php';
@@ -58,6 +61,7 @@ require_once __DIR__ . '/class-create-guest-authors-command.php';
 require_once __DIR__ . '/class-create-guest-authors-from-csv-command.php';
 require_once __DIR__ . '/class-create-guest-authors-from-wxr-command.php';
 require_once __DIR__ . '/class-list-authors-command.php';
+require_once __DIR__ . '/class-check-command.php';
 require_once __DIR__ . '/class-create-author-terms-for-posts-command.php';
 require_once __DIR__ . '/class-create-terms-for-posts-command.php';
 require_once __DIR__ . '/class-delete-skip-backfill-postmeta-command.php';
@@ -108,6 +112,11 @@ add_action(
 		WP_CLI::add_command(
 			'co-authors-plus list-authors',
 			new List_Authors_Command()
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus check',
+			new Check_Command( new Coauthor_Checks_Service( $coauthors_plus ) )
 		);
 
 		WP_CLI::add_command(

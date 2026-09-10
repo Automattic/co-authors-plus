@@ -871,6 +871,65 @@ class CoAuthors_Plus {
 			return new WP_Error( 'missing-coauthor', __( 'No co-author exists for that term', 'co-authors-plus' ) );
 		}
 
+		$count = $this->count_published_posts_for_term( $term, $coauthor );
+
+		// A failed query returns false. Writing that would store a count of 0
+		// and lose the real one, so the stored value is left as it is.
+		if ( false === $count ) {
+			return new WP_Error( 'count-query-failed', __( 'The post count query failed', 'co-authors-plus' ) );
+		}
+
+		$wpdb->update( $wpdb->term_taxonomy, array( 'count' => $count ), array( 'term_taxonomy_id' => $term->term_taxonomy_id ) );
+
+		wp_cache_delete( 'author-term-' . $coauthor->user_nicename, 'co-authors-plus' );
+	}
+
+	/**
+	 * Get the published post count an author term should hold.
+	 *
+	 * The same count update_author_term_post_count() writes, without the write,
+	 * so a caller can compare it against the stored value and report drift
+	 * instead of repairing it silently.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param object $term The co-author term.
+	 * @return int|null The count, or null when it cannot be determined.
+	 */
+	public function get_author_term_post_count( $term ): ?int {
+
+		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+		if ( ! $coauthor ) {
+			return null;
+		}
+
+		$count = $this->count_published_posts_for_term( $term, $coauthor );
+
+		// The query returns false when it fails. Reporting that as a count of
+		// zero would surface as drift, so it is treated as "unknown" instead.
+		if ( false === $count ) {
+			return null;
+		}
+
+		return (int) $count;
+	}
+
+	/**
+	 * Count the published posts attributed to an author term and co-author.
+	 *
+	 * A WordPress user is counted through post_author as well as the term, to
+	 * match how their byline is read, while a guest author is counted through
+	 * the term alone.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param object $term     The co-author term.
+	 * @param object $coauthor The co-author the term represents.
+	 * @return int|false Row count, or false on query failure.
+	 */
+	private function count_published_posts_for_term( $term, $coauthor ) {
+		global $wpdb;
+
 		$query = "SELECT COUNT({$wpdb->posts}.ID) FROM {$wpdb->posts}";
 
 		$query .= " LEFT JOIN {$wpdb->term_relationships} ON ({$wpdb->posts}.ID = {$wpdb->term_relationships}.object_id)";
@@ -889,10 +948,7 @@ class CoAuthors_Plus {
 
 		$query .= $wpdb->prepare( " GROUP BY {$wpdb->posts}.ID HAVING MAX( IF ( {$wpdb->term_taxonomy}.taxonomy = '%s', IF ( {$having_terms},2,1 ),0 ) ) <> 1 ", $this->coauthor_taxonomy ); //phpcs:ignore
 
-		$count = $wpdb->query( $query ); // phpcs:ignore
-		$wpdb->update( $wpdb->term_taxonomy, array( 'count' => $count ), array( 'term_taxonomy_id' => $term->term_taxonomy_id ) );
-
-		wp_cache_delete( 'author-term-' . $coauthor->user_nicename, 'co-authors-plus' );
+		return $wpdb->query( $query ); // phpcs:ignore
 	}
 
 	/**
