@@ -2186,14 +2186,31 @@ class CoAuthors_Plus {
 		}
 
 		$args = array(
-			'search' => $search,
-			'get'    => 'all',
-			'number' => 10,
+			'description__like' => $search,
+			'get'               => 'all',
+			'number'            => 10,
 		);
 		$args = apply_filters( 'coauthors_search_authors_get_terms_args', $args );
-		add_filter( 'terms_clauses', array( $this, 'filter_terms_clauses' ) );
-		$found_terms = get_terms( array_merge( array( 'taxonomy' => $this->coauthor_taxonomy ), $args ) );
-		remove_filter( 'terms_clauses', array( $this, 'filter_terms_clauses' ) );
+		$base_args   = array_merge( array( 'taxonomy' => $this->coauthor_taxonomy ), $args );
+		$found_terms = get_terms( $base_args );
+
+		if ( is_wp_error( $found_terms ) ) {
+			return array();
+		}
+
+		// The term description does not always contain the user_nicename, so
+		// also match the exact term slug, like the old search clause did.
+		$slug = sanitize_title( $search );
+		if ( '' !== $slug ) {
+			$slug_args         = $base_args;
+			$slug_args['slug'] = array_unique( array( Prefix::prefix_slug( $slug ), $slug ) );
+			unset( $slug_args['description__like'] );
+			$slug_terms = get_terms( $slug_args );
+
+			if ( ! empty( $slug_terms ) && ! is_wp_error( $slug_terms ) ) {
+				$found_terms = array_merge( $found_terms, $slug_terms );
+			}
+		}
 
 		if ( empty( $found_terms ) ) {
 			return array();
@@ -2229,6 +2246,9 @@ class CoAuthors_Plus {
 
 	/**
 	 * Modify get_terms() to LIKE against the term description instead of the term name
+	 *
+	 * Kept for backward compatibility. search_authors() no longer hooks this;
+	 * it passes 'description__like' to get_terms() directly.
 	 *
 	 * @since 3.0
 	 */
