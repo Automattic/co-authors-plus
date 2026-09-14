@@ -101,6 +101,9 @@ class FeedFiltersTest extends TestCase {
 	 * `CoAuthors_Plus::action_init()`, which has already run by the time a test
 	 * starts. Unhooking and re-running that registration is what lets a test
 	 * observe the gate rather than just assert that a filter it added returns false.
+	 *
+	 * Calls `maybe_register_feed_filters()` rather than `action_init()` so that only
+	 * the registration under test is repeated.
 	 */
 	private function reregister_feed_filters(): void {
 		global $coauthors_plus_feed_filters;
@@ -112,7 +115,7 @@ class FeedFiltersTest extends TestCase {
 
 		$coauthors_plus_feed_filters = null;
 
-		$this->_cap->action_init();
+		$this->_cap->maybe_register_feed_filters();
 	}
 
 	/**
@@ -262,6 +265,40 @@ class FeedFiltersTest extends TestCase {
 			'&amp;amp;',
 			$feed,
 			'Escaping inside CDATA double-encodes the ampersand.'
+		);
+	}
+
+	/**
+	 * A co-author with an empty display name must not blank out the byline.
+	 *
+	 * Both methods treat an empty name the same way: the first author falls back to
+	 * the value core resolved, and the extras are skipped, so neither emits an empty
+	 * dc:creator element.
+	 */
+	public function test_co_authors_with_an_empty_display_name_are_not_emitted(): void {
+		$post         = $this->create_post( $this->publisher );
+		$guest_author = $this->create_guest_author_with_name( 'freelancer', 'Freelance Contributor' );
+
+		$this->_cap->add_coauthors( $post->ID, array( $guest_author->user_login ) );
+
+		add_filter(
+			'get_coauthors',
+			static function () {
+				$nameless = new \stdClass();
+
+				$nameless->display_name = '';
+				$nameless->user_login   = 'nameless';
+
+				return array( $nameless, $nameless );
+			}
+		);
+
+		$this->go_to( home_url( '/?feed=rss2' ) );
+
+		$this->assertSame(
+			array( 'Publishing Editor' ),
+			$this->dc_creators( $this->render_rss2() ),
+			'An empty display name must fall back to core rather than emit an empty element.'
 		);
 	}
 

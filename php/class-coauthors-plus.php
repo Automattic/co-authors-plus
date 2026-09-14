@@ -176,6 +176,18 @@ class CoAuthors_Plus {
 			$coauthors_plus_template_filters->register_hooks();
 		}
 
+		$this->maybe_register_feed_filters();
+	}
+
+	/**
+	 * Apply co-author bylines to feeds, unless a site opts out.
+	 *
+	 * Split out of self::action_init() so that the registration can be exercised on
+	 * its own without re-running every other hook that method wires up.
+	 *
+	 * @return void
+	 */
+	public function maybe_register_feed_filters(): void {
 		/**
 		 * Filter whether co-author bylines are applied to feeds.
 		 *
@@ -185,11 +197,13 @@ class CoAuthors_Plus {
 		 *
 		 * @param bool $filter_feed_authors Whether to filter feed authors. Default true.
 		 */
-		if ( apply_filters( 'coauthors_filter_feed_authors', true ) ) {
-			global $coauthors_plus_feed_filters;
-			$coauthors_plus_feed_filters = new CoAuthors_Feed_Filters();
-			$coauthors_plus_feed_filters->register_hooks();
+		if ( ! apply_filters( 'coauthors_filter_feed_authors', true ) ) {
+			return;
 		}
+
+		global $coauthors_plus_feed_filters;
+		$coauthors_plus_feed_filters = new CoAuthors_Feed_Filters();
+		$coauthors_plus_feed_filters->register_hooks();
 	}
 
 	/**
