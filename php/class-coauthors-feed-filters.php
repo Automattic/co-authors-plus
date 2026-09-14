@@ -29,7 +29,10 @@ class CoAuthors_Feed_Filters {
 	/**
 	 * Replace the feed byline with the first co-author's display name.
 	 *
-	 * Runs only in a feed, so template output is unaffected.
+	 * Runs only in a feed, so template output is unaffected. A first co-author with
+	 * an empty display name falls back to the value core resolved, matching the way
+	 * self::action_add_rss_guest_authors() skips empty names rather than emitting an
+	 * empty element.
 	 *
 	 * @param string $the_author The author name core resolved from `post_author`.
 	 * @return string The first co-author's display name, or the original value.
@@ -40,7 +43,7 @@ class CoAuthors_Feed_Filters {
 		}
 
 		$coauthors = (array) get_coauthors();
-		if ( count( $coauthors ) >= 1 && isset( $coauthors[0]->display_name ) ) {
+		if ( ! empty( $coauthors[0]->display_name ) ) {
 			/*
 			 * Core registers `add_filter( 'the_author', 'ent2ncr', 8 )`. This filter runs at
 			 * 15 and replaces the string wholesale, so the replacement would otherwise never
@@ -58,6 +61,11 @@ class CoAuthors_Feed_Filters {
 	 *
 	 * The first co-author is already rendered by core's `the_author()` call, which
 	 * self::filter_the_author_rss() has filtered.
+	 *
+	 * Unlike that method, the names below are not passed through `ent2ncr()`. That
+	 * normalization exists for feed-atom.php, which renders `the_author()` inside a
+	 * bare <name> element. `rss2_item` does not fire on Atom, so these additional
+	 * authors only ever land inside RSS2 CDATA, where entities are literal anyway.
 	 *
 	 * @return void
 	 */
