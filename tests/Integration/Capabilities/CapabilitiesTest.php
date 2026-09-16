@@ -150,4 +150,93 @@ class CapabilitiesTest extends TestCase {
 		// Restore original user from backup.
 		wp_set_current_user( $current_user );
 	}
+
+	/**
+	 * Checks that a co-author (not the primary post author) can trash/delete a
+	 * published post they are credited on, mirroring the existing edit_post
+	 * parity. Before the fix, only edit_others_posts was granted, so the
+	 * "Move to Trash" action never appeared for co-authors.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1029
+	 *
+	 * @covers ::filter_user_has_cap
+	 */
+	public function test_current_user_can_delete_published_post_they_coauthor(): void {
+		global $coauthors_plus;
+
+		// Backing up current user.
+		$current_user = get_current_user_id();
+
+		$admin_user = $this->factory()->user->create_and_get(
+			array(
+				'role'       => 'administrator',
+				'user_login' => 'admin-delete-1',
+			)
+		);
+
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $admin_user->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		wp_set_current_user( $this->author1->ID );
+
+		// Author cannot delete someone else's post by default.
+		$this->assertFalse( current_user_can( 'delete_post', $post_id ) );
+
+		// Append (not replace) so the admin stays the primary post_author and
+		// author1 is a secondary co-author, not swapped in as the sole author.
+		$coauthors_plus->add_coauthors( $post_id, array( $this->author1->user_login ), true );
+		$this->assertSame( $admin_user->ID, (int) get_post( $post_id )->post_author, 'Precondition: admin must remain the primary author.' );
+
+		// Author can delete once they're a (secondary) coauthor.
+		$this->assertTrue( current_user_can( 'delete_post', $post_id ) );
+
+		// Restore original user from backup.
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * A coauthor whose role lacks delete_published_posts (e.g. contributor)
+	 * must not gain the ability to delete a *published* post just by being
+	 * credited on it — only delete_others_posts is granted, matching how
+	 * edit_published_posts is left to the user's own role for editing.
+	 *
+	 * @covers ::filter_user_has_cap
+	 */
+	public function test_contributor_coauthor_cannot_delete_published_post(): void {
+		global $coauthors_plus;
+
+		$current_user = get_current_user_id();
+
+		$admin_user = $this->factory()->user->create_and_get(
+			array(
+				'role'       => 'administrator',
+				'user_login' => 'admin-delete-2',
+			)
+		);
+
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $admin_user->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		$contributor = $this->create_contributor( 'contributor-delete-1' );
+		wp_set_current_user( $contributor->ID );
+
+		// Append (not replace) so the admin stays the primary post_author and
+		// the contributor is a secondary co-author, not swapped in as sole author.
+		$coauthors_plus->add_coauthors( $post_id, array( $contributor->user_login ), true );
+		$this->assertSame( $admin_user->ID, (int) get_post( $post_id )->post_author, 'Precondition: admin must remain the primary author.' );
+
+		$this->assertFalse( current_user_can( 'delete_post', $post_id ) );
+
+		wp_set_current_user( $current_user );
+	}
 }
