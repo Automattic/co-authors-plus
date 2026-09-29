@@ -121,9 +121,11 @@ class BlockCoAuthorsRenderTest extends TestCase {
 
 		// Drop the directories the metadata write created. rmdir only
 		// succeeds on empty directories, so a real build is never touched.
+		// phpcs:disable WordPressVIPMinimum.Functions.RestrictedFunctions.directory_rmdir -- removing empty dirs the test created; WordPress has no helper for this, and the recursive WP_Filesystem::rmdir() would not be safe here.
 		@rmdir( dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks/block-coauthors' );
 		@rmdir( dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks' );
 		@rmdir( dirname( COAUTHORS_PLUS_FILE ) . '/build' );
+		// phpcs:enable WordPressVIPMinimum.Functions.RestrictedFunctions.directory_rmdir
 
 		parent::tear_down();
 	}
