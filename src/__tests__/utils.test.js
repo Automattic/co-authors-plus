@@ -5,6 +5,7 @@ import {
 	buildCoauthorTermIds,
 	extractTermIds,
 	formatAuthorData,
+	needsPostIdFallback,
 } from '../utils';
 import { addFilter, removeFilter } from '@wordpress/hooks';
 import {
@@ -74,6 +75,31 @@ describe( 'Utility - moveItem', () => {
 			selectedAuthors[ 3 ],
 		] );
 	} );
+
+	it( 'should not mutate the array it was given', () => {
+		const original = [ ...selectedAuthors ];
+
+		moveItem( selectedAuthors[ 0 ], selectedAuthors, 'down' );
+
+		expect( selectedAuthors ).toStrictEqual( original );
+	} );
+
+	it.each( [
+		[ 'the first item up', 0, 'up' ],
+		[ 'the last item down', 3, 'down' ],
+	] )( 'should leave the order alone when moving %s', ( _label, i, dir ) => {
+		// Moving off either end has no meaningful answer. Splicing at -1 used
+		// to wrap the first item round to second-from-last instead.
+		expect(
+			moveItem( selectedAuthors[ i ], selectedAuthors, dir )
+		).toStrictEqual( selectedAuthors );
+	} );
+
+	it( 'should leave the order alone for an item that is not in the list', () => {
+		expect(
+			moveItem( { value: 'nobody' }, selectedAuthors, 'down' )
+		).toStrictEqual( selectedAuthors );
+	} );
 } );
 
 describe( 'Utility - removeItem', () => {
@@ -93,6 +119,22 @@ describe( 'Utility - addItemByValue', () => {
 		expect(
 			addItemByValue( newAuthorValue, selectedAuthors, dropdownOptions )
 		).toStrictEqual( [ ...selectedAuthors, dropdownOptions[ 0 ] ] );
+	} );
+
+	it( 'should match on value rather than position', () => {
+		// The second dropdown option, to prove the lookup is not just taking
+		// the head of the list.
+		expect(
+			addItemByValue( 'claudette', selectedAuthors, dropdownOptions )
+		).toStrictEqual( [ ...selectedAuthors, dropdownOptions[ 1 ] ] );
+	} );
+
+	it( 'should append undefined when the value is not in the dropdown', () => {
+		// Characterisation, not endorsement: an unmatched value has always
+		// appended undefined, which buildCoauthorTermIds() then discards.
+		expect(
+			addItemByValue( 'nobody', selectedAuthors, dropdownOptions )
+		).toStrictEqual( [ ...selectedAuthors, undefined ] );
 	} );
 } );
 
@@ -169,6 +211,42 @@ describe( 'Utility - extractTermIds', () => {
 		[ 'returns empty array for non-array input', 'not an array', [] ],
 	] )( '%s', ( _label, input, expected ) => {
 		expect( extractTermIds( input ) ).toStrictEqual( expected );
+	} );
+} );
+
+describe( 'Utility - needsPostIdFallback', () => {
+	it.each( [
+		[ 'term-ID array needs no fallback', [ 42, 43 ], false ],
+		[
+			'objects carrying term_id need no fallback',
+			[ { term_id: 5 } ],
+			false,
+		],
+		[
+			'objects with only user_id need the fallback',
+			[ { user_id: 8703 }, { user_id: 16 } ],
+			true,
+		],
+		[
+			'objects with only id or ID need the fallback',
+			[ { id: 5 }, { ID: 99 } ],
+			true,
+		],
+		[
+			'objects with no recognisable ID need the fallback',
+			[ { display_name: 'John Doe', user_nicename: 'john-doe' } ],
+			true,
+		],
+		[
+			'a partially resolvable list needs no fallback',
+			[ 42, { user_id: 1 } ],
+			false,
+		],
+		[ 'an empty array needs no fallback', [], false ],
+		[ 'undefined needs no fallback', undefined, false ],
+		[ 'a non-array needs no fallback', 'not an array', false ],
+	] )( '%s', ( _label, input, expected ) => {
+		expect( needsPostIdFallback( input ) ).toBe( expected );
 	} );
 } );
 

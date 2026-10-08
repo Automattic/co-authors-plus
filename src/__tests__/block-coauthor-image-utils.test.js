@@ -187,6 +187,27 @@ describe( 'Utility - getSizeKeysIntersection', () => {
 	it( 'returns an empty array when imageDimensions is empty', () => {
 		expect( getSizeKeysIntersection( media, {} ) ).toStrictEqual( [] );
 	} );
+
+	it( 'keeps the media size order and yields no duplicates', () => {
+		// getAvailableSizeSlug() falls back to the first key, so the media's
+		// own ordering has to survive. Object.keys() is already unique, which
+		// is why no de-duplication step is needed here.
+		const orderedMedia = {
+			media_details: {
+				sizes: { tall: {}, thumbnail: {}, wide: {}, medium: {} },
+			},
+		};
+
+		const keys = getSizeKeysIntersection( orderedMedia, imageDimensions );
+
+		expect( keys ).toStrictEqual( [
+			'tall',
+			'thumbnail',
+			'wide',
+			'medium',
+		] );
+		expect( keys ).toHaveLength( new Set( keys ).size );
+	} );
 } );
 
 describe( 'Utility - getAvailableSizeSlug', () => {

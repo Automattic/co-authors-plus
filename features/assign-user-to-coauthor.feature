@@ -4,6 +4,15 @@ Feature: Posts can be assigned from a user to a co-author
 		Given a WP installation with the Co-Authors Plus plugin
 		And I run `wp co-authors-plus create-guest-authors`
 
+	Scenario: Error on a missing required --coauthor parameter
+		When I try `wp co-authors-plus assign-user-to-coauthor --user_id=1`
+		Then STDERR should be:
+		"""
+		Error: Parameter errors:
+		 missing --coauthor parameter (The co-author to give the byline to.)
+		"""
+		And the return code should be 1
+
 	Scenario: Error when neither --user_login nor --user_id is supplied
 		When I try `wp co-authors-plus assign-user-to-coauthor --coauthor=admin`
 		Then STDERR should be:

@@ -6,6 +6,8 @@
  * to give them access to the dashboard through a WP_User account
  */
 
+use CoAuthors\Prefix;
+
 class CoAuthors_Guest_Authors {
 
 	public $labels;
@@ -52,9 +54,6 @@ class CoAuthors_Guest_Authors {
 
 		// Over-ride the author feed
 		add_filter( 'author_feed_link', array( $this, 'filter_author_feed_link' ), 10, 2 );
-
-		// Validate new guest authors
-		add_filter( 'wp_insert_post_empty_content', array( $this, 'filter_wp_insert_post_empty_content' ), 10, 2 );
 
 		// Add meta boxes for our guest author management interface
 		add_action( 'add_meta_boxes', array( $this, 'action_add_meta_boxes' ), 10, 2 );
@@ -930,10 +929,18 @@ class CoAuthors_Guest_Authors {
 		if ( ! $slug ) {
 			wp_die( esc_html__( 'Guest authors cannot be created without display names.', 'co-authors-plus' ) );
 		}
+		/*
+		 * Deliberately the meta key rule, not the slug rule: this has always
+		 * prefixed case-insensitively, so a user_login of 'Cap Ri' yields the
+		 * post_name 'cap-cap-ri' while 'CAP-ri' yields 'cap-ri'. Changing that
+		 * would change the byline of guest authors created afterwards, so it
+		 * needs a decision and an upgrade path rather than a quiet fix.
+		 * See https://github.com/Automattic/co-authors-plus/issues/1397.
+		 */
 		$post_data['post_name'] = $this->get_post_meta_key( $slug );
 
 		// Guest authors can't be created with the same user_login as a user
-		$user_nicename = str_replace( 'cap-', '', $slug );
+		$user_nicename = Prefix::strip_slug_prefix( $slug );
 		$user          = get_user_by( 'slug', $user_nicename );
 		if ( $user
 			&& is_user_member_of_blog( $user->ID, get_current_blog_id() )
@@ -1212,10 +1219,18 @@ class CoAuthors_Guest_Authors {
 				'group' => 'slug',
 			),
 			array(
-				'key'   => 'website',
-				'label' => __( 'Website', 'co-authors-plus' ),
-				'group' => 'contact-info',
-				'input' => 'url',
+				'key'               => 'website',
+				'label'             => __( 'Website', 'co-authors-plus' ),
+				'group'             => 'contact-info',
+				'input'             => 'url',
+				// A URL, so the text fallback is wrong for it: sanitize_text_field kept
+				// unschemed values (invalid in Yoast's sameAs output) and strips %xx
+				// octets from an already-encoded URL on a second save. Declaring the
+				// sanitiser here covers the admin save, the service and the CLI at once.
+				// sanitize_url() is esc_url() in the 'db' context — the storage-side
+				// cleaner, un-deprecated in WP 5.9 as the name for exactly this; the
+				// better-known esc_url_raw() is its alias.
+				'sanitize_function' => 'sanitize_url',
 			),
 			array(
 				'key'               => 'description',
@@ -1239,15 +1254,14 @@ class CoAuthors_Guest_Authors {
 	 * Gets a postmeta key by prefixing it with 'cap-'
 	 * if not yet prefixed
 	 *
+	 * The comparison is case-insensitive, so a key that already arrives as
+	 * 'CAP-foo' is left alone rather than becoming 'cap-CAP-foo'.
+	 *
 	 * @since 3.0
 	 */
 	public function get_post_meta_key( $key ) {
 
-		if ( 0 !== stripos( $key, 'cap-' ) ) {
-			$key = 'cap-' . $key;
-		}
-
-		return $key;
+		return Prefix::ensure_meta_key_prefix( $key );
 	}
 
 	/**
@@ -1264,9 +1278,7 @@ class CoAuthors_Guest_Authors {
 			case 'post_name':
 				$key = 'user_nicename';
 
-				if ( 0 === strpos( $value, 'cap-' ) ) {
-					$value = substr( $value, 4 );
-				}
+				$value = Prefix::strip_slug_prefix( $value );
 
 				break;
 
@@ -1331,7 +1343,7 @@ class CoAuthors_Guest_Authors {
 		}
 
 		// If one of the guest author meta values has changed, we'll need to invalidate all keys
-		if ( false !== strpos( $meta_key, 'cap-' ) && get_post_meta( $object_id, $meta_key, true ) !== $meta_value ) {
+		if ( Prefix::meta_key_has_prefix( $meta_key ) && get_post_meta( $object_id, $meta_key, true ) !== $meta_value ) {
 			$this->delete_guest_author_cache( $object_id );
 		}
 
@@ -1401,15 +1413,23 @@ class CoAuthors_Guest_Authors {
 
 			// The user login field shouldn't collide with any existing users
 			if ( 'user_login' == $field['key'] && $existing_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $args['user_login'], true ) ) {
-				if ( 'guest-author' == $existing_coauthor->type ) {
+				// A matching WordPress user is only allowed when this profile is being
+				// created as that user's linked account, mirroring the allowance
+				// manage_guest_author_filter_post_data() makes on the edit screen.
+				// Anything else silently adopted the user's author term and rewrote
+				// its description, so the user's own posts resolved to the new
+				// guest author.
+				$linked_account = isset( $args['linked_account'] ) ? $args['linked_account'] : '';
+				if ( 'guest-author' === $existing_coauthor->type || $existing_coauthor->user_login !== $linked_account ) {
 					return new WP_Error( 'duplicate-field', __( 'user_login cannot duplicate existing guest author or mapped user', 'co-authors-plus' ) );
-				}
+				}//end if
 			}
-		}
+		}//end foreach
 
 		// Create the primary post object
 		$new_post = array(
 			'post_title' => $args['display_name'],
+			// The meta key rule, deliberately. See manage_guest_author_filter_post_data().
 			'post_name'  => sanitize_title( $this->get_post_meta_key( $args['user_login'] ) ),
 			'post_type'  => $this->post_type,
 		);
@@ -1550,23 +1570,6 @@ class CoAuthors_Guest_Authors {
 
 		$retval = $this->create( $guest_author );
 		return $retval;
-	}
-
-	/**
-	 * Guest authors must have Display Names
-	 *
-	 * @since 3.0
-	 */
-	public function filter_wp_insert_post_empty_content( $maybe_empty, $postarr ) {
-
-		if ( $this->post_type != $postarr['post_type'] ) {
-			return $maybe_empty;
-		}
-
-		// Guest author posts store their data in post meta, not post_content/post_excerpt.
-		// Allow empty content so auto-drafts and new posts can be created.
-		// Display name validation is handled separately in manage_guest_author_filter_post_data().
-		return false;
 	}
 
 	/**

@@ -37,6 +37,29 @@ if ( ! $is_integration ) {
 		define( 'ABSPATH', dirname( __DIR__ ) . '/' );
 	}
 
+	/*
+	 * WordPress polyfills the PHP 8 string functions in wp-includes/compat.php,
+	 * and has done since 5.9 — comfortably below the 6.4 this plugin requires,
+	 * so plugin code may use them freely. Without WordPress loaded, the unit
+	 * suite has to stand in for that on the PHP 7.4 leg of the matrix.
+	 */
+	if ( ! function_exists( 'str_starts_with' ) ) {
+		/**
+		 * Polyfill for PHP 8.0's str_starts_with().
+		 *
+		 * @param string $haystack String to search in.
+		 * @param string $needle   String to search for.
+		 * @return bool
+		 */
+		function str_starts_with( string $haystack, string $needle ): bool {
+			if ( '' === $needle ) {
+				return true;
+			}
+
+			return 0 === strncmp( $haystack, $needle, strlen( $needle ) );
+		}
+	}
+
 	return;
 }
 

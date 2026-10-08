@@ -219,4 +219,45 @@ class GuestAuthorSaveCapsTest extends TestCase {
 			'Missing nonce must prevent writes even for authorised users.'
 		);
 	}
+	/**
+	 * The website field declares esc_url_raw, so an unschemed value is stored
+	 * schemed. Under the sanitize_text_field fallback it was stored as typed,
+	 * which Yoast then shipped verbatim as an invalid sameAs URL.
+	 */
+	public function test_save_meta_fields_schemes_the_website_field(): void {
+		wp_set_current_user( $this->admin->ID );
+
+		$_POST['guest-author-nonce'] = wp_create_nonce( 'guest-author-nonce' );
+		$_POST['cap-website']        = 'example.com/raw';
+
+		$post = get_post( $this->guest_author_post_id );
+		$this->_cap->guest_authors->manage_guest_author_save_meta_fields( $this->guest_author_post_id, $post );
+
+		$this->assertSame(
+			'http://example.com/raw',
+			get_post_meta( $this->guest_author_post_id, 'cap-website', true ),
+			'An unschemed website should be stored schemed, as esc_url_raw leaves it.'
+		);
+	}
+
+	/**
+	 * The declared esc_url_raw preserves percent-encoding, where the text fallback stripped
+	 * %xx octets — so a URL that had been encoded once was mangled on the next
+	 * save. This is the assertion that fails under the fallback (ab, not a%20b).
+	 */
+	public function test_save_meta_fields_preserves_percent_encoding_in_website(): void {
+		wp_set_current_user( $this->admin->ID );
+
+		$_POST['guest-author-nonce'] = wp_create_nonce( 'guest-author-nonce' );
+		$_POST['cap-website']        = 'http://example.com/a%20b';
+
+		$post = get_post( $this->guest_author_post_id );
+		$this->_cap->guest_authors->manage_guest_author_save_meta_fields( $this->guest_author_post_id, $post );
+
+		$this->assertSame(
+			'http://example.com/a%20b',
+			get_post_meta( $this->guest_author_post_id, 'cap-website', true ),
+			'Percent-encoded octets must survive a resave.'
+		);
+	}
 }

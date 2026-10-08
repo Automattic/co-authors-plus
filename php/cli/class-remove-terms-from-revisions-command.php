@@ -1,0 +1,97 @@
+<?php
+/**
+ * The remove-terms-from-revisions WP-CLI command.
+ *
+ * @package Automattic\CoAuthorsPlus
+ */
+
+declare( strict_types=1 );
+
+namespace Automattic\CoAuthorsPlus\CLI;
+
+use CoAuthors_Plus;
+use WP_CLI;
+
+/**
+ * Strips author terms from revisions, which were assigned them for years.
+ *
+ * Behaviour is pinned by features/remove-terms-from-revisions.feature.
+ */
+class Remove_Terms_From_Revisions_Command {
+
+	/**
+	 * Plugin instance.
+	 *
+	 * @var CoAuthors_Plus
+	 */
+	private $coauthors_plus;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param CoAuthors_Plus $coauthors_plus Plugin instance.
+	 */
+	public function __construct( CoAuthors_Plus $coauthors_plus ) {
+		$this->coauthors_plus = $coauthors_plus;
+	}
+
+	/**
+	 * Remove author terms from revisions.
+	 *
+	 * Revisions were given author terms for a long time, which they have no use for.
+	 * This removes them.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     # Clean author terms off revisions.
+	 *     $ wp co-authors-plus remove-terms-from-revisions
+	 *
+	 * @when after_wp_load
+	 *
+	 * @param string[]              $args       Positional arguments.
+	 * @param array<string, string> $assoc_args Associative arguments.
+	 * @return void
+	 */
+	public function __invoke( array $args, array $assoc_args ): void {
+		global $wpdb;
+
+		$ids = $wpdb->get_col( "SELECT ID FROM $wpdb->posts WHERE post_type='revision' AND post_status='inherit'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- WP-CLI one-time maintenance command.
+
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of revisions. */
+				_n(
+					'Found %s revision to look through',
+					'Found %s revisions to look through',
+					count( $ids ),
+					'co-authors-plus'
+				),
+				number_format_i18n( count( $ids ) )
+			)
+		);
+		$affected = 0;
+		foreach ( $ids as $post_id ) {
+
+			$terms = cap_get_coauthor_terms_for_post( $post_id );
+			if ( empty( $terms ) ) {
+				continue;
+			}
+
+			WP_CLI::log( "#{$post_id}: Removing " . implode( ',', wp_list_pluck( $terms, 'slug' ) ) );
+			wp_set_post_terms( $post_id, array(), $this->coauthors_plus->coauthor_taxonomy );
+			$affected++;
+		}
+		WP_CLI::log(
+			sprintf(
+				/* translators: Count of revisions. */
+				_n(
+					'All done! %s revision had author terms removed',
+					'All done! %s revisions had author terms removed',
+					$affected,
+					'co-authors-plus'
+				),
+				number_format_i18n( $affected )
+			)
+		);
+	}
+}

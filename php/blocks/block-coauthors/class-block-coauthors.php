@@ -133,26 +133,6 @@ class Block_CoAuthors {
 	}
 
 	/**
-	 * Get Composed Map Function
-	 * Use array reduce so an unknown array of functions can be used as single array_map callback
-	 *
-	 * @since 3.6.0
-	 * @param array $fns
-	 * @return callable
-	 */
-	public static function get_composed_map_function( ...$fns ): callable {
-		return function ( $value ) use ( $fns ) {
-			return array_reduce(
-				$fns,
-				function( $v, callable $f ) {
-					return $f( $v );
-				},
-				$value
-			);
-		};
-	}
-
-	/**
 	 * Render Prefix
 	 *
 	 * @since 3.6.0
@@ -189,17 +169,20 @@ class Block_CoAuthors {
 	 * @return array
 	 */
 	public static function render_coauthors_blocks_with_template( array $template, array $authors ): array {
+		$render_template = self::get_template_render_function( $template );
+
 		return array_map(
-			self::get_composed_map_function(
-				self::get_template_render_function( $template ),
-				// To match JSX from editor, remove line-breaks between blocks.
-				function( $content ) {
-					return str_replace( "\n", '', $content );
-				},
-				// To match JSX from editor, trim whitespace around blocks.
-				'trim',
-				Templating::get_render_element_function( 'div', 'class="wp-block-co-authors-plus-coauthor"' )
-			),
+			function( array $author ) use ( $render_template ): string {
+				// To match JSX from the editor, remove line-breaks between
+				// blocks and trim the whitespace around each one.
+				$content = trim( str_replace( "\n", '', $render_template( $author ) ) );
+
+				return Templating::render_element(
+					'div',
+					'class="wp-block-co-authors-plus-coauthor"',
+					$content
+				);
+			},
 			$authors
 		);
 	}

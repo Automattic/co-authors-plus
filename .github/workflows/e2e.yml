@@ -1,0 +1,78 @@
+name: E2E Tests
+
+on:
+  pull_request:
+    paths:
+      - '**.php'
+      - '**.js'
+      - '**.jsx'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.config.js'
+      - 'tests/e2e/**'
+      - '.wp-env.json'
+      - '.github/workflows/e2e.yml'
+  push:
+    branches:
+      - develop
+      - main
+    paths:
+      - '**.php'
+      - '**.js'
+      - '**.jsx'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'playwright.config.js'
+      - 'tests/e2e/**'
+      - '.wp-env.json'
+      - '.github/workflows/e2e.yml'
+  workflow_dispatch:
+
+# Disable all permissions by default; grant minimal permissions per job.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright E2E (block editor)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build block assets
+        run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Install wordpress environment
+        run: npm install -g @wordpress/env
+
+      - name: Start wp-env
+        run: wp-env start
+
+      # E2E runs against the dev environment (a stable WordPress release), not the
+      # tests environment (which tracks trunk and can drift ahead of the editor
+      # utilities). In CI the dev site is served on the default port 8888.
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          WP_BASE_URL: http://localhost:8888

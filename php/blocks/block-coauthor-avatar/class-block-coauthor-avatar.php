@@ -103,10 +103,7 @@ class Block_CoAuthor_Avatar {
 
 		$image_attributes['style'] .= implode( '', $styles );
 
-		$image = Templating::render_self_closing_element(
-			'img',
-			Templating::render_attributes( $image_attributes )
-		);
+		$image = '<img ' . Templating::render_attributes( $image_attributes ) . '/>';
 
 		if ( $is_link ) {
 			$link_attributes = Templating::render_attributes(

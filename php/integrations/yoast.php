@@ -239,7 +239,13 @@ class Yoast {
 	 * @return string
 	 */
 	public static function filter_author_meta( $author_name, $presentation ): string {
-		$author_objects = get_coauthors( $presentation->context->post->id );
+		$post_id = self::get_presentation_post_id( $presentation );
+
+		if ( 0 === $post_id ) {
+			return $author_name;
+		}
+
+		$author_objects = get_coauthors( $post_id );
 
 		// Fallback in case of error.
 		if ( empty( $author_objects ) ) {
@@ -257,7 +263,13 @@ class Yoast {
 	 * @return array The potentially amended enhanced Slack sharing data.
 	 */
 	public static function filter_slack_data( $data, $presentation ): array {
-		$author_objects = get_coauthors( $presentation->context->post->id );
+		$post_id = self::get_presentation_post_id( $presentation );
+
+		if ( 0 === $post_id ) {
+			return $data;
+		}
+
+		$author_objects = get_coauthors( $post_id );
 
 		// Fallback in case of error.
 		if ( empty( $author_objects ) ) {
@@ -267,6 +279,30 @@ class Yoast {
 		$output = self::get_authors_display_names_output( $author_objects );
 		$data[ \__( 'Written by', 'co-authors-plus' ) ] = $output;
 		return $data;
+	}
+
+	/**
+	 * Resolve the post ID that a Yoast presentation refers to.
+	 *
+	 * Yoast applies several of the filters this class hooks on every presentation,
+	 * not just on singular requests. `wpseo_enhanced_slack_data` is the clearest
+	 * case: `Slack\Enhanced_Data_Presenter::get()` limits its own "Written by"
+	 * output to posts, but applies the filter unconditionally, so the callback also
+	 * runs on author and term archives where the context carries no post at all.
+	 *
+	 * Note the property is `ID`: `WP_Post` has no lowercase `id`, so reading one
+	 * falls through `WP_Post::__get()` to a `get_post_meta( $ID, 'id', true )`
+	 * lookup that returns an empty string.
+	 *
+	 * @param Indexable_Presentation $presentation The presentation of an indexable.
+	 * @return int The post ID, or 0 when the presentation has no post.
+	 */
+	private static function get_presentation_post_id( $presentation ): int {
+		if ( empty( $presentation->context->post ) || empty( $presentation->context->post->ID ) ) {
+			return 0;
+		}
+
+		return (int) $presentation->context->post->ID;
 	}
 
 	/**

@@ -9,8 +9,10 @@
 /.github/                        export-ignore
 /.wordpress-org/                 export-ignore
 /.claude/                        export-ignore
+/.context/                       export-ignore
 /.idea/                          export-ignore
 /.phpunit.cache/                 export-ignore
+/artifacts/                      export-ignore
 /bin/                            export-ignore
 /docs/                           export-ignore
 /features/                       export-ignore
@@ -36,10 +38,12 @@
 /composer.json                   export-ignore
 /composer.lock                   export-ignore
 /CONTRIBUTING.md                 export-ignore
+/eslint.config.js                export-ignore
 /package.json                    export-ignore
 /package-lock.json               export-ignore
 /phpunit.xml                     export-ignore
 /phpunit.xml.dist                export-ignore
+/playwright.config.js            export-ignore
 /webpack.config.js               export-ignore
 /wpcom-helper.php                export-ignore
 
