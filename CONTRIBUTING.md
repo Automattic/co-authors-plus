@@ -6,6 +6,11 @@ Please make pull requests against the `develop` branch.
 
 Ideally include tests.
 
+Every commit must be signed. The `develop` and `main` branches only accept
+commits with a verified signature, so a pull request containing an unsigned
+commit can't be merged until you re-sign the commits and force-push the branch.
+See GitHub's guide to [signing commits](https://docs.github.com/en/authentication/managing-commit-signature-verification/signing-commits).
+
 ## Local development
 
 Run `wp-env start` to spin up a local WordPress environment. On start it
