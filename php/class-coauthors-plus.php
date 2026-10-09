@@ -2387,6 +2387,8 @@ class CoAuthors_Plus {
 		if ( ! empty( $this->supported_post_types() ) && empty( $this->to_be_filtered_caps ) ) {
 			$this->to_be_filtered_caps[] = 'edit_post'; // Need to filter this too, unfortunately: http://core.trac.wordpress.org/ticket/22415
 			$this->to_be_filtered_caps[] = 'read_post';
+			// Same as edit_post above, so co-authors can trash/delete posts they're credited on.
+			$this->to_be_filtered_caps[] = 'delete_post';
 
 			foreach ( $this->supported_post_types() as $single ) {
 				$obj = get_post_type_object( $single );
@@ -2394,6 +2396,8 @@ class CoAuthors_Plus {
 					$this->to_be_filtered_caps[] = $obj->cap->edit_post;
 					$this->to_be_filtered_caps[] = $obj->cap->edit_others_posts; // This as well: http://core.trac.wordpress.org/ticket/22417
 					$this->to_be_filtered_caps[] = $obj->cap->read_post;
+					$this->to_be_filtered_caps[] = $obj->cap->delete_post;
+					$this->to_be_filtered_caps[] = $obj->cap->delete_others_posts;
 				}
 			}
 
@@ -2428,6 +2432,10 @@ class CoAuthors_Plus {
 			$obj->cap->edit_others_posts, // This as well: http://core.trac.wordpress.org/ticket/22417
 			'read_post',
 			$obj->cap->read_post,
+			$obj->cap->delete_post,
+			// Same as edit_post above, so co-authors can trash/delete posts they're credited on.
+			'delete_post',
+			$obj->cap->delete_others_posts,
 		);
 		if ( ! in_array( $cap, $caps_to_modify ) ) {
 			return $allcaps;
@@ -2448,6 +2456,28 @@ class CoAuthors_Plus {
 		}
 
 		$allcaps[ $obj->cap->edit_others_posts ] = true;
+
+		// Grant the "others" delete capability the same way edit_others_posts is
+		// granted above, so a co-author who isn't the primary author can also
+		// trash/delete a post they're credited on. Status-gated delete caps
+		// (delete_published_posts, delete_private_posts) are left to the user's
+		// own role, matching how edit_published_posts/edit_private_posts behave.
+		$post_status = get_post_status( $post_id );
+		if (
+			'publish' === $post_status
+			&& isset( $obj->cap->delete_published_posts )
+			&& ! empty( $current_user->allcaps[ $obj->cap->delete_published_posts ] )
+		) {
+			$allcaps[ $obj->cap->delete_published_posts ] = true;
+		} elseif (
+			'private' === $post_status
+			&& isset( $obj->cap->delete_private_posts )
+			&& ! empty( $current_user->allcaps[ $obj->cap->delete_private_posts ] )
+		) {
+			$allcaps[ $obj->cap->delete_private_posts ] = true;
+		}
+
+		$allcaps[ $obj->cap->delete_others_posts ] = true;
 
 		return $allcaps;
 	}
