@@ -324,6 +324,31 @@ class EndpointsTest extends TestCase {
 		$this->assertSame( $term->term_id, $get_response->data[0]['termId'] );
 	}
 
+	/**
+	 * Pins the remaining write-on-GET: the search route still creates a term
+	 * for any matching user who lacks one (see #1434 for the plan to move this
+	 * to selection time). If this fails because no term was created, search
+	 * has gone read-only and the remaining-scope notes on #1434 need updating.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::get_coauthors_search_results
+	 */
+	public function test_search_still_backfills_term_for_term_less_user(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author( 'termless_searchable' );
+		$this->assertFalse( $coauthors_plus->get_author_term( $author ) );
+
+		$get_request = new \WP_REST_Request( 'GET' );
+		$get_request->set_url_params( array( 'q' => 'termless' ) );
+
+		$get_response = $this->_api->get_coauthors_search_results( $get_request );
+
+		$term = $coauthors_plus->get_author_term( $author );
+		$this->assertNotEmpty( $term, 'Failed to assert that the search route backfills a missing author term.' );
+		$this->assertSame( $author->user_nicename, $get_response->data[0]['userNicename'] );
+		$this->assertSame( $term->term_id, $get_response->data[0]['termId'] );
+	}
+
 	public function data_only_editor_role_can_edit_coauthors(): array {
 		return array(
 			'Subscriber' => array(
