@@ -34,10 +34,7 @@ final class FeatureContext extends WpEnvFeatureContext {
 	private const CONTAINER_PLUGIN_PATH = '/var/www/html/wp-content/plugins/';
 
 	/**
-	 * Resolved tests-cli container name, or empty string when unavailable.
-	 *
-	 * Null means "not yet looked up". Empty string means "looked up and not
-	 * found", so we do not repeat a failing lookup for every step.
+	 * Resolved tests-cli container name, or null when not yet looked up.
 	 *
 	 * @var string|null
 	 */
@@ -69,35 +66,32 @@ final class FeatureContext extends WpEnvFeatureContext {
 	 * database, so the container is identified by matching a bind-mount source
 	 * against this checkout's path instead of by name.
 	 *
-	 * @return string Container name, or empty string when it cannot be found.
+	 * @return string Container name.
+	 * @throws RuntimeException When no running container mounts this checkout.
 	 */
 	private function get_cli_container(): string {
 		if ( null !== self::$cli_container ) {
 			return self::$cli_container;
 		}
 
-		self::$cli_container = '';
-
 		$repo_root = realpath( dirname( __DIR__, 2 ) );
 
-		if ( false === $repo_root ) {
-			return self::$cli_container;
-		}
-
+		$names = array();
 		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- Test harness; must shell out to Docker.
-		exec( 'docker ps --filter name=tests-cli --format "{{.Names}}" 2>/dev/null', $names, $exit_code );
-
-		if ( 0 !== $exit_code ) {
-			return self::$cli_container;
-		}
+		exec( 'docker ps --filter name=tests-cli --format "{{.Names}}" 2>/dev/null', $names );
 
 		foreach ( array_filter( array_map( 'trim', $names ) ) as $name ) {
 			$mounts = array();
 			// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.system_calls_exec -- Test harness; must shell out to Docker.
 			exec(
 				sprintf(
-					'docker inspect %s --format "{{range .Mounts}}{{.Source}}\n{{end}}" 2>/dev/null',
-					escapeshellarg( $name )
+					'docker inspect %s --format %s 2>/dev/null',
+					escapeshellarg( $name ),
+					// `println` emits the newline, rather than a "\n" escape in the
+					// template: nothing between PHP and Go interprets that escape, so
+					// Docker would return every mount joined on a single line and no
+					// $source would ever equal $repo_root.
+					escapeshellarg( '{{range .Mounts}}{{println .Source}}{{end}}' )
 				),
 				$mounts
 			);
@@ -110,7 +104,12 @@ final class FeatureContext extends WpEnvFeatureContext {
 			}
 		}
 
-		return self::$cli_container;
+		throw new RuntimeException(
+			sprintf(
+				'No running wp-env tests-cli container bind-mounts %s. Run `wp-env start` in this checkout first.',
+				$repo_root
+			)
+		);
 	}
 
 	/**
@@ -123,10 +122,6 @@ final class FeatureContext extends WpEnvFeatureContext {
 	 * scenario issues a dozen or more invocations, that difference dominates
 	 * total suite runtime.
 	 *
-	 * Falls back to the parent implementation whenever the container cannot be
-	 * identified, so the suite still runs anywhere Docker introspection is
-	 * unavailable.
-	 *
 	 * Output handling deliberately mirrors the parent: STDERR is folded into
 	 * STDOUT by the shell, then lines beginning "Error:"/"Warning:" (plus their
 	 * indented continuations) are split back out into $error_output.
@@ -137,13 +132,7 @@ final class FeatureContext extends WpEnvFeatureContext {
 	 */
 	protected function run_wp_cli_command( string $command, bool $should_fail = false ): void {
 		$container = $this->get_cli_container();
-
-		if ( '' === $container ) {
-			parent::run_wp_cli_command( $command, $should_fail );
-			return;
-		}
-
-		$command = $this->replace_variables( $command );
+		$command   = $this->replace_variables( $command );
 
 		$exec_command = sprintf(
 			'docker exec -w %s %s sh -c %s',
