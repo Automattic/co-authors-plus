@@ -11,6 +11,7 @@
 /**
  * External dependencies
  */
+import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 
 /**
@@ -26,7 +27,7 @@ import { selectedAuthors } from '../__fixtures__/authors';
  * it renders a real <button> whose accessible name comes from `label`, exactly
  * as the WordPress component does.
  */
-jest.mock( '@wordpress/components', () => ( {
+vi.mock( '@wordpress/components', () => ( {
 	Button: ( { label, disabled, onClick } ) => (
 		<button
 			aria-label={ label }
@@ -38,14 +39,14 @@ jest.mock( '@wordpress/components', () => ( {
 	FlexItem: ( { children } ) => <div>{ children }</div>,
 } ) );
 
-jest.mock( '@wordpress/icons', () => ( {
+vi.mock( '@wordpress/icons', () => ( {
 	chevronUp: 'chevron-up',
 	chevronDown: 'chevron-down',
 	close: 'close',
 } ) );
 
 const renderSelection = ( authors ) => {
-	const updateAuthors = jest.fn();
+	const updateAuthors = vi.fn();
 	render(
 		<AuthorsSelection
 			selectedAuthors={ authors }
@@ -70,7 +71,7 @@ describe( 'AuthorsSelection', () => {
 			const { container } = render(
 				<AuthorsSelection
 					selectedAuthors={ authors }
-					updateAuthors={ jest.fn() }
+					updateAuthors={ vi.fn() }
 				/>
 			);
 

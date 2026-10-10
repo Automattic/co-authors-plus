@@ -45,7 +45,7 @@ import './style.css';
  * The Render component that will be populated with data from
  * the select and methods from dispatch as composed below.
  *
- * @return {JSX.Element} Document sidebar panel component.
+ * @return {Element} Document sidebar panel component.
  */
 const CoAuthors = () => {
 	/**
@@ -119,7 +119,7 @@ const CoAuthors = () => {
 	/**
 	 * Threshold filter for determining when a search query is preformed.
 	 *
-	 * @param {integer} threshold length threshold. default 2.
+	 * @param {number} threshold length threshold. default 2.
 	 */
 	const threshold = applyFilters( 'coAuthors.search.threshold', 2 );
 
