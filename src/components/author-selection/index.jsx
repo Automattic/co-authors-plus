@@ -13,17 +13,17 @@ import { moveItem, removeItem } from '../../utils';
 /**
  * Author Selection feature.
  *
- * @param {Object}   param0 props.
- * @param {array}    param0.selectedAuthors selected authors array.
- * @param {function} param0.updateAuthors function to set selected authors.
+ * @param {Object}   param0                 props.
+ * @param {Array}    param0.selectedAuthors selected authors array.
+ * @param {Function} param0.updateAuthors   function to set selected authors.
  *
- * @returns {JSXElement}
+ * @return {Element} Element to render.
  */
 const AuthorsSelection = ( { selectedAuthors, updateAuthors } ) => {
 	/**
 	 *
-	 * @param {object}   author author object.
-	 * @param {function} action action type.
+	 * @param {Object} author author object.
+	 * @param {string} action action type.
 	 */
 	const onClick = ( author, action ) => {
 		let authors;

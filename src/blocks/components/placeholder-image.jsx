@@ -4,8 +4,8 @@ import { __ } from '@wordpress/i18n';
 /**
  * Encode SVG
  *
- * @param {string} svgHTML
- * @return {string}
+ * @param {string} svgHTML SVG markup.
+ * @return {string} URI-encoded SVG.
  */
 function encodeSVG( svgHTML ) {
 	return (
@@ -25,8 +25,10 @@ function encodeSVG( svgHTML ) {
 /**
  * Get Placeholder Src
  *
- * @param {Object} { width, height }
- * @return {string}
+ * @param {Object} dimensions        Image dimensions.
+ * @param {number} dimensions.width  Width in pixels.
+ * @param {number} dimensions.height Height in pixels.
+ * @return {string} SVG data URI.
  */
 function getPlaceholderSrc( { width, height } ) {
 	const svg = encodeSVG(
@@ -41,9 +43,11 @@ function getPlaceholderSrc( { width, height } ) {
 /**
  * Placeholder Image
  *
- * @export
- * @param {Object} props { dimensions, style, className }
- * @return {WPElement}
+ * @param {Object} props            Component props.
+ * @param {Object} props.dimensions Image width and height.
+ * @param {Object} props.style      Inline styles.
+ * @param {string} props.className  Class name.
+ * @return {Element} Element to render.
  */
 export default function PlaceholderImage( { dimensions, style, className } ) {
 	const src = useMemo(
