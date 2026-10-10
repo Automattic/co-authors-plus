@@ -1,4 +1,5 @@
 import { applyFilters } from '@wordpress/hooks';
+import { decodeEntities } from '@wordpress/html-entities';
 
 /**
  * Normalize the raw coauthors value from the core entity store into
@@ -164,7 +165,9 @@ export const buildCoauthorTermIds = (
  * @return {Object} The object containing data relevant to the Coauthors component.
  */
 export const formatAuthorData = ( author ) => {
-	const { id, displayName, userNicename, email, userType, termId } = author;
+	const { id, userNicename, email, userType, termId } = author;
+	// WordPress stores display names with &, < and > entity-encoded.
+	const displayName = decodeEntities( author.displayName );
 
 	return {
 		id,

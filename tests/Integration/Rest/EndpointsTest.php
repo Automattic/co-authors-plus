@@ -349,6 +349,41 @@ class EndpointsTest extends TestCase {
 		$this->assertSame( $term->term_id, $get_response->data[0]['termId'] );
 	}
 
+	/**
+	 * Values are returned raw, not HTML-escaped, so apostrophes reach the
+	 * editor intact (#937).
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_does_not_html_escape_values(): void {
+		global $coauthors_plus;
+
+		$user = $this->factory()->user->create_and_get(
+			array(
+				'user_login'   => 'oreily',
+				'user_email'   => 'oreily@example.com',
+				'display_name' => "Jonathan O'Reily",
+			)
+		);
+		$guest_id = $this->create_guest_author( "Siobhan O'Neill" );
+		$guest    = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $guest_id );
+
+		// The formatter is a pure read, so both authors need a term first.
+		$coauthors_plus->update_author_term( $user );
+		$coauthors_plus->update_author_term( $guest );
+
+		$user_data  = $this->_api->_format_author_data( $user );
+		$guest_data = $this->_api->_format_author_data( $guest );
+
+		$this->assertSame( "Jonathan O'Reily", $user_data['displayName'] );
+		$this->assertSame( "Siobhan O'Neill", $guest_data['displayName'] );
+		$this->assertSame( (string) $user->ID, $user_data['id'] );
+
+		// Gravatar URLs carry several query args; they must not become &#038;.
+		$this->assertStringContainsString( '&', $user_data['avatar'] );
+		$this->assertStringNotContainsString( '&#038;', $user_data['avatar'] );
+	}
+
 	public function data_only_editor_role_can_edit_coauthors(): array {
 		return array(
 			'Subscriber' => array(

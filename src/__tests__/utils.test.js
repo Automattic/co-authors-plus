@@ -274,6 +274,18 @@ describe( 'Utility - formatAuthorData', () => {
 		} );
 	} );
 
+	it( 'decodes HTML entities stored in the display name', () => {
+		const formatted = formatAuthorData( {
+			...rawAuthors[ 0 ],
+			displayName: 'Tom &amp; Jerry O&#039;Reily',
+		} );
+
+		expect( formatted.display ).toBe( "Tom & Jerry O'Reily" );
+		expect( formatted.label ).toBe(
+			"Tom & Jerry O'Reily | ruby@example.com"
+		);
+	} );
+
 	it( 'leaves missing fields undefined rather than throwing', () => {
 		expect( formatAuthorData( {} ) ).toStrictEqual( {
 			id: undefined,
