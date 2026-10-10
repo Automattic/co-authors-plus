@@ -47,6 +47,8 @@
 /phpunit.xml
 /phpunit.xml.dist
 /playwright.config.js
+/vitest.config.mjs
+/vitest.setup.mjs
 
 # WP.com specific
 /wpcom-helper.php
