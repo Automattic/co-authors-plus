@@ -292,15 +292,17 @@ class Endpoints {
 
 		$user_type = isset( $author->type ) && 'guest-author' === $author->type ? 'guest-user' : 'wp-user';
 
+		// Raw values: the REST layer can't know the consumer's output context
+		// (HTML, attribute, JS string...), so escaping is the consumer's job.
 		return array(
-			'id'           => esc_html( $author->ID ),
+			'id'           => (string) $author->ID,
 			'termId'       => (int) $term->term_id,
-			'userNicename' => esc_html( rawurldecode( $author->user_nicename ) ),
-			'login'        => esc_html( $author->user_login ),
+			'userNicename' => rawurldecode( $author->user_nicename ),
+			'login'        => (string) $author->user_login,
 			'email'        => sanitize_email( $author->user_email ),
-			'displayName'  => esc_html( str_replace( '∣', '|', $author->display_name ) ),
-			'avatar'       => esc_url( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ),
-			'userType'     => esc_html( $author->type ),
+			'displayName'  => str_replace( '∣', '|', $author->display_name ),
+			'avatar'       => sanitize_url( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ),
+			'userType'     => (string) $author->type,
 		);
 	}
 
