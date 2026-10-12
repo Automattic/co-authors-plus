@@ -203,6 +203,9 @@ class CoAuthors_Controller extends WP_REST_Controller {
 	 * any visitor could read. Guest authors and WP users are handled by the
 	 * same co-author term lookup so the check is consistent across both.
 	 *
+	 * The result is cached in the object cache for five minutes, so it can lag
+	 * behind newly published or unpublished posts by up to that long.
+	 *
 	 * @since 4.0.0
 	 * @param WP_User|stdClass $coauthor
 	 */
@@ -214,11 +217,23 @@ class CoAuthors_Controller extends WP_REST_Controller {
 			return false;
 		}
 
-		$public_post_types = get_post_types( array( 'public' => true ) );
+		$public_post_types = array_values( get_post_types( array( 'public' => true ) ) );
+
+		if ( empty( $public_post_types ) ) {
+			return false;
+		}
+
+		$cache_key = 'author-has-public-posts-' . md5( $term->term_taxonomy_id . '|' . implode( ',', $public_post_types ) );
+		$found     = false;
+		$cached    = wp_cache_get( $cache_key, 'co-authors-plus', false, $found );
+
+		if ( $found ) {
+			return (bool) $cached;
+		}
 
 		$query = new \WP_Query(
 			array(
-				'post_type'              => array_values( $public_post_types ),
+				'post_type'              => $public_post_types,
 				'post_status'            => 'publish',
 				'posts_per_page'         => 1,
 				'fields'                 => 'ids',
@@ -235,7 +250,11 @@ class CoAuthors_Controller extends WP_REST_Controller {
 			)
 		);
 
-		return ! empty( $query->posts );
+		$has_public_posts = ! empty( $query->posts );
+
+		wp_cache_set( $cache_key, (int) $has_public_posts, 'co-authors-plus', 5 * MINUTE_IN_SECONDS );
+
+		return $has_public_posts;
 	}
 
 	/**
