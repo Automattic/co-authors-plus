@@ -222,4 +222,45 @@ class CountUserPostsTest extends TestCase {
 		// Clean up.
 		unregister_post_type( 'custom_cpt' );
 	}
+
+	/**
+	 * When a guest author profile is linked to a WP user using that user's own
+	 * nicename (the common "replace this WP user's byline with a guest profile"
+	 * mapping), the guest profile resolves to the exact same coauthor term as
+	 * the WP user. count_user_posts() must not add the term count on top of
+	 * the raw post_author count in that case, or every post gets counted twice.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/928
+	 *
+	 * @covers CoAuthors_Plus::filter_count_user_posts
+	 */
+	public function test_count_user_posts_linked_guest_author_sharing_users_own_slug_is_not_doubled(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author( 'shared-slug-author' );
+
+		// Posts authored directly by the WP user.
+		$this->factory()->post->create_many(
+			3,
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		$guest_author_id = $coauthors_plus->guest_authors->create_guest_author_from_user_id( $author->ID );
+		$guest_author    = $coauthors_plus->get_coauthor_by( 'id', $guest_author_id );
+
+		// Precondition for this scenario: the linked guest profile shares the
+		// WP user's own nicename/term, rather than having a distinct identity.
+		$this->assertSame( $author->user_nicename, $guest_author->user_nicename );
+
+		// More posts authored via the guest byline.
+		$post_ids = $this->factory()->post->create_many( 2, array( 'post_status' => 'publish' ) );
+		foreach ( $post_ids as $post_id ) {
+			$coauthors_plus->add_coauthors( $post_id, array( $guest_author->user_login ), true );
+		}
+
+		$this->assertSame( 5, count_user_posts( $author->ID ) );
+	}
 }

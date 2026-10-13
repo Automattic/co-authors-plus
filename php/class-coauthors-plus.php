@@ -1945,8 +1945,12 @@ class CoAuthors_Plus {
 		// Query actual post count for the specified post types.
 		$coauthor_count = $this->get_post_count_for_author_term( $term, $post_type, $public_only );
 
-		// If account is linked, add the original count (which covers post_author field).
-		if ( ! empty( $coauthor->linked_account ) && strlen( $coauthor->linked_account ) > 2 ) {
+		// A linked guest author profile that shares this user's own nicename resolves
+		// to the exact same coauthor term as $user, so $coauthor_count already covers
+		// every post $count would (adding them here would double-count those posts).
+		// Only add $count when the linked profile is a distinct identity with its own,
+		// differently-slugged term, so its posts aren't otherwise reflected in $count.
+		if ( ! empty( $coauthor->linked_account ) && strlen( $coauthor->linked_account ) > 2 && $coauthor->user_nicename !== $user->user_nicename ) {
 			return $count + $coauthor_count;
 		}
 
