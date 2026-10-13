@@ -20,4 +20,14 @@ if ( ! class_exists( 'WP_REST_Controller' ) ) {
 if ( ! class_exists( 'WP_User' ) ) {
 	class WP_User {}
 }
+
+if ( ! function_exists( 'wc_disable_author_archives_for_customers' ) ) {
+	/**
+	 * Stand-in so the WooCommerce author-archive test sees WooCommerce as active.
+	 *
+	 * @return void
+	 */
+	function wc_disable_author_archives_for_customers() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Stub for a WooCommerce function.
+	}
+}
 // phpcs:enable
