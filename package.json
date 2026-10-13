@@ -12,9 +12,6 @@
 	},
 	"scripts": {
 		"build": "wp-scripts build",
-		"bump:patch": "bump patch --commit 'Version %s.' package.json package-lock.json co-authors-plus.php README.md",
-		"bump:minor": "bump minor --commit 'Version %s.' package.json package-lock.json co-authors-plus.php README.md",
-		"bump:major": "bump major --commit 'Version %s.' package.json package-lock.json co-authors-plus.php README.md",
 		"check-engines": "wp-scripts check-engines",
 		"check-licenses": "wp-scripts check-licenses",
 		"format:js": "wp-scripts format",
@@ -48,7 +45,6 @@
 		"@wordpress/scripts": "^36.1.0",
 		"classnames": "^2.5.1",
 		"jsdom": "^30.1.2",
-		"version-bump-prompt": "^6.1.0",
 		"vite": "^8.3.4",
 		"vitest": "^5.0.3"
 	},
