@@ -29,10 +29,10 @@
 		"test:unit:watch": "wp-scripts test-unit-js --watch"
 	},
 	"dependencies": {
-		"@wordpress/api-fetch": "^7.54.0",
-		"@wordpress/components": "^40.0.0",
+		"@wordpress/api-fetch": "^7.57.0",
+		"@wordpress/components": "^42.0.0",
 		"@wordpress/data": "^10.36.0",
-		"@wordpress/element": "^8.0.1",
+		"@wordpress/element": "^9.0.0",
 		"@wordpress/html-entities": "^4.57.0",
 		"@wordpress/i18n": "^6.9.0"
 	},
@@ -41,7 +41,7 @@
 		"@testing-library/dom": "^10.4.1",
 		"@testing-library/react": "^16.3.3",
 		"@wordpress/e2e-test-utils-playwright": "^3.0.0",
-		"@wordpress/icons": "^15.5.0",
+		"@wordpress/icons": "^18.0.0",
 		"@wordpress/scripts": "^36.1.0",
 		"classnames": "^2.5.1",
 		"jsdom": "^30.1.2",
