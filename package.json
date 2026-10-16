@@ -37,7 +37,7 @@
 		"@wordpress/i18n": "^6.9.0"
 	},
 	"devDependencies": {
-		"@playwright/test": "^1.63.0",
+		"@playwright/test": "^1.64.0",
 		"@testing-library/dom": "^10.4.2",
 		"@testing-library/react": "^16.3.3",
 		"@wordpress/e2e-test-utils-playwright": "^3.0.0",
