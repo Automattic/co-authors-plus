@@ -2712,12 +2712,14 @@ class CoAuthors_Plus {
 	 * `get_the_archive_title_prefix` filters ran, so the core/query-title block's
 	 * `showPrefix` toggle is honoured.
 	 *
-	 * @param string $title          Archive title.
-	 * @param string $original_title Archive title without prefix. Unused.
-	 * @param string $prefix         Archive title prefix as resolved by core.
+	 * @param string|null $title          Archive title. Core passes null when a
+	 *                                    category or tag archive has no queried term.
+	 * @param string      $original_title Archive title without prefix. Unused.
+	 * @param string      $prefix         Archive title prefix as resolved by core.
 	 * @return string Archive title.
 	 */
 	public function filter_author_archive_title( $title, $original_title = '', $prefix = '' ): string {
+		$title = (string) $title;
 
 		// Bail if not an author archive template.
 		if ( ! is_author() ) {

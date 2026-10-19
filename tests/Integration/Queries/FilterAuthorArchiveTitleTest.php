@@ -98,4 +98,15 @@ class FilterAuthorArchiveTitleTest extends TestCase {
 
 		$this->assertSame( 'Untouched', $result );
 	}
+
+	/**
+	 * Core passes a null title when a category or tag archive has no queried
+	 * term. The filter must still honour its string return type rather than
+	 * fatal with a TypeError.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1477
+	 */
+	public function test_null_title_returns_empty_string(): void {
+		$this->assertSame( '', apply_filters( 'get_the_archive_title', null, null, '' ) );
+	}
 }
