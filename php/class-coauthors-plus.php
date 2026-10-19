@@ -2140,7 +2140,7 @@ class CoAuthors_Plus {
 				$user_type = 'wp-user';
 			}
 
-			$results[] = array(
+			$result = array(
 				'id'       => $author->ID,
 				'login'    => $author->user_login,
 				'label'    => $author->display_name,
@@ -2149,6 +2149,26 @@ class CoAuthors_Plus {
 				'nicename' => rawurldecode( $author->user_nicename ),
 				'avatar'   => get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ),
 			);
+
+			/**
+			 * Filters one author result in the classic editor search-as-you-type list.
+			 *
+			 * Use it to hide values you don't want editors to see, like the email
+			 * address. The `nicename` key can't be changed, because it is the value
+			 * saved with the post.
+			 *
+			 * @since 4.2.0
+			 *
+			 * @param array  $result Author result sent to the browser.
+			 * @param object $author The author, a WP_User or guest author object.
+			 */
+			$filtered = apply_filters( 'coauthors_ajax_suggest_author_data', $result, $author );
+
+			if ( is_array( $filtered ) ) {
+				$result = array_merge( $filtered, array( 'nicename' => $result['nicename'] ) );
+			}
+
+			$results[] = $result;
 		}
 
 		wp_send_json( $results );

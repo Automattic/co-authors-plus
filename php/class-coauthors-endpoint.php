@@ -294,7 +294,7 @@ class Endpoints {
 
 		// Raw values: the REST layer can't know the consumer's output context
 		// (HTML, attribute, JS string...), so escaping is the consumer's job.
-		return array(
+		$data = array(
 			'id'           => (string) $author->ID,
 			'termId'       => (int) $term->term_id,
 			'userNicename' => rawurldecode( $author->user_nicename ),
@@ -303,6 +303,33 @@ class Endpoints {
 			'displayName'  => str_replace( '∣', '|', $author->display_name ),
 			'avatar'       => sanitize_url( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ),
 			'userType'     => (string) $author->type,
+		);
+
+		/**
+		 * Filters the author data the block editor gets for search results and selected co-authors.
+		 *
+		 * Use it to hide values you don't want editors to see, like the email
+		 * address. The `id`, `termId` and `userNicename` keys can't be changed,
+		 * because the editor needs them to save the co-authors.
+		 *
+		 * @since 4.2.0
+		 *
+		 * @param array  $data   Author data sent to the editor.
+		 * @param object $author The author, a WP_User or guest author object.
+		 */
+		$filtered = apply_filters( 'coauthors_author_data', $data, $author );
+
+		if ( ! is_array( $filtered ) ) {
+			return $data;
+		}
+
+		return array_merge(
+			$filtered,
+			array(
+				'id'           => $data['id'],
+				'termId'       => $data['termId'],
+				'userNicename' => $data['userNicename'],
+			)
 		);
 	}
 

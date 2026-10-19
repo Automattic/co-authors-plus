@@ -159,7 +159,7 @@ export const buildCoauthorTermIds = (
  * @param {string} author.id           The author ID.
  * @param {string} author.displayName  Name to display in the UI.
  * @param {string} author.userNicename The unique username.
- * @param {string} author.email        The author's email address.
+ * @param {string} author.email        The author's email address. Can be empty when filtered out.
  * @param {string} author.userType     The entity type, either 'wpuser' or 'guest-user'.
  *
  * @return {Object} The object containing data relevant to the Coauthors component.
@@ -174,7 +174,7 @@ export const formatAuthorData = ( author ) => {
 		termId,
 		label: applyFilters(
 			'coAuthors.formatAuthorData.label',
-			`${ displayName } | ${ email }`,
+			email ? `${ displayName } | ${ email }` : displayName,
 			author
 		),
 		display: displayName,

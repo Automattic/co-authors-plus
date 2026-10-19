@@ -163,6 +163,20 @@ Where the meta box appears (`normal`, `side`, `advanced`). Defaults to `side`.
 
 Meta box priority. Defaults to `high`.
 
+### `coauthors_ajax_suggest_author_data`
+
+One author result in the classic editor search-as-you-type list. Each result has `id`, `login`, `label`, `value`, `email`, `nicename` and `avatar`. The list only shows the avatar and `label`, but the whole result is sent to the browser, so remove any value you don't want editors to see. The `nicename` key can't be changed, because it is the value saved with the post. This only changes this response. It is not a privacy or access-control setting: editors can still see co-author emails in other places, like the classic editor meta box and the posts list, and the search still matches on email addresses.
+
+```php
+add_filter( 'coauthors_ajax_suggest_author_data', function ( $result ) {
+	unset( $result['email'] );
+	return $result;
+} );
+```
+
+- **Parameters:** `array $result`, `WP_User|object $author`
+- **File:** `php/class-coauthors-plus.php`
+
 ## Blocks
 
 ### `coauthors_plus_support_blocks`
@@ -208,11 +222,25 @@ Returning a non-array from the callback yields an empty response. Entries that a
 - **Parameters:** `array $coauthors`, `int $post_id`, `WP_REST_Request $request`
 - **File:** `php/api/endpoints/class-coauthors-controller.php`
 
+### `coauthors_author_data`
+
+Author data the block editor gets for search results and the post's selected co-authors. Each entry has `id`, `termId`, `userNicename`, `login`, `email`, `displayName`, `avatar` and `userType`. Use it to hide values you don't want editors to see, like the email address. When `email` is removed, the sidebar shows only the display name. The `id`, `termId` and `userNicename` keys can't be changed, because the editor needs them to save the co-authors. A non-array return is ignored. This only changes this response. It is not a privacy or access-control setting: editors can still see co-author emails in other places, like the classic editor meta box and the posts list, and the search still matches on email addresses.
+
+```php
+add_filter( 'coauthors_author_data', function ( $data ) {
+	unset( $data['email'] );
+	return $data;
+} );
+```
+
+- **Parameters:** `array $data`, `WP_User|object $author`
+- **File:** `php/class-coauthors-endpoint.php`
+
 ## JavaScript filters (`@wordpress/hooks`)
 
 ### `coAuthors.formatAuthorData.label`
 
-Label for an author option in the sidebar autocomplete. Defaults to `"{displayName} | {email}"`.
+Label for an author option in the sidebar autocomplete. Defaults to `"{displayName} | {email}"`, or just `"{displayName}"` when the email is empty.
 
 - **Parameters:** `string $label`, `object $author`
 - **File:** `src/utils.js`
