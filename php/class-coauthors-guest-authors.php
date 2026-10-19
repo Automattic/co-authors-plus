@@ -737,7 +737,8 @@ class CoAuthors_Guest_Authors {
 		$pm_key        = $this->get_post_meta_key( 'user_login' );
 		$existing_slug = get_post_meta( $post->ID, $pm_key, true );
 
-		echo '<input type="text" disabled="disabled" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( urldecode( $existing_slug ) ) . '" />';
+		// The slug can't change while it is the linked user's login, the mapping depends on it.
+		echo '<input type="text" ' . disabled( $this->is_slug_locked( $post->ID ), true, false ) . ' name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( urldecode( $existing_slug ) ) . '" />';
 
 		// Taken from grist_authors.
 		$linked_account_key = $this->get_post_meta_key( 'linked_account' );
@@ -901,6 +902,7 @@ class CoAuthors_Guest_Authors {
 	 * @since 3.0
 	 */
 	public function manage_guest_author_filter_post_data( $post_data, $original_args ) {
+		global $coauthors_plus;
 
 		if ( $post_data['post_type'] != $this->post_type ) {
 			return $post_data;
@@ -920,7 +922,9 @@ class CoAuthors_Guest_Authors {
 		}
 		$post_data['post_title'] = sanitize_text_field( wp_unslash( $_POST['cap-display_name'] ) );
 
-		$slug = sanitize_title( get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true ) );
+		$existing_slug = get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true );
+		$posted_slug   = $this->get_posted_slug( $original_args['ID'] );
+		$slug          = $posted_slug ? $posted_slug : sanitize_title( $existing_slug );
 		if ( ! $slug ) {
 			$slug = sanitize_title( wp_unslash( $_POST['cap-display_name'] ) );
 		}
@@ -939,6 +943,18 @@ class CoAuthors_Guest_Authors {
 		 */
 		$post_data['post_name'] = $this->get_post_meta_key( $slug );
 
+		// Renaming onto a leftover author term would merge its posts into this guest author.
+		if ( $posted_slug && $posted_slug !== $existing_slug ) {
+			$term = get_term_by( 'slug', Prefix::prefix_slug( $posted_slug ), $coauthors_plus->coauthor_taxonomy );
+			if ( ! $term ) {
+				$term = get_term_by( 'slug', $posted_slug, $coauthors_plus->coauthor_taxonomy );
+			}
+			$own_term = $coauthors_plus->get_author_term( $this->get_guest_author_by( 'ID', $original_args['ID'] ) );
+			if ( $term && ( ! $own_term || $own_term->term_id !== $term->term_id ) ) {
+				wp_die( esc_html__( 'This slug is already used by another author.', 'co-authors-plus' ) );
+			}
+		}
+
 		// Guest authors can't be created with the same user_login as a user
 		$user_nicename = Prefix::strip_slug_prefix( $slug );
 		$user          = get_user_by( 'slug', $user_nicename );
@@ -955,10 +971,108 @@ class CoAuthors_Guest_Authors {
 		// Guest authors can't have the same post_name value
 		$guest_author = $this->get_guest_author_by( 'post_name', $post_data['post_name'] );
 		if ( $guest_author && $guest_author->ID != $original_args['ID'] ) {
+			if ( $posted_slug ) {
+				wp_die( esc_html__( 'This slug is already used by another guest author.', 'co-authors-plus' ) );
+			}
 			wp_die( esc_html__( 'Display name conflicts with another guest author display name.', 'co-authors-plus' ) );
 		}
 
 		return $post_data;
+	}
+
+	/**
+	 * Whether the slug of a guest author can't be edited.
+	 *
+	 * When the slug is the login of the linked user, the guest author and the
+	 * user share one author term, so renaming it would break the mapping.
+	 *
+	 * @param int $post_id Guest author post ID.
+	 * @return bool
+	 */
+	public function is_slug_locked( $post_id ): bool {
+		$slug = get_post_meta( $post_id, $this->get_post_meta_key( 'user_login' ), true );
+
+		return $slug && get_post_meta( $post_id, $this->get_post_meta_key( 'linked_account' ), true ) == $slug;
+	}
+
+	/**
+	 * Get the slug sent from the guest author edit screen.
+	 *
+	 * Callers verify the nonce first.
+	 *
+	 * @param int $post_id Guest author post ID.
+	 * @return string Sanitized slug, or empty string when it was not sent, not changed or is locked.
+	 */
+	private function get_posted_slug( $post_id ): string {
+		$key = $this->get_post_meta_key( 'user_login' );
+		if ( empty( $_POST[ $key ] ) || $this->is_slug_locked( $post_id ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			return '';
+		}
+
+		$posted_slug   = wp_unslash( $_POST[ $key ] ); // phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$existing_slug = get_post_meta( $post_id, $key, true );
+		// Untouched field, keep old slugs that sanitize_title() would change (dots, upper case).
+		if ( $existing_slug && urldecode( $existing_slug ) === $posted_slug ) {
+			return '';
+		}
+
+		return sanitize_title( $posted_slug );
+	}
+
+	/**
+	 * Change the slug of a guest author and keep its posts.
+	 *
+	 * The author term is renamed in place, so posts stay linked to it. The
+	 * post_name was already set by manage_guest_author_filter_post_data().
+	 *
+	 * @param int    $post_id  Guest author post ID.
+	 * @param string $new_slug New sanitized slug.
+	 * @return void
+	 */
+	private function rename_guest_author_slug( $post_id, string $new_slug ): void {
+		global $coauthors_plus, $wpdb;
+
+		$old_author = $this->get_guest_author_by( 'ID', $post_id, true );
+		$term       = $coauthors_plus->get_author_term( $old_author );
+
+		// Lookups are cached by the old slug, clear them before it changes.
+		$this->delete_guest_author_cache( $old_author );
+		wp_cache_delete( 'author-term-' . $old_author->user_nicename, 'co-authors-plus' );
+
+		$meta_key = $this->get_post_meta_key( 'user_login' );
+
+		if ( $term ) {
+			$result = wp_update_term(
+				$term->term_id,
+				$coauthors_plus->coauthor_taxonomy,
+				array(
+					'name' => urldecode( $new_slug ),
+					'slug' => Prefix::prefix_slug( $new_slug ),
+				)
+			);
+
+			// The term slug was taken meanwhile, put the old post_name back so posts keep their author.
+			if ( is_wp_error( $result ) ) {
+				$old_post_name = $this->get_post_meta_key( sanitize_title( get_post_meta( $post_id, $meta_key, true ) ) );
+				$wpdb->update( $wpdb->posts, array( 'post_name' => $old_post_name ), array( 'ID' => $post_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- wp_update_post() would run the save hooks again.
+				clean_post_cache( $post_id );
+				return;
+			}
+		}
+
+		update_post_meta( $post_id, $meta_key, $new_slug );
+
+		if ( ! $term ) {
+			return;
+		}
+
+		// Cached post terms still hold the old slug, so bylines would lose this author.
+		$post_ids = get_objects_in_term( $term->term_id, $coauthors_plus->coauthor_taxonomy );
+		if ( is_array( $post_ids ) ) {
+			foreach ( $post_ids as $object_id ) {
+				$coauthors_plus->clear_cache( (int) $object_id );
+			}
+		}
 	}
 
 	/**
@@ -986,11 +1100,19 @@ class CoAuthors_Guest_Authors {
 		foreach ( $author_fields as $author_field ) {
 
 			$key = $this->get_post_meta_key( $author_field['key'] );
-			// 'user_login' should only be saved on post update if it doesn't exist
-			if ( 'user_login' == $author_field['key'] && ! get_post_meta( $post_id, $key, true ) ) {
-				$display_name_key = $this->get_post_meta_key( 'display_name' );
-				$temp_slug        = sanitize_title( wp_unslash( $_POST[ $display_name_key ] ) ); // phpcs:ignore
-				update_post_meta( $post_id, $key, $temp_slug );
+			// 'user_login' is the slug, a change has to rename the author term too.
+			if ( 'user_login' == $author_field['key'] ) {
+				$existing_slug = get_post_meta( $post_id, $key, true );
+				$posted_slug   = $this->get_posted_slug( $post_id );
+				if ( ! $existing_slug ) {
+					if ( ! $posted_slug ) {
+						$display_name_key = $this->get_post_meta_key( 'display_name' );
+						$posted_slug      = sanitize_title( wp_unslash( $_POST[ $display_name_key ] ) ); // phpcs:ignore
+					}
+					update_post_meta( $post_id, $key, $posted_slug );
+				} elseif ( $posted_slug && $posted_slug !== $existing_slug ) {
+					$this->rename_guest_author_slug( $post_id, $posted_slug );
+				}
 				continue;
 			}
 			if ( 'linked_account' == $author_field['key'] ) {
