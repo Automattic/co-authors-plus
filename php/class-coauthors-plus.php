@@ -348,6 +348,8 @@ class CoAuthors_Plus {
 			'customize_changeset',
 			'wp_template',
 			'wp_template_part',
+			// WordPress 7.2 adds author support to synced patterns, keep co-authors off them.
+			'wp_block',
 		);
 
 		foreach ( $post_types as $key => $name ) {
