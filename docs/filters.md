@@ -52,6 +52,13 @@ The Open Graph tags the plugin contributes to the document head.
 
 - **File:** `php/class-coauthors-plus.php`
 
+### `coauthors_auto_apply_template_tags`
+
+Return `true` to make the core `the_author()` and `the_author_posts_link()` output all co-authors, and to list every co-author as a `dc:creator` in RSS2 feeds. Defaults to `false`. Useful when you can't edit the theme. Read once on `init`, so add the filter before `init`.
+
+- **Parameters:** `bool $apply` (defaults to `false`)
+- **Files:** `php/class-coauthors-plus.php`, `php/class-coauthors-template-filters.php`
+
 ## Post type and taxonomy configuration
 
 ### `coauthors_supported_post_types`
@@ -78,7 +85,19 @@ The `WP_User` used as the default author when a post has none. Defaults to the c
 
 ### `coauthors_plus_should_query_post_author`
 
-Whether to combine the `post_author` column query with the taxonomy query. Returning `false` switches to a simpler taxonomy-only query on sites where `post_author` isn't reliable.
+Whether author queries match on the `post_author` column as well as the `author` taxonomy. Defaults to `true`. Returning `false` switches to a simpler taxonomy-only query on sites where `post_author` isn't reliable. Posts with no co-author terms then drop out of author archives, so run `wp co-authors-plus create-terms-for-posts` first (it only covers published posts unless you pass `--post-statuses`).
+
+The value is also read when the taxonomy is registered (on `init` at priority 100) to choose how term counts are kept, so add the filter before `init` and don't change it per request. Author queries treat it as `false` while `coauthors_guest_authors_force` is on.
+
+- **Parameters:** `bool $should_query` (defaults to `true`)
+- **File:** `php/class-coauthors-plus.php`
+
+### `coauthors_plus_is_author_query`
+
+Whether Co-Authors Plus should rewrite a given `WP_Query` to find co-authored posts. By default this is `true` for author archives and for queries that set `author`, `author_name` or a non-empty `author__in`. Return `false` to leave one query as a plain `post_author` query, for example a report of who created each post.
+
+- **Parameters:** `bool $is_author`, `WP_Query $query`
+- **File:** `php/class-coauthors-plus.php`
 
 ## Permissions
 
@@ -104,7 +123,20 @@ Whether the guest authors feature is active. Return `false` to disable entirely.
 
 ### `coauthors_guest_authors_force`
 
-Whether to force guest authors even when the feature would otherwise be skipped.
+Whether bylines come from co-author terms only, with no fallback to the post's `post_author` user. Defaults to `false`. Useful when every byline is a guest author and WordPress accounts are used only to log in.
+
+When `true`:
+
+- `get_coauthors()` returns an empty array for a post with no co-authors, instead of the `post_author` user.
+- Author archive queries ignore the `post_author` column, as if `coauthors_plus_should_query_post_author` returned `false`.
+- In the classic editor, the Authors box on a new post is not filled with the current user. It still shows the guest author linked to the current user, if there is one.
+
+It does not stop `save_post` from adding the post's `post_author` as a co-author when a post is saved with none, so it mostly affects older posts that have no co-author terms.
+
+The value is read once on `init` at the default priority, and only when guest authors are enabled, so add the filter before `init`.
+
+- **Parameters:** `bool $force` (defaults to `false`)
+- **File:** `php/class-coauthors-plus.php`
 
 ### `coauthors_guest_author_manage_cap`
 
