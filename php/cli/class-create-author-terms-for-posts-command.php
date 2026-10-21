@@ -9,6 +9,7 @@ declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\CLI;
 
+use Automattic\CoAuthorsPlus\Services\Missing_Author_Terms_Service;
 use CoAuthors_Plus;
 use Exception;
 use WP_CLI;
@@ -21,14 +22,13 @@ use WP_Term;
  * private helpers it was the only caller of: the three that build and run the
  * missing-terms query, the one that marks a post as unbackfillable, and the one
  * that formats progress. They were private to a class shared by every
- * subcommand and are private to this one command now, which is where they
- * always belonged.
+ * subcommand and are private to this one command now.
  *
- * The raw SQL those helpers hold is the strongest candidate in the plugin for a
- * repository of its own: it spans four tables and is the hardest thing here to
- * test. That is a change with its own shape and its own cover, though, so it is
- * not this one. Behaviour is pinned by
- * features/create-author-terms-for-posts.feature.
+ * The three that build and run the query have since moved on to
+ * Missing_Author_Terms_Service, because the Site Health test needs to read the
+ * same count and a second copy of that SQL would be free to drift from this
+ * one. This command still owns the writing half of the backfill. Behaviour is
+ * pinned by features/create-author-terms-for-posts.feature.
  */
 class Create_Author_Terms_For_Posts_Command {
 
@@ -36,11 +36,12 @@ class Create_Author_Terms_For_Posts_Command {
 	 * Postmeta marking a post the backfill could not handle.
 	 *
 	 * Read by delete-postmeta-that-skip-author-term-backfill, which exists to
-	 * clear what this command writes.
+	 * clear what this command writes. Kept here as well as on the service so
+	 * the name means the same thing at every call site.
 	 *
 	 * @var string
 	 */
-	const SKIP_POST_FOR_BACKFILL_META_KEY = '_cap_skip_backfill';
+	const SKIP_POST_FOR_BACKFILL_META_KEY = Missing_Author_Terms_Service::SKIP_POST_FOR_BACKFILL_META_KEY;
 
 	/**
 	 * Plugin instance.
@@ -50,12 +51,20 @@ class Create_Author_Terms_For_Posts_Command {
 	private $coauthors_plus;
 
 	/**
+	 * Finds the posts to backfill.
+	 *
+	 * @var Missing_Author_Terms_Service
+	 */
+	private $missing_terms;
+
+	/**
 	 * Constructor.
 	 *
 	 * @param CoAuthors_Plus $coauthors_plus Plugin instance.
 	 */
 	public function __construct( CoAuthors_Plus $coauthors_plus ) {
 		$this->coauthors_plus = $coauthors_plus;
+		$this->missing_terms  = new Missing_Author_Terms_Service( $coauthors_plus );
 	}
 
 	/**
@@ -107,16 +116,20 @@ class Create_Author_Terms_For_Posts_Command {
 		$post_types        = isset( $assoc_args['post-types'] ) ? explode( ',', $assoc_args['post-types'] ) : array( 'post' );
 		$post_statuses     = isset( $assoc_args['post-statuses'] ) ? explode( ',', $assoc_args['post-statuses'] ) : array( 'publish' );
 		$batched           = ! isset( $assoc_args['unbatched'] );
-		$records_per_batch = $assoc_args['records-per-batch'] ?? 250;
 		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : array();
-		$above_post_id     = $assoc_args['above-post-id'] ?? null;
-		$below_post_id     = $assoc_args['below-post-id'] ?? null;
+
+		// WP-CLI hands every argument over as a string. The service takes these as
+		// ints, and both files declare strict_types, so the conversion has to
+		// happen here rather than being left to PHP.
+		$records_per_batch = isset( $assoc_args['records-per-batch'] ) ? (int) $assoc_args['records-per-batch'] : 250;
+		$above_post_id     = isset( $assoc_args['above-post-id'] ) ? (int) $assoc_args['above-post-id'] : null;
+		$below_post_id     = isset( $assoc_args['below-post-id'] ) ? (int) $assoc_args['below-post-id'] : null;
 
 		// Validated here rather than in the SQL builder, which was only reached when
 		// no --specific-post-ids were given, and threw an uncaught Exception when it
 		// was — so the operator saw a stack trace and a generic critical-error line
 		// rather than being told which parameter was wrong.
-		if ( null !== $above_post_id && null !== $below_post_id && (int) $below_post_id <= (int) $above_post_id ) {
+		if ( null !== $above_post_id && null !== $below_post_id && $below_post_id <= $above_post_id ) {
 			WP_CLI::error( '--above-post-id must be less than --below-post-id.' );
 		}
 
@@ -128,8 +141,7 @@ class Create_Author_Terms_For_Posts_Command {
 
 		$coauthors_plus = $this->coauthors_plus;
 
-		$count_of_posts_with_missing_author_terms = $this->get_count_of_posts_with_missing_terms(
-			$coauthors_plus->coauthor_taxonomy,
+		$count_of_posts_with_missing_author_terms = $this->missing_terms->count(
 			$post_types,
 			$post_statuses,
 			$specific_post_ids,
@@ -157,8 +169,7 @@ class Create_Author_Terms_For_Posts_Command {
 		$skipped      = 0;
 		$page         = 1;
 
-		$posts_with_missing_author_terms = $this->get_posts_with_missing_terms(
-			$coauthors_plus->coauthor_taxonomy,
+		$posts_with_missing_author_terms = $this->missing_terms->posts(
 			$post_types,
 			$post_statuses,
 			$batched,
@@ -242,11 +253,12 @@ class Create_Author_Terms_For_Posts_Command {
 
 			$posts_with_missing_author_terms = array();
 
+			// Refetched through the same query, so a post written on the previous
+			// page no longer matches and the page count stays honest.
 			if ( $batched && $count < $count_of_posts_with_missing_author_terms ) {
 				++$page;
 				WP_CLI::log( sprintf( 'Processing page %d.', $page ) );
-				$posts_with_missing_author_terms = $this->get_posts_with_missing_terms(
-					$coauthors_plus->coauthor_taxonomy,
+				$posts_with_missing_author_terms = $this->missing_terms->posts(
 					$post_types,
 					$post_statuses,
 					$batched,
@@ -259,6 +271,11 @@ class Create_Author_Terms_For_Posts_Command {
 		} while ( ! empty( $posts_with_missing_author_terms ) );
 
 		wp_defer_term_counting( false );
+
+		// The backfill just changed which posts lack terms, so drop the cached
+		// count Site Health reads. Without this a site that has just been
+		// repaired keeps reporting the old figure for up to an hour.
+		$this->missing_terms->clear_count_cache();
 
 		WP_CLI::log(
 			sprintf(
@@ -291,150 +308,6 @@ class Create_Author_Terms_For_Posts_Command {
 
 
 		WP_CLI::success( 'Done!' );
-	}
-
-	/**
-	 * Obtains the raw SQL for posts that are missing a specific term.
-	 *
-	 * @param string   $author_taxonomy The author taxonomy to search for.
-	 * @param string[] $post_types The post types to search for.
-	 * @param string[] $post_statuses The post statuses to search for.
-	 * @param int[]    $specific_post_ids The specific post IDs to search for.
-	 * @param int|null $above_post_id The post ID to start from.
-	 * @param int|null $below_post_id The post ID to end at.
-	 *
-	 * @return array
-	 * @throws Exception If the $above_post_id is greater than or equal to the $below_post_id.
-	 */
-	private function get_sql_for_posts_with_missing_terms( $author_taxonomy, $post_types = array( 'post' ), $post_statuses = array( 'publish' ), $specific_post_ids = array(), $above_post_id = null, $below_post_id = null ) {
-		global $wpdb;
-
-		$sql_and_args = array(
-			'sql'  => '',
-			'args' => array( $author_taxonomy, self::SKIP_POST_FOR_BACKFILL_META_KEY ),
-		);
-
-		$post_status_placeholder = implode( ',', array_fill( 0, count( $post_statuses ), '%s' ) );
-		$sql_and_args['args']    = array_merge( $post_statuses, $sql_and_args['args'] );
-		$post_types_placeholder  = implode( ',', array_fill( 0, count( $post_types ), '%s' ) );
-		$sql_and_args['args']    = array_merge( $post_types, $sql_and_args['args'] );
-
-		$from = $wpdb->posts;
-
-		$specific_id_constraint = '';
-
-		if ( ! empty( $specific_post_ids ) ) {
-			$specific_post_ids_placeholder = implode( ',', array_fill( 0, count( $specific_post_ids ), '%d' ) );
-			$specific_id_constraint        = "AND ID IN ( $specific_post_ids_placeholder )";
-			$sql_and_args['args']          = array_merge( $sql_and_args['args'], $specific_post_ids );
-		} elseif ( null !== $above_post_id || null !== $below_post_id ) {
-			if ( null !== $above_post_id && null !== $below_post_id && ( $below_post_id <= $above_post_id ) ) {
-				throw new Exception( 'The $above_post_id param must be less than the $below_post_id param.' );
-			}
-
-			$ids_between_constraint = array();
-
-			if ( null !== $above_post_id ) {
-				array_unshift( $ids_between_constraint, 'ID > %d' );
-				array_unshift( $sql_and_args['args'], $above_post_id );
-			}
-
-			if ( null !== $below_post_id ) {
-				array_unshift( $ids_between_constraint, 'ID < %d' );
-				array_unshift( $sql_and_args['args'], $below_post_id );
-			}
-
-			$from = "( SELECT * FROM $wpdb->posts WHERE " . implode( ' AND ', $ids_between_constraint ) . ' ) as sub';
-		}//end if
-
-		$sql_and_args['sql'] = "SELECT
-				ID as post_id,
-				post_author
-			FROM $from
-			WHERE post_type IN ( $post_types_placeholder )
-			  AND post_status IN ( $post_status_placeholder )
-			  AND ID NOT IN (
-			  	SELECT
-			  	    tr.object_id
-			  	FROM $wpdb->term_relationships tr
-			  	    LEFT JOIN $wpdb->term_taxonomy tt
-			  	        ON tr.term_taxonomy_id = tt.term_taxonomy_id
-			  	WHERE tt.taxonomy = %s
-			  	GROUP BY tr.object_id
-			  	)
-			  AND ID NOT IN (
-			      SELECT post_id FROM $wpdb->postmeta WHERE meta_key = %s
-			  )
-			  $specific_id_constraint
-			ORDER BY ID";
-
-		return $sql_and_args;
-	}
-
-	/**
-	 * Obtains the count of posts that are missing a specific term.
-	 *
-	 * @param string   $author_taxonomy The author taxonomy to search for.
-	 * @param string[] $post_types The post types to search for.
-	 * @param string[] $post_statuses The post statuses to search for.
-	 * @param int[]    $specific_post_ids The specific post IDs to search for.
-	 * @param int|null $above_post_id The post ID to start from.
-	 * @param int|null $below_post_id The post ID to end at.
-	 *
-	 * @return int
-	 * @throws Exception If the $above_post_id is greater than or equal to the $below_post_id.
-	 */
-	private function get_count_of_posts_with_missing_terms( $author_taxonomy, $post_types = array( 'post' ), $post_statuses = array( 'publish' ), $specific_post_ids = array(), $above_post_id = null, $below_post_id = null ) {
-		global $wpdb;
-
-		[
-			$sql,
-			$args,
-		] = array_values( $this->get_sql_for_posts_with_missing_terms( $author_taxonomy, $post_types, $post_statuses, $specific_post_ids, $above_post_id, $below_post_id ) );
-
-		// Replace the first SELECT with SELECT COUNT(*).
-		$sql = preg_replace(
-			'/^(SELECT(?s)(.*?)FROM)/',
-			'SELECT COUNT(*) FROM',
-			$sql,
-			1
-		);
-
-		// phpcs:disable -- Query is properly prepared
-		return intval( $wpdb->get_var( $wpdb->prepare( $sql, $args ) ) );
-		// phpcs:enable
-	}
-
-	/**
-	 * Obtains posts that are missing a specific term.
-	 *
-	 * @param string   $author_taxonomy The author taxonomy to search for.
-	 * @param string[] $post_types The post types to search for.
-	 * @param string[] $post_statuses The post statuses to search for.
-	 * @param bool     $batched Whether to process the records in batches.
-	 * @param int      $records_per_batch The number of posts to retrieve per page.
-	 * @param int[]    $specific_post_ids The specific post IDs to search for.
-	 * @param int|null $above_post_id The post ID to start from.
-	 * @param int|null $below_post_id The post ID to end at.
-	 *
-	 * @return array
-	 * @throws Exception If the $above_post_id is greater than or equal to the $below_post_id.
-	 */
-	private function get_posts_with_missing_terms( $author_taxonomy, $post_types = array( 'post' ), $post_statuses = array( 'publish' ), $batched = false, $records_per_batch = 250, $specific_post_ids = array(), $above_post_id = null, $below_post_id = null ) {
-		global $wpdb;
-
-		[
-			$sql,
-			$args,
-		] = array_values( $this->get_sql_for_posts_with_missing_terms( $author_taxonomy, $post_types, $post_statuses, $specific_post_ids, $above_post_id, $below_post_id ) );
-
-		if ( $batched ) {
-			$sql .= " LIMIT $records_per_batch";
-		}
-
-		// phpcs:disable -- Query is properly prepared
-		return $wpdb->get_results( $wpdb->prepare( $sql, $args ) );
-		// phpcs:enable
 	}
 
 	/**

@@ -37,6 +37,7 @@ use Automattic\CoAuthorsPlus\Services\Coauthor_Assignment_Service;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Export_Service;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Import_Service;
 use Automattic\CoAuthorsPlus\Services\Guest_Author_Service;
+use Automattic\CoAuthorsPlus\Services\Missing_Author_Terms_Service;
 
 if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 	return;
@@ -48,6 +49,7 @@ require_once __DIR__ . '/../services/class-coauthor-assignment-service.php';
 require_once __DIR__ . '/../services/class-guest-author-service.php';
 require_once __DIR__ . '/../services/class-coauthor-export-service.php';
 require_once __DIR__ . '/../services/class-coauthor-import-service.php';
+require_once __DIR__ . '/../services/class-missing-author-terms-service.php';
 require_once __DIR__ . '/class-migrate-author-terms-command.php';
 require_once __DIR__ . '/class-reassign-terms-command.php';
 require_once __DIR__ . '/class-remove-terms-from-revisions-command.php';
@@ -122,7 +124,7 @@ add_action(
 
 		WP_CLI::add_command(
 			'co-authors-plus delete-postmeta-that-skip-author-term-backfill',
-			new Delete_Skip_Backfill_Postmeta_Command()
+			new Delete_Skip_Backfill_Postmeta_Command( $coauthors_plus )
 		);
 
 		WP_CLI::add_command(

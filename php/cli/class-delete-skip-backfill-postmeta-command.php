@@ -9,6 +9,8 @@ declare( strict_types=1 );
 
 namespace Automattic\CoAuthorsPlus\CLI;
 
+use Automattic\CoAuthorsPlus\Services\Missing_Author_Terms_Service;
+use CoAuthors_Plus;
 use WP_CLI;
 
 /**
@@ -18,6 +20,22 @@ use WP_CLI;
  * scenarios in features/create-author-terms-for-posts.feature.
  */
 class Delete_Skip_Backfill_Postmeta_Command {
+
+	/**
+	 * Finds the posts that are missing terms.
+	 *
+	 * @var Missing_Author_Terms_Service
+	 */
+	private $missing_terms;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param CoAuthors_Plus $coauthors_plus Plugin instance.
+	 */
+	public function __construct( CoAuthors_Plus $coauthors_plus ) {
+		$this->missing_terms = new Missing_Author_Terms_Service( $coauthors_plus );
+	}
 
 	/**
 	 * Delete the postmeta marking posts as skipped during author term backfill.
@@ -48,7 +66,7 @@ class Delete_Skip_Backfill_Postmeta_Command {
 	public function __invoke( array $args, array $assoc_args ): void {
 		global $wpdb;
 
-		$meta_key          = Create_Author_Terms_For_Posts_Command::SKIP_POST_FOR_BACKFILL_META_KEY;
+		$meta_key          = Missing_Author_Terms_Service::SKIP_POST_FOR_BACKFILL_META_KEY;
 		$specific_post_ids = isset( $assoc_args['specific-post-ids'] ) ? explode( ',', $assoc_args['specific-post-ids'] ) : array();
 
 		if ( empty( $specific_post_ids ) ) {
@@ -87,5 +105,11 @@ class Delete_Skip_Backfill_Postmeta_Command {
 				WP_CLI::warning( sprintf( 'No `%s` postmeta to delete on post %d.', $meta_key, $post_id ) );
 			}
 		}//end foreach
+
+		// Clearing a marker makes the post countable again, so any cached figure
+		// taken while the marker was there is now wrong.
+		if ( ! empty( $specific_post_ids ) ) {
+			$this->missing_terms->clear_count_cache();
+		}
 	}
 }
