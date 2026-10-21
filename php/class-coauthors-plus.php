@@ -2804,24 +2804,28 @@ class CoAuthors_Plus {
 	 * This function is called when the Bulk Edit form is submitted.
 	 * It processes the submitted data and updates the Co-Authors for each post.
 	 *
+	 * Only posts that core actually updated are touched. The submitted post
+	 * list also contains posts core skipped because the user cannot edit them
+	 * or another user has them locked.
+	 *
 	 * @link https://github.com/Automattic/Co-Authors-Plus/issues/551
-	 * @param array $post_data The post data from the bulk edit form.
-	 * @param array $postarr The post array containing the posts being edited.
-	 * @return array $post_data The modified post data.
+	 * @param array $updated IDs of the posts core updated.
+	 * @param array $postarr The shared post data submitted from the bulk edit form.
+	 * @return array $updated The updated post IDs, unchanged.
 	 */
-	public function action_bulk_edit_update_coauthors( array $post_data, array $postarr ): array {
-		if ( empty( $postarr['post'] ) || ! $this->is_post_type_enabled( $postarr['post_type'] ) ) {
-			return $post_data;
+	public function action_bulk_edit_update_coauthors( array $updated, array $postarr ): array {
+		if ( empty( $postarr['coauthors'] ) || ! $this->is_post_type_enabled( $postarr['post_type'] ) || ! $this->current_user_can_set_authors() ) {
+			return $updated;
 		}
 
-		foreach( $postarr['post'] as $post_id ) {
-			$post = get_post( $post_id );
-			if ( $this->current_user_can_set_authors( $post ) && ! empty( $postarr['coauthors'] ) ) {
-				$coauthors = array_map( 'sanitize_title', (array) $postarr['coauthors'] );
+		$coauthors = array_map( 'sanitize_title', (array) $postarr['coauthors'] );
+
+		foreach ( $updated as $post_id ) {
+			if ( current_user_can( 'edit_post', $post_id ) ) {
 				$this->add_coauthors( $post_id, $coauthors );
 			}
 		}
 
-		return $post_data;
+		return $updated;
 	}
 }

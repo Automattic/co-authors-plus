@@ -275,6 +275,151 @@ class EndpointsTest extends TestCase {
 	}
 
 	/**
+	 * Let every user who can publish posts set co-authors, as the
+	 * coauthors_plus_edit_authors filter documentation suggests.
+	 */
+	private function allow_publishers_to_set_authors(): void {
+		add_filter(
+			'coauthors_plus_edit_authors',
+			static function ( $can_set_authors ) {
+				return $can_set_authors || current_user_can( 'publish_posts' );
+			}
+		);
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::can_edit_post_coauthors
+	 */
+	public function test_user_who_can_set_authors_cannot_update_coauthors_on_a_post_they_cannot_edit(): void {
+		$this->allow_publishers_to_set_authors();
+		$owner = $this->create_author( 'owner' );
+		$user  = $this->create_author( 'other_author' );
+		$post  = $this->create_post( $owner );
+		wp_set_current_user( $user->ID );
+
+		$request = new \WP_REST_Request( 'POST', '/coauthors/v1/authors/' . $post->ID );
+		$request->set_param( 'new_authors', 'other_author' );
+		$response = rest_do_request( $request );
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertPostHasCoAuthors( $post->ID, array( $owner ) );
+		$this->assertFalse( current_user_can( 'edit_post', $post->ID ) );
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::can_edit_post_coauthors
+	 */
+	public function test_user_who_can_set_authors_can_update_coauthors_on_their_own_post(): void {
+		$this->allow_publishers_to_set_authors();
+		$author = $this->create_author();
+		$other  = $this->create_author( 'other' );
+		$post   = $this->create_post( $author );
+		wp_set_current_user( $author->ID );
+
+		$request = new \WP_REST_Request( 'POST', '/coauthors/v1/authors/' . $post->ID );
+		$request->set_param( 'new_authors', 'author,other' );
+		$response = rest_do_request( $request );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertPostHasCoAuthors( $post->ID, array( $author, $other ) );
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::can_edit_post_coauthors
+	 */
+	public function test_user_who_can_set_authors_cannot_read_coauthors_of_a_draft_they_cannot_edit(): void {
+		$this->allow_publishers_to_set_authors();
+		$owner = $this->create_author( 'owner' );
+		$draft  = self::factory()->post->create(
+			array(
+				'post_author' => $owner->ID,
+				'post_status' => 'draft',
+			)
+		);
+		$own_draft = self::factory()->post->create(
+			array(
+				'post_author' => $this->create_author( 'other_author' )->ID,
+				'post_status' => 'draft',
+			)
+		);
+		wp_set_current_user( get_post( $own_draft )->post_author );
+
+		$this->assertSame( 403, rest_do_request( new \WP_REST_Request( 'GET', '/coauthors/v1/authors/' . $draft ) )->get_status() );
+		$this->assertSame( 200, rest_do_request( new \WP_REST_Request( 'GET', '/coauthors/v1/authors/' . $own_draft ) )->get_status() );
+	}
+
+	/**
+	 * An Editor has edit_others_posts, but that says nothing about post types
+	 * with their own capability type.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::can_edit_post_coauthors
+	 */
+	public function test_editor_cannot_update_coauthors_on_a_post_type_they_cannot_edit(): void {
+		register_post_type(
+			'cap_restricted',
+			array(
+				'capability_type' => 'cap_restricted',
+				'map_meta_cap'    => true,
+			)
+		);
+		$author = $this->create_author();
+		$post   = self::factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_type'   => 'cap_restricted',
+			)
+		);
+		$this->_cap->add_coauthors( $post, array( $author->user_nicename ) );
+		wp_set_current_user( $this->create_editor()->ID );
+
+		$request = new \WP_REST_Request( 'POST', '/coauthors/v1/authors/' . $post );
+		$request->set_param( 'new_authors', 'editor' );
+		$response = rest_do_request( $request );
+
+		unregister_post_type( 'cap_restricted' );
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertPostHasCoAuthors( $post, array( $author ) );
+	}
+
+	/**
+	 * @covers \CoAuthors\API\Endpoints::can_edit_post_coauthors
+	 */
+	public function test_editor_can_update_coauthors_on_another_users_post(): void {
+		$author = $this->create_author();
+		$editor = $this->create_editor();
+		$post   = $this->create_post( $author );
+		wp_set_current_user( $editor->ID );
+
+		$request = new \WP_REST_Request( 'POST', '/coauthors/v1/authors/' . $post->ID );
+		$request->set_param( 'new_authors', 'author,editor' );
+		$response = rest_do_request( $request );
+
+		$this->assertSame( 200, $response->get_status() );
+		$this->assertPostHasCoAuthors( $post->ID, array( $author, $editor ) );
+	}
+
+	/**
+	 * The routes without a post keep the global check.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::can_edit_coauthors
+	 */
+	public function test_editor_can_use_the_routes_without_a_post(): void {
+		$author = $this->create_author();
+		$this->create_post( $author );
+		wp_set_current_user( $this->create_editor()->ID );
+		$term = $this->_cap->get_author_term( $author );
+
+		$search = new \WP_REST_Request( 'GET', '/coauthors/v1/search' );
+		$search->set_param( 'q', 'auth' );
+		$by_terms = new \WP_REST_Request( 'GET', '/coauthors/v1/authors-by-term-ids' );
+		$by_terms->set_param( 'ids', (string) $term->term_id );
+
+		$this->assertSame( 200, rest_do_request( $search )->get_status() );
+		$this->assertSame( 200, rest_do_request( $by_terms )->get_status() );
+	}
+
+	/**
 	 * @covers \CoAuthors\API\Endpoints::remove_author_link
 	 */
 	public function test_remove_author_link(): void {
