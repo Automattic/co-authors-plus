@@ -1,6 +1,6 @@
 # Co-Authors Plus
 
-Stable tag: 4.1.1  
+Stable tag: 4.1.2  
 Requires at least: 6.4  
 Tested up to: 7.0  
 Requires PHP: 7.4  
@@ -120,6 +120,16 @@ For full control over the markup, use the [template tags](https://github.com/Aut
 
 More filters are listed in the [filters and actions reference](./docs/filters.md).
 
-## Change Log
+## Changelog
 
-[View the change log](https://github.com/Automattic/co-authors-plus/blob/develop/CHANGELOG.md).
+The highlights of recent releases are below. Every change, including older releases, is listed in [CHANGELOG.md](https://github.com/Automattic/co-authors-plus/blob/main/CHANGELOG.md).
+
+### 4.1.2
+
+- **Security:** Tighten permission checks when changing a post's co-authors. Thanks to Faisal Ahammad for responsibly disclosing the issue.
+
+## Upgrade Notice
+
+### 4.1.2
+
+Security release that tightens permission checks when changing a post's co-authors. Updating is recommended.
