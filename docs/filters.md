@@ -197,6 +197,38 @@ Where the meta box appears (`normal`, `side`, `advanced`). Defaults to `side`.
 
 Meta box priority. Defaults to `high`.
 
+### `coauthors_ajax_suggest_author_data`
+
+One author result in the classic editor search-as-you-type list. Each result has `id`, `login`, `label`, `value`, `email`, `nicename` and `avatar`. The `nicename` key can't be changed, because it is the value saved with the post. A non-array return is ignored.
+
+The list shows the avatar and `label`. The classic editor has no JS label filter, so use this filter to change what the list shows. The `label` can be output as HTML, so keep it plain text:
+
+```php
+add_filter( 'coauthors_ajax_suggest_author_data', function ( $result, $author ) {
+	// Guest authors are posts, and their fields use the `cap-` prefix.
+	$job_title = $author instanceof WP_User
+		? get_user_meta( $author->ID, 'job_title', true )
+		: get_post_meta( $author->ID, 'cap-job_title', true );
+	$job_title = sanitize_text_field( $job_title );
+	if ( $job_title ) {
+		$result['label'] .= ' (' . $job_title . ')';
+	}
+	return $result;
+}, 10, 2 );
+```
+
+The whole result is sent to the browser, so you can also remove values, like the email address. This only changes this response. It is not a privacy or access-control setting: editors can still see co-author emails in other places, like the classic editor meta box and the posts list, and the search still matches on email addresses.
+
+```php
+add_filter( 'coauthors_ajax_suggest_author_data', function ( $result ) {
+	unset( $result['email'] );
+	return $result;
+} );
+```
+
+- **Parameters:** `array $result`, `WP_User|object $author`
+- **File:** `php/class-coauthors-plus.php`
+
 ## Blocks
 
 ### `coauthors_plus_support_blocks`
@@ -242,11 +274,44 @@ Returning a non-array from the callback yields an empty response. Entries that a
 - **Parameters:** `array $coauthors`, `int $post_id`, `WP_REST_Request $request`
 - **File:** `php/api/endpoints/class-coauthors-controller.php`
 
+### `coauthors_rest_author_data`
+
+Author data the block editor gets for search results and the post's selected co-authors. Each entry has `id`, `termId`, `userNicename`, `login`, `email`, `displayName`, `avatar` and `userType`. The `id`, `termId` and `userNicename` keys can't be changed, because the editor needs them to save the co-authors. A non-array return is ignored.
+
+Use it to add data to each author. The whole entry is passed to the [`coAuthors.formatAuthorData.label`](#coauthorsformatauthordatalabel) JS filter, so a key added here can be shown in the author option. This helps to tell apart authors with the same name, for example guest authors who have no email address:
+
+```php
+add_filter( 'coauthors_rest_author_data', function ( $data, $author ) {
+	// Guest authors are posts, and their fields use the `cap-` prefix.
+	$data['jobTitle'] = $author instanceof WP_User
+		? get_user_meta( $author->ID, 'job_title', true )
+		: get_post_meta( $author->ID, 'cap-job_title', true );
+	return $data;
+}, 10, 2 );
+```
+
+```js
+addFilter( 'coAuthors.formatAuthorData.label', 'site/label', ( label, author ) =>
+	author.jobTitle ? `${ author.displayName } (${ author.jobTitle })` : label );
+```
+
+You can also remove values, like the email address. When `email` is removed, the sidebar shows only the display name. The email tells apart two authors with the same name, so you may want to add something else in its place. Removing it only changes this response. It is not a privacy or access-control setting: editors can still see co-author emails in other places, like the classic editor meta box and the posts list, and the search still matches on email addresses.
+
+```php
+add_filter( 'coauthors_rest_author_data', function ( $data ) {
+	unset( $data['email'] );
+	return $data;
+} );
+```
+
+- **Parameters:** `array $data`, `WP_User|object $author`
+- **File:** `php/class-coauthors-endpoint.php`
+
 ## JavaScript filters (`@wordpress/hooks`)
 
 ### `coAuthors.formatAuthorData.label`
 
-Label for an author option in the sidebar autocomplete. Defaults to `"{displayName} | {email}"`.
+Label for an author option in the sidebar autocomplete. Defaults to `"{displayName} | {email}"`, or just `"{displayName}"` when the email is empty.
 
 - **Parameters:** `string $label`, `object $author`
 - **File:** `src/utils.js`
