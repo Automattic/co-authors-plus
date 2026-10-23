@@ -271,6 +271,67 @@ class EndpointsTest extends TestCase {
 	}
 
 	/**
+	 * Sites can hide values like the email address from the editor with the
+	 * coauthors_rest_author_data filter.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_filter_can_remove_email(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author();
+		$coauthors_plus->update_author_term( $author );
+
+		$callback = static function ( $data ) {
+			unset( $data['email'] );
+			return $data;
+		};
+		add_filter( 'coauthors_rest_author_data', $callback );
+		$formatted = $this->_api->_format_author_data( $author );
+		remove_filter( 'coauthors_rest_author_data', $callback );
+
+		$this->assertArrayNotHasKey( 'email', $formatted );
+		$this->assertSame( $author->display_name, $formatted['displayName'] );
+	}
+
+	/**
+	 * The editor needs id, termId and userNicename to save co-authors, so a
+	 * callback can't change or remove them, and a non-array return is ignored.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_filter_keeps_keys_needed_to_save(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author();
+		$term   = $coauthors_plus->update_author_term( $author );
+
+		$expected = array(
+			'id'           => (string) $author->ID,
+			'termId'       => $term->term_id,
+			'userNicename' => $author->user_nicename,
+		);
+
+		$callback = static function () {
+			return array( 'termId' => 0 );
+		};
+		add_filter( 'coauthors_rest_author_data', $callback );
+		$formatted = $this->_api->_format_author_data( $author );
+		remove_filter( 'coauthors_rest_author_data', $callback );
+
+		foreach ( $expected as $key => $value ) {
+			$this->assertSame( $value, $formatted[ $key ] );
+		}
+		$this->assertArrayNotHasKey( 'email', $formatted );
+
+		add_filter( 'coauthors_rest_author_data', '__return_false' );
+		$formatted = $this->_api->_format_author_data( $author );
+		remove_filter( 'coauthors_rest_author_data', '__return_false' );
+
+		$this->assertSame( $author->user_email, $formatted['email'] );
+	}
+
+	/**
 	 * The formatter is a pure read: an author with no term is returned as
 	 * null, and no term is created as a side effect of formatting.
 	 *
