@@ -91,8 +91,25 @@ Whether to combine the `post_author` column query with the taxonomy query. Retur
 
 ### `coauthors_plus_edit_authors`
 
-Whether the current user can assign co-authors to posts. Defaults to `edit_others_posts`.
+Whether the current user can assign co-authors to posts. Defaults to `edit_others_posts`, which the Editor and Administrator roles have. Super admins can always assign co-authors and the filter is not applied for them.
 
+The filter runs everywhere the plugin checks this permission: the classic editor meta box, the block editor panel and its saves through the REST API, Quick Edit and Bulk Edit, and the plugin's REST endpoints for searching and updating co-authors. It does not receive the post being edited, so a callback should decide based on the user only.
+
+To let users with the Author role assign co-authors, allow anyone who can publish posts:
+
+```php
+add_filter( 'coauthors_plus_edit_authors', function ( $can_set_authors ) {
+	return $can_set_authors || current_user_can( 'publish_posts' );
+} );
+```
+
+Things to keep in mind:
+
+- Only use this snippet on version 4.1.2 or later. From 4.1.2 the plugin also checks `edit_post` on each post, so users can only change co-authors on posts they can already edit.
+- Do not rely on `get_current_screen()` in the callback. The block editor saves posts and searches for co-authors through REST API requests, where there is no admin screen. In those requests the function may not be defined at all, which causes a fatal error, or it is defined and returns `null`, so a callback that reads the post type from it returns `false` and co-author changes made in the block editor are silently dropped. Checking only for a `null` screen does not prevent the fatal error.
+- A user who can assign co-authors can also remove them. Once an author adds another author to a post, that co-author can edit the post and take the original author off the byline.
+
+- **Parameters:** `bool $can_set_authors`
 - **File:** `php/class-coauthors-plus.php`
 
 ### `coauthors_edit_author_cap`
