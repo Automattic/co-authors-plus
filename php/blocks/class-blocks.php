@@ -131,7 +131,7 @@ class Blocks {
 
 		wp_enqueue_script(
 			'coauthors-blocks-store',
-			plugins_url( '/co-authors-plus/build/blocks-store/index.js' ),
+			plugins_url( 'build/blocks-store/index.js', COAUTHORS_PLUS_FILE ),
 			$asset['dependencies'],
 			$asset['version'],
 			true
