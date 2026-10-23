@@ -171,4 +171,93 @@ class SearchAuthorsTest extends TestCase {
 		$this->assertArrayNotHasKey( $this->author1->user_login, $authors );
 		$this->assertArrayHasKey( $author2->user_login, $authors );
 	}
+
+	/**
+	 * Checks that search matches the term description without any SQL string rewriting.
+	 *
+	 * The search runs against the term description via get_terms()' native
+	 * 'description__like' argument, so no terms_clauses filter is hooked and the
+	 * result does not depend on the SQL format core generates.
+	 *
+	 * @covers ::search_authors
+	 * @covers ::filter_terms_clauses
+	 */
+	public function test_search_authors_matches_description_without_terms_clauses_filter(): void {
+
+		global $coauthors_plus;
+
+		$captured = array(
+			'authors'        => null,
+			'cap_filter_hit' => false,
+		);
+
+		$spy = static function ( $pieces ) use ( &$captured ) {
+			$captured['cap_filter_hit'] = false !== has_filter(
+				'terms_clauses',
+				array( $GLOBALS['coauthors_plus'], 'filter_terms_clauses' )
+			);
+
+			return $pieces;
+		};
+
+		add_filter( 'terms_clauses', $spy, 20, 1 );
+
+		$captured['authors'] = $coauthors_plus->search_authors( $this->author1->display_name );
+
+		remove_filter( 'terms_clauses', $spy, 20 );
+
+		$this->assertNotEmpty( $captured['authors'] );
+		$this->assertArrayHasKey( $this->author1->user_login, $captured['authors'] );
+
+		// search_authors() must not rely on terms_clauses string rewriting anymore.
+		$this->assertFalse( $captured['cap_filter_hit'] );
+	}
+
+	/**
+	 * Checks filter_terms_clauses() still rewrites the name clause for callers that hook it.
+	 *
+	 * @covers ::filter_terms_clauses
+	 */
+	public function test_filter_terms_clauses_still_rewrites_name_like(): void {
+
+		global $coauthors_plus;
+
+		$pieces = array(
+			'where' => "((t.name LIKE '%editor%') OR (t.slug LIKE '%editor%'))",
+		);
+
+		$expected = "((tt.description LIKE '%editor%') OR (t.slug LIKE '%editor%'))";
+
+		$this->assertSame( $expected, $coauthors_plus->filter_terms_clauses( $pieces )['where'] );
+	}
+
+	/**
+	 * Checks that a search by user_nicename finds the co-author even when the
+	 * nicename appears nowhere in the term description.
+	 *
+	 * @covers ::search_authors
+	 */
+	public function test_search_authors_finds_author_by_nicename_not_in_description(): void {
+
+		global $coauthors_plus;
+
+		$user = $this->factory()->user->create_and_get(
+			array(
+				'role'          => 'author',
+				'user_login'    => 'plainlogin',
+				'user_nicename' => 'oddnicename',
+				'display_name'  => 'Plain Name',
+				'user_email'    => 'plain@example.com',
+			)
+		);
+
+		// A term only exists once the author was assigned to a post or the
+		// term back-fill ran, so create it the same way add_coauthors() does.
+		$coauthors_plus->update_author_term( $user );
+
+		$authors = $coauthors_plus->search_authors( 'oddnicename' );
+
+		$this->assertNotEmpty( $authors );
+		$this->assertArrayHasKey( 'plainlogin', $authors );
+	}
 }
