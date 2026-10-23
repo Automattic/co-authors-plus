@@ -1,6 +1,6 @@
 # Co-Authors Plus
 
-Stable tag: 4.1.1  
+Stable tag: 4.1.2  
 Requires at least: 6.4  
 Tested up to: 7.0  
 Requires PHP: 7.4  
@@ -23,6 +23,7 @@ On the frontend, use the [Co-Authors Plus template tags](https://github.com/Auto
 
 - **Usage** — themer and site-owner guides live on the [GitHub Wiki](https://github.com/Automattic/Co-Authors-Plus/wiki): template tags, blocks, guest author management, and multisite.
 - **Developer reference** — lives in-repo under [`docs/`](./docs/) (not bundled in the distribution ZIP):
+  - [Querying posts by author or co-author](./docs/querying-posts.md)
   - [Filters and actions](./docs/filters.md)
   - [REST API](./docs/rest-api.md)
   - [Upgrading to 4.0](./docs/upgrading-to-4.0.md)
@@ -71,6 +72,16 @@ Yes! You can [create a list of all co-authors with a template tag](https://githu
 Yes! You can disable guest authors entirely through a filter. Having the following line load on `init` will do the trick:
 `add_filter( 'coauthors_guest_authors_enabled', '__return_false' )`
 
-## Change Log
+## Changelog
 
-[View the change log](https://github.com/Automattic/co-authors-plus/blob/develop/CHANGELOG.md).
+The highlights of recent releases are below. Every change, including older releases, is listed in [CHANGELOG.md](https://github.com/Automattic/co-authors-plus/blob/main/CHANGELOG.md).
+
+### 4.1.2
+
+- **Security:** Tighten permission checks when changing a post's co-authors. Thanks to Faisal Ahammad for responsibly disclosing the issue.
+
+## Upgrade Notice
+
+### 4.1.2
+
+Security release that tightens permission checks when changing a post's co-authors. Updating is recommended.
