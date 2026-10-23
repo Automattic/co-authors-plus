@@ -90,4 +90,14 @@ class AjaxSuggestTest extends \WP_Ajax_UnitTestCase {
 
 		$this->assertSame( $this->author->user_nicename, $results[0]['nicename'] );
 	}
+
+	public function test_filter_non_array_return_is_ignored(): void {
+		add_filter( 'coauthors_ajax_suggest_author_data', '__return_false' );
+
+		$results = $this->get_suggestions();
+
+		$this->assertCount( 1, $results );
+		$this->assertSame( 'suggest@example.com', $results[0]['email'] );
+		$this->assertSame( $this->author->user_nicename, $results[0]['nicename'] );
+	}
 }

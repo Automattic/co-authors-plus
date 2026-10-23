@@ -272,7 +272,7 @@ class EndpointsTest extends TestCase {
 
 	/**
 	 * Sites can hide values like the email address from the editor with the
-	 * coauthors_author_data filter.
+	 * coauthors_rest_author_data filter.
 	 *
 	 * @covers \CoAuthors\API\Endpoints::_format_author_data
 	 */
@@ -286,9 +286,9 @@ class EndpointsTest extends TestCase {
 			unset( $data['email'] );
 			return $data;
 		};
-		add_filter( 'coauthors_author_data', $callback );
+		add_filter( 'coauthors_rest_author_data', $callback );
 		$formatted = $this->_api->_format_author_data( $author );
-		remove_filter( 'coauthors_author_data', $callback );
+		remove_filter( 'coauthors_rest_author_data', $callback );
 
 		$this->assertArrayNotHasKey( 'email', $formatted );
 		$this->assertSame( $author->display_name, $formatted['displayName'] );
@@ -315,18 +315,18 @@ class EndpointsTest extends TestCase {
 		$callback = static function () {
 			return array( 'termId' => 0 );
 		};
-		add_filter( 'coauthors_author_data', $callback );
+		add_filter( 'coauthors_rest_author_data', $callback );
 		$formatted = $this->_api->_format_author_data( $author );
-		remove_filter( 'coauthors_author_data', $callback );
+		remove_filter( 'coauthors_rest_author_data', $callback );
 
 		foreach ( $expected as $key => $value ) {
 			$this->assertSame( $value, $formatted[ $key ] );
 		}
 		$this->assertArrayNotHasKey( 'email', $formatted );
 
-		add_filter( 'coauthors_author_data', '__return_false' );
+		add_filter( 'coauthors_rest_author_data', '__return_false' );
 		$formatted = $this->_api->_format_author_data( $author );
-		remove_filter( 'coauthors_author_data', '__return_false' );
+		remove_filter( 'coauthors_rest_author_data', '__return_false' );
 
 		$this->assertSame( $author->user_email, $formatted['email'] );
 	}

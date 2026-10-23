@@ -321,16 +321,18 @@ class Endpoints {
 		/**
 		 * Filters the author data the block editor gets for search results and selected co-authors.
 		 *
-		 * Use it to hide values you don't want editors to see, like the email
-		 * address. The `id`, `termId` and `userNicename` keys can't be changed,
-		 * because the editor needs them to save the co-authors.
+		 * Use it to add data, like a job title, that the
+		 * `coAuthors.formatAuthorData.label` JS filter can show in the author
+		 * option. You can also remove values, like the email address. The `id`,
+		 * `termId` and `userNicename` keys can't be changed, because the editor
+		 * needs them to save the co-authors.
 		 *
 		 * @since 4.2.0
 		 *
 		 * @param array  $data   Author data sent to the editor.
 		 * @param object $author The author, a WP_User or guest author object.
 		 */
-		$filtered = apply_filters( 'coauthors_author_data', $data, $author );
+		$filtered = apply_filters( 'coauthors_rest_author_data', $data, $author );
 
 		if ( ! is_array( $filtered ) ) {
 			return $data;

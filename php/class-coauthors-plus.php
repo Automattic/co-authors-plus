@@ -2155,9 +2155,9 @@ class CoAuthors_Plus {
 			/**
 			 * Filters one author result in the classic editor search-as-you-type list.
 			 *
-			 * Use it to hide values you don't want editors to see, like the email
-			 * address. The `nicename` key can't be changed, because it is the value
-			 * saved with the post.
+			 * Use it to change what the list shows, for example the `label`, or to
+			 * remove values like the email address. The `nicename` key can't be
+			 * changed, because it is the value saved with the post.
 			 *
 			 * @since 4.2.0
 			 *
