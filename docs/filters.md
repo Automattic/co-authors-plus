@@ -4,6 +4,8 @@ This page is a reference for the hooks that Co-Authors Plus provides. It is gene
 
 File paths are relative to the plugin root.
 
+For task-based examples of the most common filters, see [Customizing Co-Authors Plus](./customizing.md).
+
 ## Display and formatting
 
 ### `coauthors_default_before`
@@ -92,7 +94,7 @@ Whether Co-Authors Plus should rewrite an author query to include co-author taxo
 
 ### `coauthors_plus_should_query_post_author`
 
-Whether author queries match on the `post_author` column as well as the `author` taxonomy. Defaults to `true`. Returning `false` switches to a simpler taxonomy-only query on sites where `post_author` isn't reliable. Posts with no co-author terms then drop out of author archives, so run `wp co-authors-plus create-terms-for-posts` first (it only covers published posts unless you pass `--post-statuses`).
+Whether author queries match on the `post_author` column as well as the `author` taxonomy. Defaults to `true`. Returning `false` switches to a simpler taxonomy-only query on sites where `post_author` isn't reliable. Posts with no co-author terms then drop out of author archives, so give them co-authors first. Find them with `wp co-authors-plus list-posts-without-terms`, fix the bylines where `post_author` is wrong, and only then run `wp co-authors-plus create-author-terms-for-posts` for the rest. That backfill takes the co-author from `post_author` and skips posts that already have author terms, so running it on posts with a wrong `post_author` writes the wrong byline and a later run won't correct it. Unlike the older `create-terms-for-posts`, which covers every supported post type, it only covers published posts of the `post` post type unless you pass `--post-types` and `--post-statuses`. See [How do I stop author archives from matching on `post_author`?](./customizing.md#how-do-i-stop-author-archives-from-matching-on-post_author) for the steps.
 
 The value is also read when the taxonomy is registered (on `init` at priority 100) to choose how term counts are kept, so add the filter before `init` and don't change it per request. Author queries treat it as `false` while `coauthors_guest_authors_force` is on.
 
