@@ -52,6 +52,13 @@ The Open Graph tags the plugin contributes to the document head.
 
 - **File:** `php/class-coauthors-plus.php`
 
+### `coauthors_plus_allow_customer_author_archive`
+
+Whether a WooCommerce customer who cannot `edit_posts` keeps their author archive. WooCommerce otherwise redirects that archive to the shop page. Defaults to true when the user, or a guest author linked to their account, has a published post count above zero. Return false to leave the shop redirect in place. The filter only runs for users WooCommerce would redirect.
+
+- **Parameters:** `bool $allow`, `WP_User $user`
+- **File:** `php/integrations/class-woocommerce.php`
+
 ## Post type and taxonomy configuration
 
 ### `coauthors_supported_post_types`
