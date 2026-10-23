@@ -1397,9 +1397,24 @@ class CoAuthors_Guest_Authors {
 	/**
 	 * Create a guest author.
 	 *
-	 * @param $args array Author args. Required keys to create author: 'display_name' and 'user_email'.
+	 * This is a low-level primitive and trusts its arguments. Post meta is
+	 * stored exactly as given, and the display name goes straight into
+	 * wp_insert_post(), so core filters the resulting post title (trim, and
+	 * kses for users without the unfiltered_html capability).
+	 *
+	 * Callers are responsible for sanitising.
+	 * Guest_Author_Service::sanitize_profile() applies the same rules as the
+	 * admin save. New external or HTTP callers should go through
+	 * Guest_Author_Service::create(), which sanitises, rather than calling this
+	 * method directly.
+	 *
+	 * Not sanitising here also keeps the user_login collision guard honest: it
+	 * compares the caller's linked_account value against the user's real login,
+	 * and create_guest_author_from_user_id() passes that login through untouched.
 	 *
 	 * @since 3.0
+	 *
+	 * @param array $args Author args. Required keys: 'display_name' and 'user_login'.
 	 * @return int|WP_Error The ID of the created guest author, or a WP_Error object if the author could not be created.
 	 */
 	public function create( $args ) {
