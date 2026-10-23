@@ -348,6 +348,8 @@ class CoAuthors_Plus {
 			'customize_changeset',
 			'wp_template',
 			'wp_template_part',
+			// Synced patterns gained 'author' support in WordPress 7.2 (core ticket #66307), but bylines do not apply to them.
+			'wp_block',
 		);
 
 		foreach ( $post_types as $key => $name ) {
