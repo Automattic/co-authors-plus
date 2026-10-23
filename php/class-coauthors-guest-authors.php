@@ -918,7 +918,8 @@ class CoAuthors_Guest_Authors {
 		if ( empty( $_POST['cap-display_name'] ) ) {
 			wp_die( esc_html__( 'Guest authors cannot be created without display names.', 'co-authors-plus' ) );
 		}
-		$post_data['post_title'] = sanitize_text_field( wp_unslash( $_POST['cap-display_name'] ) );
+		// $post_data is slashed: core unslashes it after this filter.
+		$post_data['post_title'] = wp_slash( sanitize_text_field( wp_unslash( $_POST['cap-display_name'] ) ) );
 
 		$slug = sanitize_title( get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true ) );
 		if ( ! $slug ) {
@@ -1023,7 +1024,8 @@ class CoAuthors_Guest_Authors {
 			} else {
 				$value = sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
 			}
-			update_post_meta( $post_id, $key, $value );
+			// update_post_meta() unslashes, so slash the plain value or its backslashes are lost.
+			update_post_meta( $post_id, $key, wp_slash( $value ) );
 		}
 
 		$author      = $this->get_guest_author_by( 'ID', $post_id );
@@ -1236,7 +1238,9 @@ class CoAuthors_Guest_Authors {
 				'key'               => 'description',
 				'label'             => __( 'Biographical Info', 'co-authors-plus' ),
 				'group'             => 'about',
-				'sanitize_function' => 'wp_filter_post_kses',
+				// Not wp_filter_post_kses: that returns slashed output, and every write
+				// path slashes the sanitised value itself.
+				'sanitize_function' => 'wp_kses_post',
 			),
 		);
 		$fields_to_return = array();
@@ -1427,8 +1431,10 @@ class CoAuthors_Guest_Authors {
 		}//end foreach
 
 		// Create the primary post object
+		// wp_insert_post() and update_post_meta() both unslash, so slash the plain
+		// values given here or their backslashes are lost.
 		$new_post = array(
-			'post_title' => $args['display_name'],
+			'post_title' => wp_slash( $args['display_name'] ),
 			// The meta key rule, deliberately. See manage_guest_author_filter_post_data().
 			'post_name'  => sanitize_title( $this->get_post_meta_key( $args['user_login'] ) ),
 			'post_type'  => $this->post_type,
@@ -1445,7 +1451,7 @@ class CoAuthors_Guest_Authors {
 				continue;
 			}
 			$pm_key = $this->get_post_meta_key( $key );
-			update_post_meta( $post_id, $pm_key, $args[ $key ] );
+			update_post_meta( $post_id, $pm_key, wp_slash( $args[ $key ] ) );
 		}
 
 		// Attach the avatar / featured image.
