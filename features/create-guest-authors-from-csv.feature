@@ -180,6 +180,24 @@ Feature: Guest authors can be created from a CSV file
 		cap-dirty-login
 		"""
 
+	# Backslashes used to be stripped on write, and an apostrophe in the bio must not
+	# come back slashed now that they are kept.
+	Scenario: Backslashes and apostrophes survive into the profile
+		When I run `wp co-authors-plus create-guest-authors-from-csv --file=features/fixtures/guest-authors-backslash.csv`
+		Then the return code should be 0
+		When I run `wp post list --post_type=guest-author --meta_key=cap-user_login --meta_value=pat-obrien --format=ids`
+		And save STDOUT as {PAT_ID}
+		And I run `wp post meta get {PAT_ID} cap-display_name`
+		Then STDOUT should be:
+		"""
+		Pat O'Brien \ Co
+		"""
+		When I run `wp post meta get {PAT_ID} cap-description`
+		Then STDOUT should be:
+		"""
+		It's kept in C:\Users\pat
+		"""
+
 	Scenario: A CSV header that omits columns warns for every missing key but still imports
 		# The fixture's header also ends in a nameless column whose row cell holds a
 		# value; the exact meta block below shows that cell is dropped rather than

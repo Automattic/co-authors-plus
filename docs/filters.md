@@ -28,7 +28,7 @@ Text placed after a list of co-authors. Defaults to `''`.
 
 ### `coauthors_posts_link`
 
-Arguments used to render a single co-author's posts-link (`text`, `title`, `url`). Filter the array to customise the markup emitted by `coauthors_posts_links()`.
+Arguments used to render a single co-author's posts-link. Filter the associative array to customise the markup emitted by `coauthors_posts_links()`. Available keys include `before_html`, `href`, `rel`, `title`, `class`, `text`, and `after_html`.
 
 - **Parameters:** `array $args`, `stdClass $author`
 - **File:** `template-tags.php`
@@ -83,6 +83,13 @@ Post types counted towards a co-author's published post count.
 
 The `WP_User` used as the default author when a post has none. Defaults to the current user.
 
+### `coauthors_plus_is_author_query`
+
+Whether Co-Authors Plus should rewrite an author query to include co-author taxonomy terms. By default this is `true` for author archives and for queries that set `author`, `author_name` or a non-empty `author__in`. Returning `false` leaves the query as a standard WordPress `post_author` query, for example for a report of who created each post.
+
+- **Parameters:** `bool $is_author`, `WP_Query $query`
+- **File:** `php/class-coauthors-plus.php`
+
 ### `coauthors_plus_should_query_post_author`
 
 Whether author queries match on the `post_author` column as well as the `author` taxonomy. Defaults to `true`. Returning `false` switches to a simpler taxonomy-only query on sites where `post_author` isn't reliable. Posts with no co-author terms then drop out of author archives, so run `wp co-authors-plus create-terms-for-posts` first (it only covers published posts unless you pass `--post-statuses`).
@@ -90,13 +97,6 @@ Whether author queries match on the `post_author` column as well as the `author`
 The value is also read when the taxonomy is registered (on `init` at priority 100) to choose how term counts are kept, so add the filter before `init` and don't change it per request. Author queries treat it as `false` while `coauthors_guest_authors_force` is on.
 
 - **Parameters:** `bool $should_query` (defaults to `true`)
-- **File:** `php/class-coauthors-plus.php`
-
-### `coauthors_plus_is_author_query`
-
-Whether Co-Authors Plus should rewrite a given `WP_Query` to find co-authored posts. By default this is `true` for author archives and for queries that set `author`, `author_name` or a non-empty `author__in`. Return `false` to leave one query as a plain `post_author` query, for example a report of who created each post.
-
-- **Parameters:** `bool $is_author`, `WP_Query $query`
 - **File:** `php/class-coauthors-plus.php`
 
 ## Permissions

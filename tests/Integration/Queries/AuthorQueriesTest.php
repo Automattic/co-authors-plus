@@ -237,6 +237,45 @@ class AuthorQueriesTest extends TestCase {
 		$this->assertQueryReturns( array(), $query, 'An unrelated author must not cause false positives.' );
 	}
 
+	// -- late author vars via pre_get_posts, issue #1056 ---------------------
+
+	public function test_late_author_var_finds_a_coauthored_post(): void {
+		$author1 = $this->create_author( 'late_author1' );
+		$author2 = $this->create_author( 'late_author2' );
+		$post    = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+
+		$set_author = function ( WP_Query $query ) use ( $author2 ): void {
+			$query->set( 'author', $author2->ID );
+		};
+		add_action( 'pre_get_posts', $set_author );
+
+		$query = new WP_Query( array( 'post_type' => 'post' ) );
+
+		remove_action( 'pre_get_posts', $set_author );
+
+		$this->assertFalse( $query->is_author(), 'A late author value must not set the author archive flag.' );
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
+
+	public function test_late_author_in_var_finds_a_coauthored_post(): void {
+		$author1 = $this->create_author( 'late_author_in1' );
+		$author2 = $this->create_author( 'late_author_in2' );
+		$post    = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+
+		$set_author_in = function ( WP_Query $query ) use ( $author2 ): void {
+			$query->set( 'author__in', array( $author2->ID ) );
+		};
+		add_action( 'pre_get_posts', $set_author_in );
+
+		$query = new WP_Query( array( 'post_type' => 'post' ) );
+
+		remove_action( 'pre_get_posts', $set_author_in );
+
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
+
 	// -- opt-out filter, issue #1296 ----------------------------------------
 
 	/**
