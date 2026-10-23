@@ -295,6 +295,30 @@ class CapabilitiesTest extends TestCase {
 	}
 
 	/**
+	 * A trashed post that was published still needs the published caps, like it
+	 * does for the post author.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_contributor_coauthor_cannot_delete_trashed_published_post(): void {
+		$contributor  = $this->create_contributor();
+		$published_id = $this->create_admin_post( 'publish' );
+		$draft_id     = $this->create_admin_post( 'draft' );
+
+		$this->add_secondary_coauthors( $published_id, array( $contributor ) );
+		$this->add_secondary_coauthors( $draft_id, array( $contributor ) );
+
+		wp_trash_post( $published_id );
+		wp_trash_post( $draft_id );
+
+		$this->assertFalse( user_can( $contributor, 'delete_post', $published_id ) );
+		$this->assertFalse( user_can( $contributor, 'edit_post', $published_id ) );
+
+		// A trashed draft can still be deleted.
+		$this->assertTrue( user_can( $contributor, 'delete_post', $draft_id ) );
+	}
+
+	/**
 	 * A co-author can save from the classic editor, which sends the stored post_author.
 	 *
 	 * @covers ::filter_map_meta_cap
@@ -322,6 +346,36 @@ class CapabilitiesTest extends TestCase {
 		// Changing the post author to someone else still needs edit_others_posts.
 		$_POST['post_author'] = $this->editor1->ID;
 		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+
+		$_POST = array();
+		set_current_screen( 'front' );
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * Saving from the classic editor keeps a sticky post sticky. The sticky
+	 * checkbox is not shown to an Author co-author, so sticky is not in the POST.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_save_keeps_post_sticky(): void {
+		$current_user = get_current_user_id();
+		$post_id      = $this->create_admin_post( 'publish' );
+
+		stick_post( $post_id );
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_author' => get_post( $post_id )->post_author,
+			'post_title'  => 'Saved by co-author',
+		);
+
+		$this->assertSame( $post_id, edit_post() );
+		$this->assertTrue( is_sticky( $post_id ) );
 
 		$_POST = array();
 		set_current_screen( 'front' );

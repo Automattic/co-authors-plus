@@ -2388,6 +2388,8 @@ class CoAuthors_Plus {
 	 * @return array caps that CAP should filter
 	 */
 	public function get_to_be_filtered_caps(): array {
+		_deprecated_function( __METHOD__, '4.2.0', 'CoAuthors_Plus::filter_map_meta_cap()' );
+
 		if ( ! empty( $this->supported_post_types() ) && empty( $this->to_be_filtered_caps ) ) {
 			$this->to_be_filtered_caps[] = 'edit_post'; // Need to filter this too, unfortunately: http://core.trac.wordpress.org/ticket/22415
 			$this->to_be_filtered_caps[] = 'read_post';
@@ -2460,6 +2462,12 @@ class CoAuthors_Plus {
 
 		$caps[ $key ] = $post_type->cap->{ $action . '_posts' };
 
+		// Like core does for the post author, a trashed post that was published or
+		// scheduled still needs the published cap.
+		if ( 'trash' === $post->post_status && in_array( get_post_meta( $post->ID, '_wp_trash_meta_status', true ), array( 'publish', 'future' ), true ) ) {
+			$caps[] = $post_type->cap->{ $action . '_published_posts' };
+		}
+
 		return $caps;
 	}
 
@@ -2471,6 +2479,10 @@ class CoAuthors_Plus {
 	 * co-author who is not the post author. We only allow it while saving a post
 	 * the user is co-author of, and only when the post author is not changed.
 	 *
+	 * The grant stops once pre_post_update fires, which is after
+	 * _wp_translate_postdata(). Later checks in the same save, such as the sticky
+	 * handling in edit_post(), still see the user's own caps.
+	 *
 	 * @since 4.2.0
 	 *
 	 * @param string[] $caps    Primitive caps required by the user.
@@ -2479,6 +2491,10 @@ class CoAuthors_Plus {
 	 * @return string[] Primitive caps required by the user.
 	 */
 	private function maybe_allow_coauthor_save( $caps, $cap, int $user_id ): array {
+		if ( did_action( 'pre_post_update' ) ) {
+			return $caps;
+		}
+
 		// Core checks the nonce for these requests before saving.
 		// phpcs:disable WordPress.Security.NonceVerification.Missing
 		if ( empty( $_POST['post_ID'] ) || ! isset( $_POST['post_author'] ) ) {
@@ -2516,6 +2532,8 @@ class CoAuthors_Plus {
 	 * @return array Unchanged capabilities.
 	 */
 	public function filter_user_has_cap( $allcaps, $caps = array(), $args = array() ) {
+		_deprecated_function( __METHOD__, '4.2.0', 'CoAuthors_Plus::filter_map_meta_cap()' );
+
 		return $allcaps;
 	}
 
