@@ -122,6 +122,29 @@ class SupportedPostTypesTest extends TestCase {
 	}
 
 	/**
+	 * Synced patterns (wp_block) must not be supported, even when they support 'author'.
+	 *
+	 * WordPress 7.2 adds 'author' support to wp_block (core ticket #66307). Add the
+	 * support here too, so the test covers older WordPress versions as well.
+	 *
+	 * @covers ::supported_post_types
+	 */
+	public function test_wp_block_is_not_supported_even_with_author_support(): void {
+		$had_support = post_type_supports( 'wp_block', 'author' );
+		add_post_type_support( 'wp_block', 'author' );
+
+		try {
+			$supported_post_types = ( new \CoAuthors_Plus() )->supported_post_types();
+		} finally {
+			if ( ! $had_support ) {
+				remove_post_type_support( 'wp_block', 'author' );
+			}
+		}
+
+		$this->assertNotContains( 'wp_block', $supported_post_types );
+	}
+
+	/**
 	 * Test whether the supported post types can be filtered.
 	 *
 	 * @covers ::supported_post_types

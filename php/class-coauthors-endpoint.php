@@ -92,7 +92,7 @@ class Endpoints {
 				array(
 					'methods'             => 'GET',
 					'callback'            => array( $this, 'get_coauthors' ),
-					'permission_callback' => array( $this, 'can_edit_coauthors' ),
+					'permission_callback' => array( $this, 'can_edit_post_coauthors' ),
 					'args'                => array(
 						'post_id' => array(
 							'required'          => true,
@@ -130,7 +130,7 @@ class Endpoints {
 				array(
 					'methods'             => 'POST',
 					'callback'            => array( $this, 'update_coauthors' ),
-					'permission_callback' => array( $this, 'can_edit_coauthors' ),
+					'permission_callback' => array( $this, 'can_edit_post_coauthors' ),
 					'args'                => array(
 						'post_id'     => array(
 							'required'          => true,
@@ -261,6 +261,19 @@ class Endpoints {
 	 */
 	public function can_edit_coauthors(): bool {
 		return $this->coauthors->current_user_can_set_authors();
+	}
+
+	/**
+	 * Permissions for reading or updating the co-authors of a specific post.
+	 *
+	 * The user must be able to set authors and edit the post in the request.
+	 *
+	 * @param WP_REST_Request $request Request object.
+	 * @return bool
+	 */
+	public function can_edit_post_coauthors( WP_REST_Request $request ): bool {
+		return current_user_can( 'edit_post', (int) $request->get_param( 'post_id' ) )
+			&& $this->can_edit_coauthors();
 	}
 
 	/**

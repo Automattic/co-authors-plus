@@ -23,7 +23,7 @@ Feature: Guest authors and their post assignments can be imported
 		And the return code should be 1
 
 	Scenario: Error on JSON that is not an export
-		When I run `wp eval 'file_put_contents( "/tmp/cap-no-list.json", wp_json_encode( array( "version" => "4.1.1" ) ) );'`
+		When I run `wp eval 'file_put_contents( "/tmp/cap-no-list.json", wp_json_encode( array( "version" => COAUTHORS_PLUS_VERSION ) ) );'`
 		And I try `wp co-authors-plus import-coauthors --file=/tmp/cap-no-list.json`
 		Then STDERR should be:
 		"""
@@ -45,7 +45,7 @@ Feature: Guest authors and their post assignments can be imported
 	Scenario: Restore a profile and put it back on its post
 		When I run `wp post create --post_status=publish --post_title="Hello" --post_name=hello --porcelain`
 		And save STDOUT as {POST_ID}
-		And I run `wp eval 'file_put_contents( "/tmp/cap-in.json", wp_json_encode( array( "version" => "4.1.1", "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "Jane.Doe" ), "post_refs" => array( array( "post_slug" => "hello", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
+		And I run `wp eval 'file_put_contents( "/tmp/cap-in.json", wp_json_encode( array( "version" => COAUTHORS_PLUS_VERSION, "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "Jane.Doe" ), "post_refs" => array( array( "post_slug" => "hello", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-in.json`
 		Then STDOUT should be:
 		"""
@@ -121,7 +121,7 @@ Feature: Guest authors and their post assignments can be imported
 	Scenario: A dry run reports what it would do and writes nothing
 		When I run `wp post create --post_status=publish --post_title="Hello" --post_name=hello --porcelain`
 		And save STDOUT as {POST_ID}
-		And I run `wp eval 'file_put_contents( "/tmp/cap-dry.json", wp_json_encode( array( "version" => "4.1.1", "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ), "post_refs" => array( array( "post_slug" => "hello", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
+		And I run `wp eval 'file_put_contents( "/tmp/cap-dry.json", wp_json_encode( array( "version" => COAUTHORS_PLUS_VERSION, "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ), "post_refs" => array( array( "post_slug" => "hello", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-dry.json --dry-run`
 		Then STDOUT should be:
 		"""
@@ -141,7 +141,7 @@ Feature: Guest authors and their post assignments can be imported
 
 	Scenario: --skip-create leaves a missing profile uncreated
 		When I run `wp post create --post_status=publish --post_title="Hello" --post_name=hello --porcelain`
-		And I run `wp eval 'file_put_contents( "/tmp/cap-skip.json", wp_json_encode( array( "version" => "4.1.1", "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ), "post_refs" => array( array( "post_slug" => "hello", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
+		And I run `wp eval 'file_put_contents( "/tmp/cap-skip.json", wp_json_encode( array( "version" => COAUTHORS_PLUS_VERSION, "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ), "post_refs" => array( array( "post_slug" => "hello", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-skip.json --skip-create`
 		Then STDOUT should contain:
 		"""
@@ -158,7 +158,7 @@ Feature: Guest authors and their post assignments can be imported
 		"""
 
 	Scenario: Report an assignment whose post is not on this site
-		When I run `wp eval 'file_put_contents( "/tmp/cap-missing.json", wp_json_encode( array( "version" => "4.1.1", "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ), "post_refs" => array( array( "post_slug" => "not-here", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
+		When I run `wp eval 'file_put_contents( "/tmp/cap-missing.json", wp_json_encode( array( "version" => COAUTHORS_PLUS_VERSION, "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ), "post_refs" => array( array( "post_slug" => "not-here", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-missing.json`
 		Then STDOUT should contain:
 		"""
@@ -170,7 +170,7 @@ Feature: Guest authors and their post assignments can be imported
 		"""
 		And the return code should be 0
 		# Two refs, so the summary's plural branch runs.
-		When I run `wp eval 'file_put_contents( "/tmp/cap-missing2.json", wp_json_encode( array( "version" => "4.1.1", "guest_authors" => array( array( "profile" => array( "display_name" => "Kim Poe", "user_login" => "kim-poe" ), "post_refs" => array( array( "post_slug" => "not-here", "post_type" => "post", "position" => 0 ), array( "post_slug" => "also-not-here", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
+		When I run `wp eval 'file_put_contents( "/tmp/cap-missing2.json", wp_json_encode( array( "version" => COAUTHORS_PLUS_VERSION, "guest_authors" => array( array( "profile" => array( "display_name" => "Kim Poe", "user_login" => "kim-poe" ), "post_refs" => array( array( "post_slug" => "not-here", "post_type" => "post", "position" => 0 ), array( "post_slug" => "also-not-here", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-missing2.json`
 		Then STDOUT should contain:
 		"""
