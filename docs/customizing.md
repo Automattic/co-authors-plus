@@ -60,3 +60,65 @@ add_filter( 'coauthors_auto_apply_template_tags', '__return_true' );
 For full control over the markup, use the [template tags](https://github.com/Automattic/Co-Authors-Plus/wiki/Template-tags) or the [blocks](https://github.com/Automattic/Co-Authors-Plus/wiki/Blocks) instead.
 
 See [`coauthors_auto_apply_template_tags`](./filters.md#coauthors_auto_apply_template_tags) in the reference.
+
+## Can I show more about each author in the co-author search?
+
+Yes. By default, the block editor shows each author as `Name | email`, and the classic editor shows just the name. To tell apart authors with the same name, for example guest authors who have no email address, you can add something like a job title.
+
+In the block editor, add the value to the author data in PHP, then show it in the label with JavaScript:
+
+```php
+add_filter( 'coauthors_rest_author_data', function ( $data, $author ) {
+	// Guest authors are posts, and their fields use the `cap-` prefix.
+	$data['jobTitle'] = $author instanceof WP_User
+		? get_user_meta( $author->ID, 'job_title', true )
+		: get_post_meta( $author->ID, 'cap-job_title', true );
+	return $data;
+}, 10, 2 );
+```
+
+```js
+import { addFilter } from '@wordpress/hooks';
+
+addFilter( 'coAuthors.formatAuthorData.label', 'site/label', ( label, author ) =>
+	author.jobTitle ? `${ author.displayName } (${ author.jobTitle })` : label );
+```
+
+The classic editor has no JavaScript label filter, so change the `label` in PHP. It can be output as HTML, so keep it plain text:
+
+```php
+add_filter( 'coauthors_ajax_suggest_author_data', function ( $result, $author ) {
+	$job_title = $author instanceof WP_User
+		? get_user_meta( $author->ID, 'job_title', true )
+		: get_post_meta( $author->ID, 'cap-job_title', true );
+	$job_title = sanitize_text_field( $job_title );
+	if ( $job_title ) {
+		$result['label'] .= ' (' . $job_title . ')';
+	}
+	return $result;
+}, 10, 2 );
+```
+
+See [`coauthors_rest_author_data`](./filters.md#coauthors_rest_author_data), [`coAuthors.formatAuthorData.label`](./filters.md#coauthorsformatauthordatalabel) and [`coauthors_ajax_suggest_author_data`](./filters.md#coauthors_ajax_suggest_author_data) in the reference.
+
+## Can I hide email addresses in the co-author search?
+
+Partly. You can remove the email address from the author data that both editors get from the co-author search:
+
+```php
+add_filter( 'coauthors_rest_author_data', function ( $data ) {
+	unset( $data['email'] );
+	return $data;
+} );
+
+add_filter( 'coauthors_ajax_suggest_author_data', function ( $result ) {
+	unset( $result['email'] );
+	return $result;
+} );
+```
+
+The block editor then shows only the display name. The email is what tells apart two authors with the same name, so consider showing something else in its place, as in the recipe above.
+
+This is not a privacy or access-control setting. Editors can still see co-author email addresses in other places, like the classic editor Authors box and the posts list, and the search still matches on email addresses.
+
+See [`coauthors_rest_author_data`](./filters.md#coauthors_rest_author_data) and [`coauthors_ajax_suggest_author_data`](./filters.md#coauthors_ajax_suggest_author_data) in the reference.
