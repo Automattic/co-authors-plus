@@ -30,11 +30,9 @@ class Block_CoAuthors {
 			dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks/block-coauthors',
 			array(
 				'render_callback'   => array( __CLASS__, 'render_block' ),
-				// The callback renders the per-author template itself, so the
-				// default inner-content pass must not run. Without this, inner
-				// blocks render once with no author context, and on WP 6.9+
-				// that empty pass makes core dequeue any assets enqueued
-				// during it, which can strip styles from the whole page.
+				// The callback renders the inner template once per author, so
+				// skip core's default inner pass. That pass has no author
+				// context and its output is thrown away.
 				'skip_inner_blocks' => true,
 			)
 		);

@@ -20,9 +20,7 @@ use WP_Block_Type_Registry;
  * The render callback builds the per-author template itself, so the block
  * must be registered with skip_inner_blocks. Without it WP_Block::render()
  * walks the inner blocks first, with no author context, and every block in
- * the template renders a second, discarded time. On WordPress 6.9+ that
- * empty-handed pass also makes core dequeue any assets enqueued during it,
- * which can strip stylesheets from the rest of the page.
+ * the template renders a second, discarded time.
  *
  * @covers \CoAuthors\Blocks\Block_CoAuthors::render_block
  */
@@ -46,19 +44,11 @@ class BlockCoAuthorsRenderTest extends TestCase {
 	 */
 	private bool $registered_by_test = false;
 
-	/**
-	 * Whether set_up() wrote a temporary block.json for that registration.
-	 *
-	 * @var bool
-	 */
-	private bool $created_metadata = false;
-
 	public function set_up() {
 		parent::set_up();
 
 		$this->probe_renders      = array();
 		$this->registered_by_test = false;
-		$this->created_metadata   = false;
 
 		// The render callback builds its REST request with
 		// WP_REST_Request::from_url(), which can only derive a route when
@@ -69,28 +59,18 @@ class BlockCoAuthorsRenderTest extends TestCase {
 		$registry = WP_Block_Type_Registry::get_instance();
 
 		// The plugin registers this block from its JS build directory, which
-		// CI does not produce. Write the small block.json the registration
-		// reads, so the plugin's own register_block() runs and every test
-		// sees the arguments the plugin really passes rather than a copy.
+		// CI does not produce. Copy the source block.json there for the
+		// registration only, so the plugin's own register_block() runs and
+		// every test sees the arguments the plugin really passes.
 		if ( ! $registry->is_registered( self::BLOCK_NAME ) ) {
 			$metadata_file = dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks/block-coauthors/block.json';
 
-			if ( ! file_exists( $metadata_file ) ) {
-				wp_mkdir_p( dirname( $metadata_file ) );
-				file_put_contents(
-					$metadata_file,
-					(string) wp_json_encode(
-						array(
-							'name'        => self::BLOCK_NAME,
-							'usesContext' => array( 'postId' ),
-							'attributes'  => array(),
-						)
-					)
-				);
-				$this->created_metadata = true;
+			if ( file_exists( $metadata_file ) ) {
+				Block_CoAuthors::register_block();
+			} else {
+				$this->register_from_source_metadata( $metadata_file );
 			}
 
-			Block_CoAuthors::register_block();
 			$this->registered_by_test = true;
 		}
 
@@ -115,19 +95,43 @@ class BlockCoAuthorsRenderTest extends TestCase {
 			unregister_block_type( self::BLOCK_NAME );
 		}
 
-		if ( $this->created_metadata && file_exists( dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks/block-coauthors/block.json' ) ) {
-			unlink( dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks/block-coauthors/block.json' );
-		}
-
-		// Drop the directories the metadata write created. rmdir only
-		// succeeds on empty directories, so a real build is never touched.
-		// phpcs:disable WordPressVIPMinimum.Functions.RestrictedFunctions.directory_rmdir -- removing empty dirs the test created; WordPress has no helper for this, and the recursive WP_Filesystem::rmdir() would not be safe here.
-		@rmdir( dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks/block-coauthors' );
-		@rmdir( dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks' );
-		@rmdir( dirname( COAUTHORS_PLUS_FILE ) . '/build' );
-		// phpcs:enable WordPressVIPMinimum.Functions.RestrictedFunctions.directory_rmdir
-
 		parent::tear_down();
+	}
+
+	/**
+	 * Run the plugin's register_block() against a copy of the source
+	 * block.json, then remove the copy straight away.
+	 *
+	 * The file is only read during registration, so it lives for a few lines
+	 * and the finally block removes it even when registration throws. The
+	 * asset fields are dropped because src/ has no built index.js or
+	 * index.asset.php for core to register.
+	 *
+	 * @param string $metadata_file Path the plugin reads block.json from.
+	 */
+	private function register_from_source_metadata( string $metadata_file ): void {
+		$metadata = wp_json_file_decode(
+			dirname( COAUTHORS_PLUS_FILE ) . '/src/blocks/block-coauthors/block.json',
+			array( 'associative' => true )
+		);
+		unset( $metadata['editorScript'], $metadata['style'] );
+
+		wp_mkdir_p( dirname( $metadata_file ) );
+		file_put_contents( $metadata_file, (string) wp_json_encode( $metadata ) );
+
+		try {
+			Block_CoAuthors::register_block();
+		} finally {
+			unlink( $metadata_file );
+
+			// rmdir only succeeds on empty directories, so a real build is
+			// never touched.
+			// phpcs:disable WordPressVIPMinimum.Functions.RestrictedFunctions.directory_rmdir -- removing empty dirs the test created; WordPress has no helper for this, and the recursive WP_Filesystem::rmdir() would not be safe here.
+			@rmdir( dirname( $metadata_file ) );
+			@rmdir( dirname( $metadata_file, 2 ) );
+			@rmdir( dirname( $metadata_file, 3 ) );
+			// phpcs:enable WordPressVIPMinimum.Functions.RestrictedFunctions.directory_rmdir
+		}
 	}
 
 	/**
