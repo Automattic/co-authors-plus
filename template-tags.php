@@ -705,7 +705,7 @@ function coauthors_wp_list_authors( $args = array() ) {
 			}
 		} else {
 			/* translators: %s: author display name */
-			$link = '<a href="' . get_author_posts_url( $author->ID, $author->user_nicename ) . '" title="' . esc_attr( sprintf( __( 'Posts by %s', 'co-authors-plus' ), $name ) ) . '">' . esc_html( $name ) . '</a>';
+			$link = '<a href="' . esc_url( get_author_posts_url( $author->ID, $author->user_nicename ) ) . '" title="' . esc_attr( sprintf( __( 'Posts by %s', 'co-authors-plus' ), $name ) ) . '">' . esc_html( $name ) . '</a>';
 
 			if ( ( ! empty( $args['feed_image'] ) ) || ( ! empty( $args['feed'] ) ) ) {
 				$link .= ' ';
