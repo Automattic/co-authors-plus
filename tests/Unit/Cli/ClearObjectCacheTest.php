@@ -32,18 +32,19 @@ use Automattic\CoAuthorsPlus\Tests\Unit\TestCase;
 final class ClearObjectCacheTest extends TestCase {
 
 	/**
-	 * Commands that process posts in batches and must flush the object cache
-	 * between batches.
+	 * Commands and services that process large result sets in batches and must
+	 * flush the object cache between batches.
 	 *
-	 * When adding a command that loops over a large result set, add its file
-	 * here so the flush cannot be dropped unnoticed.
+	 * When adding code that loops over a large result set, add its file here so
+	 * the flush cannot be dropped unnoticed.
 	 */
-	private const BATCHING_COMMANDS = array(
-		'class-assign-coauthors-command.php',
-		'class-create-terms-for-posts-command.php',
-		'class-list-posts-without-terms-command.php',
-		'class-swap-coauthors-command.php',
-		'class-update-author-terms-command.php',
+	private const BATCHING_FILES = array(
+		'php/cli/class-assign-coauthors-command.php',
+		'php/cli/class-create-terms-for-posts-command.php',
+		'php/cli/class-list-posts-without-terms-command.php',
+		'php/cli/class-swap-coauthors-command.php',
+		'php/cli/class-update-author-terms-command.php',
+		'php/services/class-coauthor-checks-service.php',
 	);
 
 	/**
@@ -99,21 +100,22 @@ final class ClearObjectCacheTest extends TestCase {
 	}
 
 	/**
-	 * Every batching command still flushes the object cache between batches.
+	 * Every batching command and service still flushes the object cache between
+	 * batches.
 	 *
-	 * Checked per file, not across the directory as a whole, so one command
+	 * Checked per file, not across the directory as a whole, so one file
 	 * dropping its flush cannot hide behind another that kept it.
 	 */
-	public function test_each_batching_command_flushes_the_object_cache(): void {
-		foreach ( self::BATCHING_COMMANDS as $command ) {
-			$source = $this->path( 'php/cli/' . $command );
+	public function test_each_batching_file_flushes_the_object_cache(): void {
+		foreach ( self::BATCHING_FILES as $file ) {
+			$source = $this->path( $file );
 
-			$this->assertFileExists( $source, "$command is listed as a batching command but does not exist. Update BATCHING_COMMANDS." );
+			$this->assertFileExists( $source, "$file is listed as a batching file but does not exist. Update BATCHING_FILES." );
 
 			$this->assertStringContainsString(
 				'\WP_CLI\Utils\wp_clear_object_cache();',
 				(string) file_get_contents( $source ),
-				"$command no longer flushes the object cache between batches. A long run would exhaust memory on a real site."
+				"$file no longer flushes the object cache between batches. A long run would exhaust memory on a real site."
 			);
 		}
 	}

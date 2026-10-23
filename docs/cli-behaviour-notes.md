@@ -1306,3 +1306,53 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   steps rather than one ordered `.*`-chained regex, and the `missing --file parameter`
   error pins only the CAP-independent fragment (the `Error: Parameter errors:` framing
   belongs to WP-CLI).
+
+## check
+
+Added after the refactor, so unlike the entries above this section documents a new
+command rather than pinning inherited behaviour. Covered by features/check.feature.
+
+`wp co-authors-plus check` is read-only and reports the drift conditions the fixer
+commands repair, without repairing any of them. It is a report, not a gate: it always
+exits 0, so a monitoring run is not failed by finding drift. Consumers read
+`--format=json` and decide what a finding means for them.
+
+Options are `--only=<checks>` and the scaffolded `--format=<format>` (table, csv, json,
+count, yaml), plus `--field`/`--fields`.
+
+The nine checks, in report order:
+
+- `posts-missing-terms` — posts with no co-author terms, over the plugin's own
+  supported post types. Trash, auto-drafts and revisions are excluded; a post carrying
+  a backfill skip marker is still counted, because it really does have no terms.
+- `missing-user-terms` — WordPress users with no term. One query, with the two slug
+  arms (`cap-`-prefixed and bare) that `get_author_term()` itself tries, so a legacy
+  unprefixed term is not reported as missing.
+- `missing-guest-author-terms` — guest authors with no term, resolved through
+  `get_author_term()` since the nicename is derived rather than stored. Skipped when
+  guest authors are disabled.
+- `stale-term-counts` — terms whose stored count differs from the count
+  `get_author_term_post_count()` computes.
+- `stale-term-descriptions` — terms whose description differs from the one
+  `update_author_term()` would write from `ajax_search_fields`.
+- `unprefixed-terms` — terms whose slug lacks `cap-`, the pre-3.0 condition
+  migrate-author-terms repairs.
+- `revision-terms` — revisions carrying co-author terms.
+- `orphaned-skip-markers` — `_cap_skip_backfill` rows on a post that is gone, or that
+  has since gained terms, leaving the marker blocking nothing.
+- `guest-author-drift` — guest author profiles whose own post carries a term whose slug
+  no longer matches the profile's nicename. Not detected by any command before this.
+  Skipped when guest authors are disabled.
+
+Notes:
+
+- An unknown `--only` name is an error, not a silent match-nothing. A typo in a runbook
+  that ran every check instead of the one named would be worse than failing.
+- `--format=count` counts report rows, i.e. the number of checks run (9 by default), not
+  the number of findings. A single check's finding count is its `count` field, readable
+  with `--field=count`.
+- `CoAuthors_Plus::get_author_term_post_count()` is new: it is the count
+  `update_author_term_post_count()` writes, split out so a check can compare against it
+  without writing. It returns null both when no co-author backs the term and when the
+  query fails, so a database error is not mistaken for a stale count of zero.
+
