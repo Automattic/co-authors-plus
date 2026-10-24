@@ -60,6 +60,22 @@ class Block_CoAuthor_Avatar {
 		$size         = $attributes['size'] ?? array_key_first( $avatar_urls );
 		$align        = esc_attr( $attributes['align'] ?? '' );
 
+		// The saved size may no longer be offered (sizes come from the
+		// rest_avatar_sizes filter), so take the next larger size, or the
+		// largest, and let the browser scale it to the saved size.
+		$src_size = $size;
+		if ( ! isset( $avatar_urls[ $size ] ) ) {
+			$available = array_keys( $avatar_urls );
+			sort( $available );
+			$larger   = array_filter(
+				$available,
+				function ( $available_size ) use ( $size ) {
+					return $available_size >= $size;
+				}
+			);
+			$src_size = $larger ? reset( $larger ) : end( $available );
+		}
+
 		$srcset = array_map(
 			function( $size, $url ) {
 				return "{$url} {$size}w";
@@ -70,7 +86,7 @@ class Block_CoAuthor_Avatar {
 
 		$image_attributes = array_merge(
 			array(
-				'src'    => $avatar_urls[ $size ],
+				'src'    => $avatar_urls[ $src_size ],
 				/* translators: %s: author display name */
 				'alt'    => sprintf( __( '%s Avatar', 'co-authors-plus' ), $display_name ),
 				'width'  => $size,
