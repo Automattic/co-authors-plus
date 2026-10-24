@@ -675,6 +675,10 @@ function coauthors_wp_list_authors( $args = array() ) {
 	$authors = coauthors_get_users( $args );
 	foreach ( $authors as $author ) {
 
+		if ( 0 === $author->post_count && $args['hide_empty'] ) {
+			continue;
+		}
+
 		$link = '';
 
 		if ( $args['show_fullname'] && ( $author->first_name && $author->last_name ) ) {
@@ -684,25 +688,17 @@ function coauthors_wp_list_authors( $args = array() ) {
 		}
 
 		if ( ! $args['html'] ) {
-			if ( 0 === $author->post_count ) {
-				if ( ! $args['hide_empty'] ) {
-					$return .= $name . ', ';
-				}
-			} else {
-				$return .= $name . ', ';
-			}
+			$return .= $name . ', ';
 
 			// No need to go further to process HTML.
 			continue;
 		}
 
-		if ( ! ( 0 === $author->post_count && $args['hide_empty'] ) && 'list' == $args['style'] ) {
+		if ( 'list' == $args['style'] ) {
 			$return .= '<li>';
 		}
 		if ( 0 === $author->post_count ) {
-			if ( ! $args['hide_empty'] ) {
-				$link = $name;
-			}
+			$link = $name;
 		} else {
 			/* translators: %s: author display name */
 			$link = '<a href="' . get_author_posts_url( $author->ID, $author->user_nicename ) . '" title="' . esc_attr( sprintf( __( 'Posts by %s', 'co-authors-plus' ), $name ) ) . '">' . esc_html( $name ) . '</a>';
@@ -745,11 +741,8 @@ function coauthors_wp_list_authors( $args = array() ) {
 			}
 		}
 
-		if ( ! ( 0 === $author->post_count && $args['hide_empty'] ) && 'list' == $args['style'] ) {
-			$return .= $link . '</li>';
-		} elseif ( ! $args['hide_empty'] ) {
-			$return .= $link . ', ';
-		}
+		$return .= $link;
+		$return .= ( 'list' == $args['style'] ) ? '</li>' : ', ';
 	}
 
 	$return = trim( $return, ', ' );
