@@ -62,6 +62,17 @@ So being a co-author never gives a user more than they would have as the post's 
 
 This applies to post types Co-Authors Plus is enabled for. A user linked to a guest author counts as a co-author of posts bylined to that guest author.
 
+Publishing is a separate check. WordPress checks the post type's `publish_posts` capability against the user's capabilities, not the post, so being a co-author doesn't change it. Authors already have it, so an Author co-author can publish. A Contributor co-author can edit a draft, but when they try to publish it, WordPress sets it to pending review instead, the same as their own posts.
+
+To let Contributors publish posts, give the role `publish_posts`. A post type with its own capabilities needs its own publish capability instead, such as `publish_books`.
+
+```php
+// Run once, for example on plugin activation.
+get_role( 'contributor' )->add_cap( 'publish_posts' );
+```
+
+Contributors can then publish any post they can edit, including their own, not only posts they co-author. They still can't edit a post once it's published, because that needs `edit_published_posts`.
+
 Being a co-author doesn't let a user change the byline. That still needs [Assigning co-authors](#assigning-co-authors). In the classic editor and Quick Edit, a co-author who isn't the `post_author` can save the post as long as they don't change its `post_author`.
 
 ## Guest author profiles
