@@ -5,6 +5,79 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+**This release changes three behaviors that extensions may rely on.** The `coauthors/v1` REST endpoints now return raw, unescaped values, so code that prints them into HTML must escape them itself. Co-author permissions now go through `map_meta_cap`, so a co-author gets the rights the post's author would have under the co-author's own role: a Subscriber can no longer edit a post just because they are credited on it, and `current_user_can( 'edit_others_posts' )` is no longer true for co-authors. The `CoAuthorsPlus_Command` class is gone; every WP-CLI command keeps its name but is now a class of its own.
+
+### Added
+
+* Add `wp co-authors-plus export-coauthors` and `wp co-authors-plus import-coauthors` to move guest authors and their bylines between sites. Assignments are matched by post slug and type rather than ID, byline order is kept, and an interrupted import can safely be run again by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1400
+* Add `wp co-authors-plus list-authors <post_id>` to read back the co-authors assigned to a post by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1343
+* Add a `--post-statuses` flag to `wp co-authors-plus create-terms-for-posts`, so drafts and other statuses can be backfilled. The default stays `publish` by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1413
+* Add the `rest_coauthors_prepare_items` filter to limit, reorder or replace the co-authors returned by the `coauthors/v1/coauthors` endpoint, which the Co-Authors block reads by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1347
+* Add the `coauthors_rest_author_data` and `coauthors_ajax_suggest_author_data` filters to change the author data sent to the block editor and classic editor author search, for example to remove email addresses by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1480
+
+### Changed
+
+* Co-author permissions now use `map_meta_cap` instead of granting `edit_others_posts` through `user_has_cap`. Co-authors can now trash and delete posts they are credited on, within what their own role allows for their own posts by @faisalahammad and @miyanialkesh7 in https://github.com/Automattic/Co-Authors-Plus/pull/1484
+* The `coauthors/v1` endpoints return raw values instead of HTML-escaped ones, because a REST response can't know where it will be output by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1465
+* Multi-author queries (`author__in`, or a comma-separated `author`) use a single indexable `IN (...)` clause, making them faster on large sites by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1326
+* The guest author website field is now sanitized as a URL, so a value without a scheme gets one on save, and percent-encoded characters survive a second save. Stored values are unchanged until they are next saved by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1428
+* Guest authors created through WP-CLI and the CSV and WXR importers are sanitized the same way as on the Edit Guest Author screen by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1427
+* `wp co-authors-plus swap-coauthors` previews with `--dry-run`, and `wp co-authors-plus reassign-terms` takes `--old-term` and `--new-term` by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1372 and https://github.com/Automattic/Co-Authors-Plus/pull/1382
+* `wp co-authors-plus list-posts-without-terms` lists posts in every status, not just published ones, and its output is valid CSV by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1410
+* WP-CLI count messages are pluralized correctly and use localized number formatting by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1430
+
+### Deprecated
+
+* The `--dry` flag on `swap-coauthors`, and `--old_term` and `--new_term` on `reassign-terms`, still work but show a deprecation notice by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1372 and https://github.com/Automattic/Co-Authors-Plus/pull/1382
+* `CoAuthors_Plus::filter_user_has_cap()` is now a no-op, and `CoAuthors_Plus::get_to_be_filtered_caps()` is deprecated by @faisalahammad and @miyanialkesh7 in https://github.com/Automattic/Co-Authors-Plus/pull/1484
+
+### Removed
+
+* Remove the `CoAuthorsPlus_Command` class. Each WP-CLI command now lives in its own class under `php/cli/`, with the same command names by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1402, https://github.com/Automattic/Co-Authors-Plus/pull/1403, https://github.com/Automattic/Co-Authors-Plus/pull/1405, https://github.com/Automattic/Co-Authors-Plus/pull/1406, and https://github.com/Automattic/Co-Authors-Plus/pull/1407
+* Remove `CoAuthors_Guest_Authors::filter_wp_insert_post_empty_content()`, which could never take effect because guest authors don't support a title or editor by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1381
+
+### Fixed
+
+* Search in the block editor's author selector actually sends a request, so authors beyond the first page of results can be found by @davidsword in https://github.com/Automattic/Co-Authors-Plus/pull/1356
+* The block editor's Authors panel is populated on sites that override the `coauthors` REST field, for example with a long-standing `register_rest_field()` snippet by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1363
+* Co-author names with apostrophes or ampersands display correctly in the block editor by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1465
+* The Co-Authors block inside a Query Loop no longer causes WordPress 6.9 and later to drop global styles and core block stylesheets by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1454
+* The Co-Authors blocks no longer crash in the editor when the plugin runs as a must-use plugin or from a folder with a different name by @rubas in https://github.com/Automattic/Co-Authors-Plus/pull/1479
+* Synced patterns (`wp_block`) stay out of the supported post types now that WordPress 7.2 gives them `author` support. Add them back with the `coauthors_supported_post_types` filter by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1481
+* Fix a fatal error on category and tag archives when WordPress passes a `null` archive title by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1478
+* Comment notifications now go through WordPress's `comment_notification_recipients` filter and related filters, while still notifying every co-author by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1350
+* One author query no longer leaks its author terms into the next query in the same request, which could drop co-authored posts from the later query by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1378
+* An author is no longer silently dropped from a byline when their author term can't be created by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1368
+* Backslashes in guest author profile fields are no longer stripped on save by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1496
+* Creating a guest author whose login belongs to an existing WordPress user is refused, unless the profile is being linked to that user. Previously it took over the user's byline by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1426
+* The `coauthors/v1` read routes no longer rewrite author terms on every request by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1436
+* Fix PHP warnings from the Yoast SEO integration on author and term archives when Slack enhanced sharing data is enabled by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1373
+* `wp co-authors-plus swap-coauthors`: `--dry` no longer swaps for real when given without a value, the command can no longer loop forever when `--from` and `--to` match or differ only in case, and it warns about posts it can't see because they have no author term by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1372, https://github.com/Automattic/Co-Authors-Plus/pull/1376, and https://github.com/Automattic/Co-Authors-Plus/pull/1424
+* `wp co-authors-plus reassign-terms` loads the `--author-mapping` file, refuses to merge a term into itself (which left posts with no author), and no longer reports renames that failed by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1382 and https://github.com/Automattic/Co-Authors-Plus/pull/1411
+* `wp co-authors-plus assign-coauthors` no longer rewrites the same bylines on every run, and reports what it skipped by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1420
+* `assign-coauthors` and `swap-coauthors` report posts whose `post_author` couldn't follow the byline because no co-author is a WordPress user by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1416
+* `wp co-authors-plus create-author-terms-for-posts` validates its ID range, reports skipped posts, and writes terms through the taxonomy API so persistent object caches are cleared by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1419 and https://github.com/Automattic/Co-Authors-Plus/pull/1425
+* `wp co-authors-plus create-terms-for-posts` no longer counts posts with a missing author as updated by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1412
+* `wp co-authors-plus update-author-terms` includes draft guest authors and reports the corrected term counts by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1409
+* `wp co-authors-plus migrate-author-terms` only counts and iterates the terms it actually migrates by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1414
+* `wp co-authors-plus remove-terms-from-revisions` clears the configured author taxonomy rather than always `author` by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1408
+* `wp co-authors-plus delete-postmeta-that-skip-author-term-backfill` deletes the marker on every post, not just the first ten published posts, and carries on past a post that doesn't have it by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1379 and https://github.com/Automattic/Co-Authors-Plus/pull/1415
+* The guest author importers record `_original_author_id`, no longer emit undefined-key warnings, and handle a CSV row with only a first or last name. `create-author` now exits with an error when validation fails, instead of exiting 0 by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1418
+* `wp co-authors-plus create-guest-authors-from-wxr` reports a missing WordPress Importer, or a file that isn't valid WXR, instead of a fatal error by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1423 and https://github.com/Automattic/Co-Authors-Plus/pull/1429
+
+### Maintenance
+
+* Add Playwright end-to-end tests for managing co-authors in the block editor by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1324 and https://github.com/Automattic/Co-Authors-Plus/pull/1357
+* Add characterization and regression tests ahead of the WP-CLI refactor, and speed up the Behat suite by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1365, https://github.com/Automattic/Co-Authors-Plus/pull/1367, https://github.com/Automattic/Co-Authors-Plus/pull/1375, https://github.com/Automattic/Co-Authors-Plus/pull/1396, https://github.com/Automattic/Co-Authors-Plus/pull/1398, https://github.com/Automattic/Co-Authors-Plus/pull/1401, https://github.com/Automattic/Co-Authors-Plus/pull/1421, https://github.com/Automattic/Co-Authors-Plus/pull/1422, and https://github.com/Automattic/Co-Authors-Plus/pull/1466
+* Simplify internals with no change in behavior: one owner for the `cap-` prefix rules, a shared post-type guard for the author query filters, WP-CLI's own object cache flush, unconditional Bulk Edit hooks, and tidier block editor code by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1384, https://github.com/Automattic/Co-Authors-Plus/pull/1385, https://github.com/Automattic/Co-Authors-Plus/pull/1386, https://github.com/Automattic/Co-Authors-Plus/pull/1387, https://github.com/Automattic/Co-Authors-Plus/pull/1388, https://github.com/Automattic/Co-Authors-Plus/pull/1389, https://github.com/Automattic/Co-Authors-Plus/pull/1390, https://github.com/Automattic/Co-Authors-Plus/pull/1391, https://github.com/Automattic/Co-Authors-Plus/pull/1392, https://github.com/Automattic/Co-Authors-Plus/pull/1393, https://github.com/Automattic/Co-Authors-Plus/pull/1394, https://github.com/Automattic/Co-Authors-Plus/pull/1395, and https://github.com/Automattic/Co-Authors-Plus/pull/1399
+* Remove the orphaned `upgrade.php` 1.x-to-2.0 migration routine, which was never loaded by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1404
+* Keep development config files out of the released plugin by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1383
+* Upgrade `@wordpress/scripts` to 36, move JavaScript tests to Vitest, absorb formatting and coding standards drift, and remove the unused version bump scripts by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1361, https://github.com/Automattic/Co-Authors-Plus/pull/1364, https://github.com/Automattic/Co-Authors-Plus/pull/1464, and https://github.com/Automattic/Co-Authors-Plus/pull/1472
+* Add a guide to querying posts by author or co-author, document the `create()` sanitization contract, correct the documented default for `coauthors_supported_post_types`, add a security policy, and note that commits must be signed by @faisalahammad and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1345, https://github.com/Automattic/Co-Authors-Plus/pull/1442, https://github.com/Automattic/Co-Authors-Plus/pull/1374, https://github.com/Automattic/Co-Authors-Plus/pull/1458, and https://github.com/Automattic/Co-Authors-Plus/pull/1459
+* Update development dependencies and GitHub Actions by @dependabot
+
 ## [4.1.2] - 2026-10-21
 
 ### Security
@@ -739,6 +812,7 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
+[Unreleased]: https://github.com/automattic/co-authors-plus/compare/4.1.2...develop
 [4.1.2]: https://github.com/automattic/co-authors-plus/compare/4.1.1...4.1.2
 [4.1.1]: https://github.com/automattic/co-authors-plus/compare/4.1.0...4.1.1
 [4.1.0]: https://github.com/automattic/co-authors-plus/compare/4.0.2...4.1.0
