@@ -44,13 +44,23 @@ Co-Authors Plus also keeps `post_author` in step with the new list, using a co-a
 
 If you narrow a post response with `_fields`, include `coauthors` when you need it; otherwise the field is left out. Co-Authors Plus 4.0.0 wrongly treated a missing field as "no co-authors" and overwrote them. See [Recovering from the 4.0.0 REST backfill regression](./recovering-from-4.0.0.md).
 
+### `coauthor_roles` field
+
+Post responses also have a `coauthor_roles` field: each co-author's role on that post, keyed by author term ID. Co-authors without a role are left out, and an empty field is `{}`.
+
+```json
+{ "coauthors": [ 13, 15 ], "coauthor_roles": { "15": "Photographer" } }
+```
+
+Send the field to replace all roles on the post. Empty roles, and roles for term IDs that are not co-authors of the post, are dropped. It can be sent together with `coauthors`, so a new co-author can get a role in the same request. Only users who can set co-authors can write it; others get `rest_cannot_set_coauthor_roles` (401 or 403). It is a REST field, so it works for post types that don't support custom fields. Roles are stored in the `_coauthor_roles` post meta.
+
 ## Plugin endpoints (`coauthors/v1`)
 
 These predate the core-integration approach and are used internally by the admin UIs. They remain supported.
 
 ### `GET /coauthors/v1/coauthors?post_id={id}`
 
-Returns the co-authors of a given post, in byline order. Each item has `id`, `display_name`, `description` (`raw` and `rendered`), `user_nicename`, `link`, `featured_media` and, when the site shows avatars, `avatar_urls`.
+Returns the co-authors of a given post, in byline order. Each item has `id`, `display_name`, `description` (`raw` and `rendered`), `user_nicename`, `link`, `featured_media`, `role` and, when the site shows avatars, `avatar_urls`.
 
 ```json
 [
@@ -64,6 +74,7 @@ Returns the co-authors of a given post, in byline order. Each item has `id`, `di
     "user_nicename": "ada-lovelace",
     "link": "https://example.com/author/ada-lovelace/",
     "featured_media": 108,
+    "role": "Writer",
     "avatar_urls": { "24": "…", "48": "…", "96": "…" }
   }
 ]
@@ -72,6 +83,7 @@ Returns the co-authors of a given post, in byline order. Each item has `id`, `di
 - `id` is the user ID for a registered user, or the guest author's post ID.
 - `description.raw` is the user's biographical info, or the guest author's description field. It is returned to every requester who passes the permission check below.
 - `featured_media` is the guest author's avatar image (the post thumbnail ID), or `0`. It is always `0` for registered users.
+- `role` is the co-author's role on this post, or an empty string. The single co-author endpoint below returns it only when you pass a `post_id` for a post the requester can read. Otherwise it is empty.
 - The response has no email address.
 
 **Parameters**
@@ -92,7 +104,7 @@ The response array passes through the `rest_coauthors_prepare_items` filter (add
 
 ### `GET /coauthors/v1/coauthors/{user_nicename}`
 
-Returns a single co-author by user nicename (slug), in the same shape as an item from the endpoint above. The nicename is sanitized with `sanitize_title()`.
+Returns a single co-author by user nicename (slug), in the same shape as an item from the endpoint above. The nicename is sanitized with `sanitize_title()`. Add an optional `post_id` query parameter to get the co-author's `role` on that post. It is filled only when the post is publicly viewable or the requester can read it.
 
 **Permission**
 

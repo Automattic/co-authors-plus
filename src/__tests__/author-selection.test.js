@@ -37,6 +37,13 @@ vi.mock( '@wordpress/components', () => ( {
 	),
 	Flex: ( { children } ) => <div>{ children }</div>,
 	FlexItem: ( { children } ) => <div>{ children }</div>,
+	TextControl: ( { label, value, onChange } ) => (
+		<input
+			aria-label={ label }
+			value={ value }
+			onChange={ ( event ) => onChange( event.target.value ) }
+		/>
+	),
 } ) );
 
 vi.mock( '@wordpress/icons', () => ( {
@@ -130,5 +137,55 @@ describe( 'AuthorsSelection', () => {
 			selectedAuthors[ 2 ],
 			selectedAuthors[ 3 ],
 		] );
+	} );
+
+	describe( 'role field', () => {
+		const authorsWithTerms = selectedAuthors.map( ( author, i ) => ( {
+			...author,
+			termId: 10 + i,
+		} ) );
+
+		it( 'is hidden when no updateRole is passed', () => {
+			renderSelection( authorsWithTerms );
+
+			expect( screen.queryByRole( 'textbox' ) ).toBeNull();
+		} );
+
+		it( 'shows the saved role and reports changes by term ID', () => {
+			const updateRole = vi.fn();
+			render(
+				<AuthorsSelection
+					selectedAuthors={ authorsWithTerms }
+					updateAuthors={ vi.fn() }
+					roles={ { 11: 'Photographer' } }
+					updateRole={ updateRole }
+				/>
+			);
+
+			const field = screen.getByRole( 'textbox', {
+				name: 'Role for Chanda Prescod-Weinstein',
+			} );
+			expect( field.value ).toBe( 'Photographer' );
+			expect(
+				screen.getByRole( 'textbox', { name: 'Role for Ruby Bridges' } )
+					.value
+			).toBe( '' );
+
+			fireEvent.change( field, { target: { value: 'Writer' } } );
+
+			expect( updateRole ).toHaveBeenCalledWith( 11, 'Writer' );
+		} );
+
+		it( 'skips authors without a term ID', () => {
+			render(
+				<AuthorsSelection
+					selectedAuthors={ selectedAuthors }
+					updateAuthors={ vi.fn() }
+					updateRole={ vi.fn() }
+				/>
+			);
+
+			expect( screen.queryByRole( 'textbox' ) ).toBeNull();
+		} );
 	} );
 } );

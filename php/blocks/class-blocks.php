@@ -62,6 +62,9 @@ class Blocks {
 
 		require_once __DIR__ . '/block-coauthor-image/class-block-coauthor-image.php';
 		Blocks\Block_CoAuthor_Image::register_block();
+
+		require_once __DIR__ . '/block-coauthor-role/class-block-coauthor-role.php';
+		Blocks\Block_CoAuthor_Role::register_block();
 	}
 
 	/**
@@ -150,6 +153,7 @@ class Blocks {
 					'link'           => '#',
 					'featured_media' => 0,
 					'avatar_urls'    => array_map( '__return_empty_string', array_flip( rest_get_avatar_sizes() ) ),
+					'role'           => __( 'Role', 'co-authors-plus' ),
 				),
 			)
 		);

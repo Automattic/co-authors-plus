@@ -122,6 +122,24 @@ is_coauthor_for_post( $user, $post_id = 0 );
 
 Returns `true` if `$user` is a co-author of the post, either directly or through a linked guest author. `$user` is a user ID or a co-author object. With no `$post_id`, it uses the current post.
 
+### `get_coauthor_role()`
+
+```php
+get_coauthor_role( $coauthor, $post_id = 0 );
+```
+
+Returns a co-author's role on a post, like `Photographer`, or an empty string when none is set. `$coauthor` is a co-author object, for example from `get_coauthors()`. With no `$post_id`, it uses the current post. Roles are set per post in the Authors box. The value is raw, so escape it on output:
+
+```php
+foreach ( get_coauthors() as $coauthor ) {
+	$role = get_coauthor_role( $coauthor );
+	echo esc_html( $coauthor->display_name );
+	if ( $role ) {
+		echo ', ' . esc_html( $role );
+	}
+}
+```
+
 ### `get_the_coauthor_meta()` and `the_coauthor_meta()`
 
 ```php

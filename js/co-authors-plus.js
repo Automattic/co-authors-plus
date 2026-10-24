@@ -43,8 +43,15 @@ jQuery( document ).ready( function( $ ) {
 			.append( coauthors_create_author_gravatar( author ) )
 			.show();
 
+		var $input = $co.siblings( 'input[name="coauthors[]"]' );
+
+		// The role belonged to the previous author
+		if ( $input.val() !== author.nicename ) {
+			$co.siblings( '.coauthor-role' ).val( '' );
+		}
+
 		// Update the value of the hidden input
-		$co.siblings( 'input[name="coauthors[]"]' ).val( author.nicename );
+		$input.val( author.nicename );
 	}
 
 	/*
@@ -65,10 +72,11 @@ jQuery( document ).ready( function( $ ) {
 			}
 			var $tag = coauthors_create_author_tag( author );
 			var $input = coauthors_create_author_hidden_input( author );
+			var $role = coauthors_create_author_role_input( author );
 			var $gravatar = coauthors_create_author_gravatar( author );
 
 			$tag.append( $gravatar );
-			coauthors_add_to_table( $co, $tag, $input, options );
+			coauthors_add_to_table( $co, $tag, $input, options, $role );
 
 			if ( ! init ) {
 				// Create new autocomplete and append it to a new row
@@ -89,7 +97,7 @@ jQuery( document ).ready( function( $ ) {
 	/*
 	 * Add the autocomplete box and text tag to the Co-Authors table
 	 */
-	function coauthors_add_to_table( $co, $tag, $input, options ) {
+	function coauthors_add_to_table( $co, $tag, $input, options, $role ) {
 		if ( $co ) {
 			var $div = $( '<div/>' )
 				.addClass( 'suggest' )
@@ -102,6 +110,9 @@ jQuery( document ).ready( function( $ ) {
 			if ( $tag ) {
 				coauthors_insert_author_edit_cells( $div, options );
 			}
+
+			// Role goes on its own line under the author
+			$div.append( $role );
 
 			$( '#coauthors-list' ).append( $div );
 		}
@@ -260,6 +271,31 @@ jQuery( document ).ready( function( $ ) {
 		} );
 	}
 
+	/*
+	 * Creates the role input for a co-author. Quick Edit and Bulk Edit don't save roles, so only the post edit screen gets it.
+	 */
+	function coauthors_create_author_role_input( author ) {
+		if ( 'post-php' !== adminpage && 'post-new-php' !== adminpage ) {
+			return null;
+		}
+
+		return $( '<input />' )
+			.attr( {
+				'type': 'text',
+				'class': 'coauthor-role',
+				'name': 'coauthorsroles[]',
+				'placeholder': coAuthorsPlusStrings.role_help,
+				'aria-label': coAuthorsPlusStrings.role_label
+			} )
+			.val( author.role || '' )
+			.on( 'keydown', function( e ) {
+				// Prevent enter key from submitting form
+				if ( e.keyCode === 13 ) {
+					return false;
+				}
+			} );
+	}
+
 	var $coauthors_div = null;
 	var coauthors_initialized_on_bulk_edit = false;
 
@@ -284,7 +320,8 @@ jQuery( document ).ready( function( $ ) {
 				label: this.name,
 				email: this.email,
 				nicename: this.nicename,
-				avatar: this.avatar
+				avatar: this.avatar,
+				role: this.role
 			};
 			coauthors_add_coauthor( author, undefined, true, count );
 			count++;
@@ -331,6 +368,7 @@ jQuery( document ).ready( function( $ ) {
 		var $post_coauthor_emails = $( 'input[name="coauthorsemails[]"]' );
 		var $post_coauthor_nicenames = $( 'input[name="coauthorsnicenames[]"]' );
 		var $post_coauthoravatars = $( 'input[name="coauthorsavatars[]"]' );
+		var $post_coauthor_roles = $( 'input[name="coauthorsroles[]"]' );
 
 		var post_coauthors = [];
 
@@ -340,7 +378,8 @@ jQuery( document ).ready( function( $ ) {
 				name: $post_coauthor_names[ i ].value,
 				email: $post_coauthor_emails[ i ].value,
 				nicename: $post_coauthor_nicenames[ i ].value,
-				avatar: $post_coauthoravatars[ i ].value
+				avatar: $post_coauthoravatars[ i ].value,
+				role: $post_coauthor_roles[ i ] ? $post_coauthor_roles[ i ].value : ''
 			} );
 		}
 

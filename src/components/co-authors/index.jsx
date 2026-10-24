@@ -71,24 +71,28 @@ const CoAuthors = () => {
 	 * re-renders this component continuously and cancels the debounced search
 	 * below before it can fire.
 	 */
-	const { coauthorTermIdsKey, hasResolvedPost, postIdFallback } = useSelect(
-		( select ) => {
-			const { getEditedPostAttribute, getCurrentPostId } =
-				select( 'core/editor' );
-			const coauthors = getEditedPostAttribute( 'coauthors' );
-			return {
-				coauthorTermIdsKey: extractTermIds( coauthors ).join( ',' ),
-				hasResolvedPost: coauthors !== undefined,
-				// When the post has co-authors but their stored shape yields no
-				// term IDs (e.g. a third-party REST override), resolve them by
-				// post ID instead so the panel still populates.
-				postIdFallback: needsPostIdFallback( coauthors )
-					? getCurrentPostId()
-					: null,
-			};
-		},
-		[]
-	);
+	const {
+		coauthorTermIdsKey,
+		coauthorRoles,
+		hasResolvedPost,
+		postIdFallback,
+	} = useSelect( ( select ) => {
+		const { getEditedPostAttribute, getCurrentPostId } =
+			select( 'core/editor' );
+		const coauthors = getEditedPostAttribute( 'coauthors' );
+		return {
+			coauthorTermIdsKey: extractTermIds( coauthors ).join( ',' ),
+			// The store keeps the same object until it is edited, so this is stable.
+			coauthorRoles: getEditedPostAttribute( 'coauthor_roles' ),
+			hasResolvedPost: coauthors !== undefined,
+			// When the post has co-authors but their stored shape yields no
+			// term IDs (e.g. a third-party REST override), resolve them by
+			// post ID instead so the panel still populates.
+			postIdFallback: needsPostIdFallback( coauthors )
+				? getCurrentPostId()
+				: null,
+		};
+	}, [] );
 
 	/**
 	 * Rebuild the term ID array from the stable key, so consumers below keep a
@@ -181,6 +185,21 @@ const CoAuthors = () => {
 	};
 
 	/**
+	 * Setter for one author's role on this post.
+	 *
+	 * The server drops empty roles and roles of authors who are no longer on
+	 * the post, so the edit can keep them.
+	 *
+	 * @param {number} termId Author term ID.
+	 * @param {string} role   New role.
+	 */
+	const updateRole = ( termId, role ) => {
+		editPost( {
+			coauthor_roles: { ...coauthorRoles, [ termId ]: role },
+		} );
+	};
+
+	/**
 	 * Change handler for adding new item by value.
 	 * Updates authors state via the core entity.
 	 *
@@ -247,6 +266,8 @@ const CoAuthors = () => {
 				<AuthorsSelection
 					selectedAuthors={ selectedAuthors }
 					updateAuthors={ updateAuthors }
+					roles={ coauthorRoles }
+					updateRole={ updateRole }
 				/>
 			) }
 

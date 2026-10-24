@@ -100,6 +100,33 @@ function is_coauthor_for_post( $user, $post_id = 0 ) {
 }
 
 /**
+ * Get a co-author's role on a post, like "Photographer".
+ *
+ * Roles are set per post in the Authors box. The value is raw, so escape it
+ * before output.
+ *
+ * @since 4.2.0
+ *
+ * @param WP_User|stdClass $coauthor Co-author object, for example from get_coauthors().
+ * @param int              $post_id  Optional. Post ID. Defaults to the current post in the loop.
+ * @return string The role, or an empty string when none is set.
+ */
+function get_coauthor_role( $coauthor, $post_id = 0 ) {
+	global $post, $coauthors_plus;
+
+	$post_id = (int) $post_id;
+	if ( ! $post_id && $post ) {
+		$post_id = $post->ID;
+	}
+
+	if ( ! $post_id || ! is_object( $coauthor ) ) {
+		return '';
+	}
+
+	return $coauthors_plus->get_coauthor_role( $coauthor, $post_id );
+}
+
+/**
  * Render or return a list of co-author values joined by configurable separators.
  *
  * Shared helper behind the various `coauthors_*()` template tags. Iterates over

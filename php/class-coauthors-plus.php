@@ -11,6 +11,14 @@ class CoAuthors_Plus {
 	// and the post type we're using to store guest authors
 	public $coauthor_taxonomy = 'author';
 
+	/**
+	 * Post meta for per-post co-author roles: role labels keyed by author term ID.
+	 *
+	 * @since 4.2.0
+	 * @var string
+	 */
+	public $coauthor_roles_meta_key = '_coauthor_roles';
+
 	public $coreauthors_meta_box_name = 'authordiv';
 	public $coauthors_meta_box_name   = 'coauthorsdiv';
 	public $force_guest_authors       = false;
@@ -302,6 +310,22 @@ class CoAuthors_Plus {
 		foreach ( $this->supported_post_types() as $post_type ) {
 			add_filter( "rest_pre_insert_{$post_type}", array( $this, 'set_post_author_for_rest_save' ), 10, 2 );
 			add_action( "rest_after_insert_{$post_type}", array( $this, 'sync_coauthors_on_rest_save' ), 10, 2 );
+
+			// A REST field, not post meta, so it works for post types without custom-fields support.
+			register_rest_field(
+				$post_type,
+				'coauthor_roles',
+				array(
+					'get_callback'    => array( $this, 'rest_get_coauthor_roles' ),
+					'update_callback' => array( $this, 'rest_update_coauthor_roles' ),
+					'schema'          => array(
+						'description'          => __( 'Co-author roles for this post, keyed by author term ID.', 'co-authors-plus' ),
+						'type'                 => 'object',
+						'context'              => array( 'view', 'edit' ),
+						'additionalProperties' => array( 'type' => 'string' ),
+					),
+				)
+			);
 		}
 	}
 
@@ -602,6 +626,7 @@ class CoAuthors_Plus {
 							<input type="text" name="coauthorsemails[]" value="<?php echo esc_attr( $coauthor->user_email ); ?>" />
 							<input type="text" name="coauthorsnicenames[]" value="<?php echo esc_attr( $coauthor->user_nicename ); ?>" />
 							<input type="hidden" name="coauthorsavatars[]" value="<?php echo esc_url( $avatar_url ); ?>" />
+							<input type="text" name="coauthorsroles[]" value="<?php echo esc_attr( $this->get_coauthor_role( $coauthor, $post_id ) ); ?>" aria-label="<?php esc_attr_e( 'Role', 'co-authors-plus' ); ?>" />
 						</span>
 					</li>
 					<?php
@@ -1685,6 +1710,11 @@ class CoAuthors_Plus {
 			$coauthors = (array) wp_unslash( $_POST['coauthors'] );
 			$coauthors = array_map( 'sanitize_title', $coauthors );
 			$this->add_coauthors( $post_id, $coauthors );
+
+			// Quick Edit posts authors without roles, so only touch roles when the form sent them.
+			if ( isset( $_POST['coauthorsroles'] ) ) {
+				$this->save_posted_coauthor_roles( $post_id, $coauthors, (array) wp_unslash( $_POST['coauthorsroles'] ) );
+			}
 		} else {
 			// If a co-author isn't currently set, we need to explicitly set one.
 			// This covers both classic and REST-created posts (e.g. auto-drafts).
@@ -1695,6 +1725,157 @@ class CoAuthors_Plus {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Save the roles posted from the classic Authors box.
+	 *
+	 * The box sends one role per author row, in the same order as the authors.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param int   $post_id   Post ID.
+	 * @param array $coauthors Posted co-author names.
+	 * @param array $roles     Posted roles.
+	 */
+	public function save_posted_coauthor_roles( $post_id, $coauthors, $roles ): void {
+		$coauthors      = array_values( $coauthors );
+		$roles          = array_values( $roles );
+		$roles_by_terms = array();
+
+		foreach ( $coauthors as $i => $author_name ) {
+			if ( ! isset( $roles[ $i ] ) ) {
+				continue;
+			}
+
+			$field  = apply_filters( 'coauthors_post_get_coauthor_by_field', 'user_nicename', $author_name );
+			$author = $this->get_coauthor_by( $field, $author_name );
+			$term   = $author ? $this->get_author_term( $author ) : false;
+
+			if ( $term ) {
+				$roles_by_terms[ $term->term_id ] = $roles[ $i ];
+			}
+		}
+
+		$this->set_coauthor_roles( $post_id, $roles_by_terms );
+	}
+
+	/**
+	 * Get the co-author roles saved for a post.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param int $post_id Post ID.
+	 * @return array Role labels keyed by author term ID.
+	 */
+	public function get_coauthor_roles( $post_id ): array {
+		$roles = get_post_meta( (int) $post_id, $this->coauthor_roles_meta_key, true );
+
+		return is_array( $roles ) ? $roles : array();
+	}
+
+	/**
+	 * Get a co-author's role on a post.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param WP_User|stdClass $coauthor Co-author object.
+	 * @param int              $post_id  Post ID.
+	 * @return string The role, or an empty string when none is set.
+	 */
+	public function get_coauthor_role( $coauthor, $post_id ): string {
+		$term = $this->get_author_term( $coauthor );
+
+		if ( ! $term ) {
+			return '';
+		}
+
+		$roles = $this->get_coauthor_roles( $post_id );
+
+		return isset( $roles[ $term->term_id ] ) ? (string) $roles[ $term->term_id ] : '';
+	}
+
+	/**
+	 * Save the co-author roles for a post.
+	 *
+	 * Replaces all saved roles. Empty roles, and roles for authors who are not
+	 * on the post, are dropped.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param int   $post_id Post ID.
+	 * @param array $roles   Role labels keyed by author term ID.
+	 */
+	public function set_coauthor_roles( $post_id, $roles ): void {
+		$post_id  = (int) $post_id;
+		$term_ids = wp_get_object_terms( $post_id, $this->coauthor_taxonomy, array( 'fields' => 'ids' ) );
+
+		if ( is_wp_error( $term_ids ) ) {
+			return;
+		}
+
+		$term_ids = array_map( 'intval', $term_ids );
+		$clean    = array();
+
+		foreach ( (array) $roles as $term_id => $role ) {
+			if ( ! is_scalar( $role ) ) {
+				continue;
+			}
+
+			$term_id = absint( $term_id );
+			$role    = sanitize_text_field( (string) $role );
+
+			if ( '' !== $role && in_array( $term_id, $term_ids, true ) ) {
+				$clean[ $term_id ] = $role;
+			}
+		}
+
+		if ( empty( $clean ) ) {
+			delete_post_meta( $post_id, $this->coauthor_roles_meta_key );
+			return;
+		}
+
+		// update_post_meta() unslashes its value, so slash it first to keep backslashes.
+		update_post_meta( $post_id, $this->coauthor_roles_meta_key, wp_slash( $clean ) );
+	}
+
+	/**
+	 * REST get callback for the coauthor_roles field.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param array $post Prepared post data.
+	 * @return object Role labels keyed by author term ID.
+	 */
+	public function rest_get_coauthor_roles( $post ) {
+		// Cast to an object so an empty value is sent as {} and not [].
+		return (object) $this->get_coauthor_roles( $post['id'] );
+	}
+
+	/**
+	 * REST update callback for the coauthor_roles field.
+	 *
+	 * Runs after the post's author terms are saved, so new authors can get a role
+	 * in the same request.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param array   $roles Role labels keyed by author term ID.
+	 * @param WP_Post $post  Post being saved.
+	 * @return true|WP_Error
+	 */
+	public function rest_update_coauthor_roles( $roles, $post ) {
+		if ( ! $this->current_user_can_set_authors() ) {
+			return new WP_Error(
+				'rest_cannot_set_coauthor_roles',
+				__( 'Sorry, you are not allowed to set co-author roles.', 'co-authors-plus' ),
+				array( 'status' => rest_authorization_required_code() )
+			);
+		}
+
+		$this->set_coauthor_roles( $post->ID, (array) $roles );
+
+		return true;
 	}
 
 	public function has_author_terms( $post_id ): bool {
@@ -1777,6 +1958,12 @@ class CoAuthors_Plus {
 		 * round-trip: the read path orders by term_order ASC.
 		 */
 		wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
+
+		// Drop roles of authors who were just removed from the post.
+		$roles = $this->get_coauthor_roles( $post_id );
+		if ( ! empty( $roles ) ) {
+			$this->set_coauthor_roles( $post_id, $roles );
+		}
 
 		// If the original post_author is no longer assigned,
 		// update to the first WP_User $coauthor
@@ -2292,6 +2479,8 @@ class CoAuthors_Plus {
 			'input_box_title' => __( 'Click to change this author, or drag to change their position', 'co-authors-plus' ),
 			'search_box_text' => __( 'Search for an author', 'co-authors-plus' ),
 			'help_text'       => __( 'Click on an author to change them. Drag to change their order. Click on <strong>Remove</strong> to remove them.', 'co-authors-plus' ),
+			'role_label'      => __( 'Role', 'co-authors-plus' ),
+			'role_help'       => __( 'Optional, for example Photographer', 'co-authors-plus' ),
 		);
 		wp_localize_script( 'co-authors-plus-js', 'coAuthorsPlusStrings', $js_strings );
 

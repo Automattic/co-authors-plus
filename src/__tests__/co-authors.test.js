@@ -264,4 +264,27 @@ describe( 'CoAuthors selection wiring', () => {
 
 		expect( editPost ).toHaveBeenCalledWith( { coauthors: [ 7, 8 ] } );
 	} );
+
+	it( 'merges an edited role into the saved roles', async () => {
+		const editPost = vi.fn();
+		useDispatch.mockReturnValue( { editPost } );
+		useSelect.mockReturnValue( {
+			coauthorTermIdsKey: '',
+			coauthorRoles: { 7: 'Writer' },
+			hasResolvedPost: true,
+		} );
+
+		render( <CoAuthors /> );
+		await act( async () => {} );
+
+		expect( selectionProps.roles ).toStrictEqual( { 7: 'Writer' } );
+
+		act( () => {
+			selectionProps.updateRole( 8, 'Photographer' );
+		} );
+
+		expect( editPost ).toHaveBeenCalledWith( {
+			coauthor_roles: { 7: 'Writer', 8: 'Photographer' },
+		} );
+	} );
 } );

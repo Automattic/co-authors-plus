@@ -2,8 +2,8 @@
  * WordPress dependencies.
  */
 import { chevronUp, chevronDown, close } from '@wordpress/icons';
-import { Button, Flex, FlexItem } from '@wordpress/components';
-import { __ } from '@wordpress/i18n';
+import { Button, Flex, FlexItem, TextControl } from '@wordpress/components';
+import { __, sprintf } from '@wordpress/i18n';
 
 /**
  * Utils
@@ -16,10 +16,17 @@ import { moveItem, removeItem } from '../../utils';
  * @param {Object}   param0                 props.
  * @param {Array}    param0.selectedAuthors selected authors array.
  * @param {Function} param0.updateAuthors   function to set selected authors.
+ * @param {Object}   param0.roles           roles keyed by author term ID.
+ * @param {Function} param0.updateRole      optional, called with term ID and role. No role field without it.
  *
  * @return {Element} Element to render.
  */
-const AuthorsSelection = ( { selectedAuthors, updateAuthors } ) => {
+const AuthorsSelection = ( {
+	selectedAuthors,
+	updateAuthors,
+	roles = {},
+	updateRole,
+} ) => {
 	/**
 	 *
 	 * @param {Object} author author object.
@@ -107,6 +114,27 @@ const AuthorsSelection = ( { selectedAuthors, updateAuthors } ) => {
 						</Flex>
 					</FlexItem>
 				</Flex>
+				{ updateRole && author.termId ? (
+					<TextControl
+						className="cap-author-role"
+						label={ sprintf(
+							/* translators: %s: author display name */
+							__( 'Role for %s', 'co-authors-plus' ),
+							display
+						) }
+						hideLabelFromVision
+						placeholder={ __(
+							'Role (optional)',
+							'co-authors-plus'
+						) }
+						value={ roles?.[ author.termId ] ?? '' }
+						onChange={ ( role ) =>
+							updateRole( author.termId, role )
+						}
+						__next40pxDefaultSize
+						__nextHasNoMarginBottom
+					/>
+				) : null }
 			</div>
 		);
 	} );

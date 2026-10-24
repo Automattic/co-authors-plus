@@ -12,6 +12,8 @@ module.exports = {
 			'./src/blocks/block-coauthor-image/index.js',
 		'blocks/block-coauthor-name/index':
 			'./src/blocks/block-coauthor-name/index.js',
+		'blocks/block-coauthor-role/index':
+			'./src/blocks/block-coauthor-role/index.js',
 		'blocks/block-coauthors/index': './src/blocks/block-coauthors/index.js',
 		'blocks-store/index': './src/blocks-store/index.js',
 	},

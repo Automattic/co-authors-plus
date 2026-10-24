@@ -290,7 +290,7 @@ class CoAuthorsControllerTest extends TestCase {
 		update_option( 'show_avatars', '0' );
 
 		$this->assertSame(
-			array( 'id', 'display_name', 'description', 'user_nicename', 'link', 'featured_media' ),
+			array( 'id', 'display_name', 'description', 'user_nicename', 'link', 'featured_media', 'role' ),
 			array_keys( $this->controller->get_item_schema()['properties'] )
 		);
 	}

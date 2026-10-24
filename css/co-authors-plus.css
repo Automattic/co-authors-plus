@@ -80,6 +80,13 @@
 	color: #333;
 }
 
+#coauthors-list .coauthor-role {
+	clear: both;
+	display: block;
+	width: 200px;
+	margin: 4px 0 8px;
+}
+
 #coauthors-list .coauthors-author-options {
 	overflow: hidden;
 	padding: 7px 0 0 7px;

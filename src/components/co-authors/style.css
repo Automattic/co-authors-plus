@@ -17,3 +17,7 @@
 .cap-icon-button-stack .cap-icon-button:nth-child(2n) {
 	padding-top: 0;
 }
+
+.cap-author-role {
+	margin-bottom: 8px;
+}

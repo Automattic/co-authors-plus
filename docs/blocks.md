@@ -1,6 +1,6 @@
 # Blocks
 
-Co-Authors Plus registers five blocks in the Theme category. Use them in block themes, in templates and template parts, and inside a Query Loop. For classic themes, see [Template tags](./template-tags.md).
+Co-Authors Plus registers six blocks in the Theme category. Use them in block themes, in templates and template parts, and inside a Query Loop. For classic themes, see [Template tags](./template-tags.md).
 
 | Block | Name | Shows |
 | --- | --- | --- |
@@ -9,6 +9,7 @@ Co-Authors Plus registers five blocks in the Theme category. Use them in block t
 | Co-Author Avatar | `co-authors-plus/avatar` | A small avatar |
 | Co-Author Biography | `co-authors-plus/description` | The co-author's biographical info |
 | Co-Author Featured Image | `co-authors-plus/image` | A guest author's featured image at a theme image size |
+| Co-Author Role | `co-authors-plus/role` | The co-author's role on this post, like Photographer |
 
 ## Co-Authors
 
@@ -103,6 +104,12 @@ Shows a guest author's featured image (the avatar uploaded to the media library)
 | `verticalAlign` | | Vertical alignment, in the inline layout. |
 
 It supports border, margin and padding.
+
+## Co-Author Role
+
+Shows the co-author's role on the current post, for example Writer or Photographer. Set roles per post in the Authors panel of the block editor, or in the Authors box of the classic editor. The block outputs nothing for a co-author with no role. It supports text alignment, colors, typography, margin and padding.
+
+In the editor, the block shows the role saved with the post, so save the post to see a changed role.
 
 ## Block context
 

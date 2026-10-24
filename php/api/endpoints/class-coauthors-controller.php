@@ -419,6 +419,12 @@ class CoAuthors_Controller extends WP_REST_Controller {
 					'context'     => array( 'view' ),
 					'readonly'    => true,
 				),
+				'role'           => array(
+					'description' => __( 'Role of the author on the requested post. Empty when no post is requested.', 'co-authors-plus' ),
+					'type'        => 'string',
+					'context'     => array( 'view' ),
+					'readonly'    => true,
+				),
 			),
 		);
 
@@ -524,6 +530,14 @@ class CoAuthors_Controller extends WP_REST_Controller {
 
 		if ( rest_is_field_included( 'user_nicename', $fields ) ) {
 			$data['user_nicename'] = (string) $author->user_nicename;
+		}
+
+		if ( rest_is_field_included( 'role', $fields ) ) {
+			$post_id = (int) $request->get_param( 'post_id' );
+
+			// The single author route takes any post_id without checking it, so check read access here.
+			$can_read_post = $post_id && true === $this->get_items_permissions_check( $request );
+			$data['role']  = $can_read_post ? $this->coauthors_plus->get_coauthor_role( $author, $post_id ) : '';
 		}
 
 		$context = ! empty( $request['context'] ) ? $request['context'] : 'view';
