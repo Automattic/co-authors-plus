@@ -8,7 +8,8 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * If the post has co-author terms assigned, returns the matching co-author
  * objects (guest authors or WP users). Otherwise, falls back to the WordPress
- * post author unless `$force_guest_authors` is enabled. Duplicates that arise
+ * post author unless `$force_guest_authors` is enabled, resolving to that
+ * author's mapped guest author profile when one exists. Duplicates that arise
  * from a guest author being linked to a WP user account are removed.
  *
  * @param int $post_id Optional. Post ID to fetch co-authors for. Defaults to the current post in the loop.
@@ -40,10 +41,13 @@ function get_coauthors( $post_id = 0 ) {
 			}
 		} elseif ( ! $coauthors_plus->force_guest_authors ) {
 			if ( $post && $post_id == $post->ID ) {
-				$post_author = get_userdata( $post->post_author );
+				$post_author_id = $post->post_author;
 			} else {
-				$post_author = get_userdata( $wpdb->get_var( $wpdb->prepare( "SELECT post_author FROM $wpdb->posts WHERE ID = %d", $post_id ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fallback when coauthor terms are empty, result is stable per post.
+				$post_author_id = $wpdb->get_var( $wpdb->prepare( "SELECT post_author FROM $wpdb->posts WHERE ID = %d", $post_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fallback when coauthor terms are empty, result is stable per post.
 			}
+			// Resolve through get_coauthor_by() so a WP user with a mapped guest author
+			// profile resolves to that profile, matching how coauthor terms are resolved above.
+			$post_author = $coauthors_plus->get_coauthor_by( 'id', $post_author_id );
 			if ( ! empty( $post_author ) ) {
 				$coauthors[] = $post_author;
 			}
