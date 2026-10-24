@@ -261,6 +261,11 @@ class CoAuthors_Guest_Authors {
 			wp_die( esc_html__( "Guest author can't be deleted because it doesn't exist.", 'co-authors-plus' ) );
 		}
 
+		// The manage cap can be lowered by filter; deleting still needs rights to this profile.
+		if ( ! current_user_can( 'delete_post', $guest_author->ID ) ) {
+			wp_die( esc_html__( "You don't have permission to delete this guest author.", 'co-authors-plus' ) );
+		}
+
 		// Perform the reassignment if needed
 		$guest_author_term = $coauthors_plus->get_author_term( $guest_author );
 		switch ( wp_unslash( $_POST['reassign'] ) ) {
@@ -607,6 +612,10 @@ class CoAuthors_Guest_Authors {
 			$guest_author = $this->get_guest_author_by( 'ID', (int) $_GET['id'] );
 			if ( ! $guest_author ) {
 				wp_die( esc_html__( "Guest author can't be deleted because it doesn't exist.", 'co-authors-plus' ) );
+			}
+
+			if ( ! current_user_can( 'delete_post', $guest_author->ID ) ) {
+				wp_die( esc_html__( "You don't have permission to delete this guest author.", 'co-authors-plus' ) );
 			}
 
 			// get post count
