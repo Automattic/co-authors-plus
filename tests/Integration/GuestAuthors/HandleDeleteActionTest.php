@@ -36,8 +36,18 @@ class HandleDeleteActionTest extends TestCase {
 	 */
 	private $current_user_backup;
 
+	/**
+	 * Backup of the guest author manage cap, restored in tear_down().
+	 *
+	 * @var string
+	 */
+	private $manage_cap_backup;
+
 	public function set_up() {
 		parent::set_up();
+
+		global $coauthors_plus;
+		$this->manage_cap_backup = $coauthors_plus->guest_authors->list_guest_authors_cap;
 
 		$this->admin1  = $this->factory()->user->create_and_get(
 			array(
@@ -52,6 +62,13 @@ class HandleDeleteActionTest extends TestCase {
 		// term. The reassign-another test reassigns to author1, which only works when
 		// author1 is a registered co-author.
 		$this->create_post( $this->author1 );
+	}
+
+	public function tear_down() {
+		global $coauthors_plus;
+		$coauthors_plus->guest_authors->list_guest_authors_cap = $this->manage_cap_backup;
+
+		parent::tear_down();
 	}
 
 	/**
@@ -270,6 +287,67 @@ class HandleDeleteActionTest extends TestCase {
 
 		// Restore $_POST from back up.
 		$_POST = $_post_backup;
+	}
+
+	/**
+	 * A user who passes a lowered manage cap must still be able to delete the
+	 * specific profile, matching the Delete row action's delete_post gate.
+	 *
+	 * @covers CoAuthors_Guest_Authors::handle_delete_guest_author_action()
+	 */
+	public function test_handle_delete_guest_author_action_requires_delete_post_capability(): void {
+
+		global $coauthors_plus;
+
+		$guest_author_obj = $coauthors_plus->guest_authors;
+
+		// As if a site filtered coauthors_guest_author_manage_cap down to edit_posts.
+		$guest_author_obj->list_guest_authors_cap = 'edit_posts';
+
+		$expected = __( "You don't have permission to delete this guest author.", 'co-authors-plus' );
+
+		// Created by admin1, so deleting it needs delete_others_posts.
+		$guest_author_id = $this->start_delete_request( 'remove-byline' );
+
+		// An Author passes the lowered manage cap but cannot delete others' posts.
+		wp_set_current_user( $this->author1->ID );
+		$_POST['_wpnonce'] = wp_create_nonce( 'delete-guest-author' );
+		$this->assertTrue( current_user_can( $guest_author_obj->list_guest_authors_cap ) );
+		$this->assertFalse( current_user_can( 'delete_post', $guest_author_id ) );
+
+		// Catch the redirect so a missing check fails the test rather than exiting.
+		add_filter( 'wp_redirect', array( $this, 'catch_redirect_destination' ), 99, 2 );
+
+		$exception = null;
+		try {
+			$guest_author_obj->handle_delete_guest_author_action();
+		} catch ( \Exception $e ) {
+			$exception = $e;
+		}
+
+		$this->assertInstanceOf( \WPDieException::class, $exception );
+		$this->assertStringContainsString( esc_html( $expected ), $exception->getMessage() );
+		$this->assertNotFalse( $guest_author_obj->get_guest_author_by( 'ID', $guest_author_id ), 'The guest author must not be deleted.' );
+
+		// An Editor passes the same manage cap and can delete others' posts.
+		wp_set_current_user( $this->editor1->ID );
+		$_POST['_wpnonce'] = wp_create_nonce( 'delete-guest-author' );
+
+		$exception = null;
+		try {
+			$guest_author_obj->handle_delete_guest_author_action();
+		} catch ( \Exception $e ) {
+			$exception = $e;
+		}
+
+		remove_filter( 'wp_redirect', array( $this, 'catch_redirect_destination' ), 99 );
+
+		$this->assertNotNull( $exception );
+		$this->assertNotInstanceOf( \WPDieException::class, $exception );
+		$this->assertStringContainsString( 'message=guest-author-deleted', $exception->getMessage() );
+		$this->assertFalse( $guest_author_obj->get_guest_author_by( 'ID', $guest_author_id ) );
+
+		$this->restore_delete_request();
 	}
 
 	/**
