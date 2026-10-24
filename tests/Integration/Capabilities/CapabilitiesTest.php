@@ -319,6 +319,17 @@ class CapabilitiesTest extends TestCase {
 	}
 
 	/**
+	 * Verifies the save nonce for a post, like post.php does before it saves or previews.
+	 *
+	 * @param int $post_id Post ID.
+	 */
+	private function verify_save_nonce( int $post_id ): void {
+		$_REQUEST['_wpnonce'] = wp_create_nonce( 'update-post_' . $post_id );
+
+		$this->assertSame( 1, check_admin_referer( 'update-post_' . $post_id ) );
+	}
+
+	/**
 	 * A co-author can save from the classic editor, which sends the stored post_author.
 	 *
 	 * @covers ::filter_map_meta_cap
@@ -338,6 +349,7 @@ class CapabilitiesTest extends TestCase {
 			'post_author' => $post_author,
 			'post_title'  => 'Saved by co-author',
 		);
+		$this->verify_save_nonce( $post_id );
 
 		$this->assertSame( $post_id, edit_post() );
 		$this->assertSame( 'Saved by co-author', get_post( $post_id )->post_title );
@@ -373,6 +385,7 @@ class CapabilitiesTest extends TestCase {
 			'post_author' => get_post( $post_id )->post_author,
 			'post_title'  => 'Saved by co-author',
 		);
+		$this->verify_save_nonce( $post_id );
 
 		$this->assertSame( $post_id, edit_post() );
 		$this->assertTrue( is_sticky( $post_id ) );
@@ -407,5 +420,135 @@ class CapabilitiesTest extends TestCase {
 
 		$post = null; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
 		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * Posting a co-authored post's ID and author to any other admin request does
+	 * not give edit_others_posts.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_does_not_get_edit_others_posts_from_forged_post_data(): void {
+		$post_id = $this->create_admin_post( 'publish' );
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		set_current_screen( 'dashboard' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'action'      => 'some-other-action',
+			'post_ID'     => $post_id,
+			'post_author' => get_post( $post_id )->post_author,
+		);
+
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+	}
+
+	/**
+	 * The save nonce must be valid and for the posted post.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_save_needs_valid_nonce_for_the_posted_post(): void {
+		$post_id  = $this->create_admin_post( 'publish' );
+		$other_id = $this->create_admin_post( 'publish' );
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+		$this->add_secondary_coauthors( $other_id, array( $this->author1 ) );
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_author' => get_post( $post_id )->post_author,
+		);
+
+		// A valid nonce, but for another post.
+		$this->verify_save_nonce( $other_id );
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+
+		// The right action, but the nonce failed.
+		do_action( 'check_admin_referer', 'update-post_' . $post_id, false );
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+	}
+
+	/**
+	 * Only the first edit_others_posts check after the save nonce is allowed,
+	 * which is the one in _wp_translate_postdata().
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_save_allows_only_one_check(): void {
+		$post_id = $this->create_admin_post( 'publish' );
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_author' => get_post( $post_id )->post_author,
+		);
+		$this->verify_save_nonce( $post_id );
+
+		$this->assertTrue( current_user_can( 'edit_others_posts' ) );
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+	}
+
+	/**
+	 * The post author never needs the save grant, since core skips the
+	 * edit_others_posts check for them.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_post_author_does_not_get_edit_others_posts_on_save(): void {
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $this->author1->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_author' => $this->author1->ID,
+		);
+		$this->verify_save_nonce( $post_id );
+
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+	}
+
+	/**
+	 * A co-author can preview their changes, which core stores as an autosave.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_can_preview_post(): void {
+		$post_id = $this->create_admin_post( 'publish' );
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_type'   => 'post',
+			'post_author' => get_post( $post_id )->post_author,
+			'post_title'  => 'Previewed by co-author',
+		);
+		$this->verify_save_nonce( $post_id );
+
+		$this->assertIsString( post_preview() );
+
+		$autosave = wp_get_post_autosave( $post_id, $this->author1->ID );
+		$this->assertInstanceOf( \WP_Post::class, $autosave );
+		$this->assertSame( 'Previewed by co-author', $autosave->post_title );
 	}
 }

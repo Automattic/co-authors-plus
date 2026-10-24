@@ -160,7 +160,7 @@ export const buildCoauthorTermIds = (
  * @param {string} author.displayName  Name to display in the UI.
  * @param {string} author.userNicename The unique username.
  * @param {string} author.email        The author's email address. Can be empty when filtered out.
- * @param {string} author.userType     The entity type, either 'wpuser' or 'guest-user'.
+ * @param {string} author.userType     The entity type, either 'wpuser' or 'guest-author'.
  *
  * @return {Object} The object containing data relevant to the Coauthors component.
  */
