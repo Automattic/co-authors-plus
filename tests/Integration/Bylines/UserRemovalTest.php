@@ -66,4 +66,27 @@ class UserRemovalTest extends TestCase {
 
 		$this->assertNotContains( 'cap-bystander', $this->get_author_term_slugs( $post_id ) );
 	}
+
+	/**
+	 * Deleting a user without reassignment trashes their posts after their term
+	 * is deleted. Trashing saves the post, which must not recreate the term.
+	 *
+	 * @covers ::delete_user_action
+	 * @covers ::coauthors_update_post
+	 */
+	public function test_delete_user_without_reassign_leaves_no_author_term_on_trashed_posts(): void {
+		$deleted = $this->create_author( 'deletedauthor' );
+		$post_id = $this->create_post( $deleted )->ID;
+
+		// Saving a post without co-authors credits its post_author.
+		$this->assertSame( array( 'cap-deletedauthor' ), $this->get_author_term_slugs( $post_id ) );
+
+		wp_delete_user( $deleted->ID );
+
+		$this->assertSame( 'trash', get_post_status( $post_id ) );
+		$this->assertSame( array(), $this->get_author_term_slugs( $post_id ) );
+		// Neither the prefixed term nor an unprefixed replacement survives.
+		$this->assertNull( term_exists( 'cap-deletedauthor', $this->_cap->coauthor_taxonomy ) );
+		$this->assertNull( term_exists( 'deletedauthor', $this->_cap->coauthor_taxonomy ) );
+	}
 }
