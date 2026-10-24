@@ -272,7 +272,7 @@ wp co-authors-plus create-guest-authors [--offset=<offset>] [--number=<number>]
 - `--offset`: how many users to skip before starting. Defaults to 0.
 - `--number`: how many users to process. Defaults to all of them.
 
-Users are taken in `user_login` order, so `--offset` and `--number` let you work through a large user list in chunks. Users that already have a linked profile are skipped, so an interrupted run can be repeated. The command shows a progress bar, then the number of profiles created and skipped. Any user whose profile couldn't be created is counted as skipped.
+Users are taken in `user_login` order, so `--offset` and `--number` let you work through a large user list in chunks. Users that already have a linked profile are skipped, even if their display name has changed since, so an interrupted run can be repeated. The command shows a progress bar, then the number of profiles created and skipped. A user whose profile can't be created, for example because an unlinked guest author already has the login, gets a warning with the reason. A user that fails doesn't stop the run. The command reports how many users failed, and exits with 0.
 
 On multisite, it covers the users who are members of the current site.
 
