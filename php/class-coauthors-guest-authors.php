@@ -60,6 +60,9 @@ class CoAuthors_Guest_Authors {
 		add_action( 'wp_insert_post_data', array( $this, 'manage_guest_author_filter_post_data' ), 10, 2 );
 		add_action( 'save_post', array( $this, 'manage_guest_author_save_meta_fields' ), 10, 2 );
 
+		// Keep the slug that bylines resolve by when a guest author is trashed.
+		add_filter( 'wp_insert_post_data', array( $this, 'filter_keep_post_name_when_trashed' ), 10, 2 );
+
 		// Empty associated caches when the guest author profile is updated
 		add_filter( 'update_post_metadata', array( $this, 'filter_update_post_metadata' ), 10, 5 );
 
@@ -960,6 +963,32 @@ class CoAuthors_Guest_Authors {
 		}
 
 		return $post_data;
+	}
+
+	/**
+	 * Stop core renaming a guest author's post_name when it is trashed.
+	 *
+	 * Core appends `__trashed` to free the slug for reuse, but bylines look
+	 * guest authors up by post_name, so every post credited to a trashed guest
+	 * author would silently lose them. Core has already stored the original
+	 * slug in `_wp_desired_post_slug` by the time this runs, and puts it back
+	 * (and deletes the meta) on untrash.
+	 *
+	 * @param array $data    Slashed, sanitized post data about to be saved.
+	 * @param array $postarr Sanitized post data passed to wp_insert_post().
+	 * @return array Post data.
+	 */
+	public function filter_keep_post_name_when_trashed( $data, $postarr ) {
+		if ( $this->post_type !== $data['post_type'] || 'trash' !== $data['post_status'] || empty( $postarr['ID'] ) ) {
+			return $data;
+		}
+
+		$desired_post_slug = get_post_meta( $postarr['ID'], '_wp_desired_post_slug', true );
+		if ( $desired_post_slug ) {
+			$data['post_name'] = $desired_post_slug;
+		}
+
+		return $data;
 	}
 
 	/**
