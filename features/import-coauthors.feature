@@ -139,9 +139,31 @@ Feature: Guest authors and their post assignments can be imported
 		0
 		"""
 
+	# A dry run counts only what a real run would change, so a post that already
+	# carries the author is not reported as one to link.
+	Scenario: A dry run after an import reports nothing left to link
+		When I run `wp post create --post_status=publish --post_title="Hello" --post_name=hello --porcelain`
+		And I run `wp eval 'file_put_contents( "/tmp/cap-dry-again.json", wp_json_encode( array( "version" => COAUTHORS_PLUS_VERSION, "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ), "post_refs" => array( array( "post_slug" => "hello", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
+		And I run `wp co-authors-plus import-coauthors --file=/tmp/cap-dry-again.json`
+		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-dry-again.json --dry-run`
+		Then STDOUT should be:
+		"""
+		Dry run: nothing will be written.
+		Success: Dry run. Profiles to create: 0. Posts to link: 0. 1 profile already existed.
+		"""
+
 	Scenario: --skip-create leaves a missing profile uncreated
 		When I run `wp post create --post_status=publish --post_title="Hello" --post_name=hello --porcelain`
 		And I run `wp eval 'file_put_contents( "/tmp/cap-skip.json", wp_json_encode( array( "version" => COAUTHORS_PLUS_VERSION, "guest_authors" => array( array( "profile" => array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ), "post_refs" => array( array( "post_slug" => "hello", "post_type" => "post", "position" => 0 ) ) ) ) ) ) );'`
+		# The dry run must report the same counts as the real run below.
+		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-skip.json --skip-create --dry-run`
+		Then STDOUT should be:
+		"""
+		Dry run: nothing will be written.
+		Warning: No profile for "jane-doe" and --skip-create was given.
+		Warning: No profile to link to "hello"; run without --skip-create to create it.
+		Success: Dry run. Profiles to create: 0. Posts to link: 0.
+		"""
 		When I run `wp co-authors-plus import-coauthors --file=/tmp/cap-skip.json --skip-create`
 		Then STDOUT should contain:
 		"""
