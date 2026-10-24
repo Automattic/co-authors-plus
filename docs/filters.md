@@ -152,6 +152,13 @@ Labels for the `guest-author` post type and the Guest Authors screens. The array
 - **Parameters:** `array $labels`
 - **File:** `php/class-coauthors-guest-authors.php`
 
+### `coauthors_guest_author_base`
+
+URL base for guest author archives. Defaults to an empty string, which keeps WordPress's author base (`/author/{slug}/`). Return a base such as `contributor` to link guest authors to `/contributor/{slug}/`. WordPress users keep `/author/`, unless they are linked to a guest author. See [Archive URL](./guest-authors.md#archive-url).
+
+- **Parameters:** `string $base`
+- **File:** `php/class-coauthors-guest-authors.php`
+
 ### `coauthors_guest_author_linked_account_args`
 
 Arguments passed to `wp_dropdown_users()` for the "WordPress User Mapping" dropdown on the guest author edit screen. By default it excludes users already linked to another guest author and lists only users with the `coauthors_edit_author_cap` capability.

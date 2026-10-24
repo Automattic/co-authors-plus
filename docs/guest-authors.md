@@ -111,6 +111,20 @@ foreach ( get_coauthors() as $coauthor ) {
 
 [`get_the_coauthor_meta( 'mastodon' )`](./template-tags.md#get_the_coauthor_meta-and-the_coauthor_meta) returns the same values. These read the guest author profile only. Co-authors who are WordPress users without a linked guest author don't have the property.
 
+## Archive URL
+
+Guest author archives use the same URL as user archives, `/author/{slug}/`. To give guest authors their own base, return it from the [`coauthors_guest_author_base`](./filters.md#coauthors_guest_author_base) filter:
+
+```php
+add_filter( 'coauthors_guest_author_base', function () {
+	return 'contributor';
+} );
+```
+
+Guest author links then point to `/contributor/{slug}/`, including feeds and paged archives. WordPress users keep `/author/{slug}/`. A user linked to a guest author already shows the guest author's archive, so their link uses the guest author base too. The old `/author/{slug}/` URL still works for guest authors and is not redirected.
+
+Go to **Settings > Permalinks** and click **Save Changes** after adding or changing the filter, so WordPress rebuilds its rewrite rules. Pick a base that no page or post type uses, or the two will clash.
+
 ## Privacy
 
 The `guest-author` post type is registered with `public`, `publicly_queryable`, `rewrite` and `query_var` all off, and `exclude_from_search` on. The admin screens still work (`show_ui` is on), but there are no guest author pages on the front end. Guest authors are shown through bylines, author archives, the [template tags](./template-tags.md), the [blocks](./blocks.md) and the [REST API](./rest-api.md). This changed in 4.0; see [Upgrading to 4.0](./upgrading-to-4.0.md#guest-author-custom-post-type-is-now-private).

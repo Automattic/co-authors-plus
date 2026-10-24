@@ -19,6 +19,11 @@ class CoAuthors_Guest_Authors {
 	public static $cache_group = 'coauthors-plus-guest-authors';
 
 	/**
+	 * Name of the permastruct used when guest authors have a custom base.
+	 */
+	const PERMASTRUCT = 'coauthors_guest_author';
+
+	/**
 	 * Register the Guest Authors hooks and the guest author post type.
 	 *
 	 * Called from the composition root after construction so that creating an
@@ -151,6 +156,46 @@ class CoAuthors_Guest_Authors {
 		remove_post_type_support( $this->post_type, 'title' );
 		remove_post_type_support( $this->post_type, 'editor' );
 
+		$this->register_guest_author_permastruct();
+
+	}
+
+	/**
+	 * Register the archive rewrite rules for a custom guest author base.
+	 *
+	 * The rules map to the author_name query var, the same as the normal
+	 * author rules, so guest author archives work the same on both bases.
+	 *
+	 * @since 4.2.0
+	 */
+	public function register_guest_author_permastruct(): void {
+		global $wp_rewrite;
+
+		/**
+		 * Filters the URL base for guest author archives.
+		 *
+		 * Return a base like 'contributor' to link guest authors to
+		 * /contributor/{slug}/ instead of /author/{slug}/. Flush the
+		 * permalinks after changing it.
+		 *
+		 * @since 4.2.0
+		 *
+		 * @param string $base Guest author base. Default empty, which keeps the author base.
+		 */
+		$base = trim( (string) apply_filters( 'coauthors_guest_author_base', '' ), '/' );
+
+		if ( '' === $base || $wp_rewrite->author_base === $base ) {
+			return;
+		}
+
+		add_permastruct(
+			self::PERMASTRUCT,
+			$base . '/%author%',
+			array(
+				'ep_mask'   => EP_AUTHORS,
+				'walk_dirs' => false,
+			)
+		);
 	}
 
 	/**
@@ -362,16 +407,8 @@ class CoAuthors_Guest_Authors {
 
 		$coauthor = $this->get_guest_author_by( 'linked_account', sanitize_title( $query->query_vars['author_name'] ) );
 		if ( is_object( $coauthor ) && $query->query_vars['author_name'] != $coauthor->user_login ) {
-			global $wp_rewrite;
-			$link = $wp_rewrite->get_author_permastruct();
-
-			if ( empty( $link ) ) {
-				$file = home_url( '/' );
-				$link = $file . '?author_name=' . $coauthor->user_login;
-			} else {
-				$link = home_url( user_trailingslashit( str_replace( '%author%', $coauthor->user_login, $link ) ) );
-			}
-			wp_safe_redirect( $link );
+			// Goes through filter_author_link() so a custom guest author base is used.
+			wp_safe_redirect( get_author_posts_url( $coauthor->ID, $coauthor->user_login ) );
 			exit;
 		}
 
@@ -1671,6 +1708,13 @@ class CoAuthors_Guest_Authors {
 		} else {
 			global $wp_rewrite;
 			$link = $wp_rewrite->get_author_permastruct();
+
+			// Only set when the coauthors_guest_author_base filter gives a custom base.
+			$guest_author_struct = $wp_rewrite->get_extra_permastruct( self::PERMASTRUCT );
+			if ( $link && $guest_author_struct && $this->get_guest_author_by( 'user_nicename', $author_nicename ) ) {
+				$link = $guest_author_struct;
+			}
+
 			if ( $link ) {
 				$link = home_url( user_trailingslashit( str_replace( '%author%', $author_nicename, $link ) ) );
 			} else {
