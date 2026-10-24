@@ -71,6 +71,8 @@ class Block_CoAuthor_Avatar {
 		$image_attributes = array_merge(
 			array(
 				'src'    => $avatar_urls[ $size ],
+				/* translators: %s: author display name */
+				'alt'    => sprintf( __( '%s Avatar', 'co-authors-plus' ), $display_name ),
 				'width'  => $size,
 				'height' => $size,
 				'sizes'  => "{$size}px",
