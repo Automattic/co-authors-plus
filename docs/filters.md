@@ -8,7 +8,9 @@ File paths are relative to the plugin root.
 
 ### `coauthors_default_before`
 
-Text placed before a list of co-authors. Defaults to `'By '`.
+Text placed before a list of co-authors. The template tags default to `''`. The Co-Authors block uses this filter for the default of its `prefix` attribute, which is `'By '`.
+
+In the template tags, the four separator defaults can also come from the `COAUTHORS_DEFAULT_BEFORE`, `COAUTHORS_DEFAULT_BETWEEN`, `COAUTHORS_DEFAULT_BETWEEN_LAST` and `COAUTHORS_DEFAULT_AFTER` constants. When a constant is defined, its value is what the filter receives. The block ignores the constants.
 
 - **Type:** `string`
 - **Used in:** template tags and the Co-Authors block
@@ -16,15 +18,15 @@ Text placed before a list of co-authors. Defaults to `'By '`.
 
 ### `coauthors_default_between`
 
-Separator between co-authors (all but the last). Defaults to `', '`.
+Separator between co-authors (all but the last). Defaults to `', '` in both the template tags and the Co-Authors block (its `separator` attribute).
 
 ### `coauthors_default_between_last`
 
-Separator before the final co-author. Defaults to `' and '`.
+Separator before the final co-author. Defaults to `' and '` (translatable) in both the template tags and the Co-Authors block (its `lastSeparator` attribute).
 
 ### `coauthors_default_after`
 
-Text placed after a list of co-authors. Defaults to `''`.
+Text placed after a list of co-authors. Defaults to `''` in both the template tags and the Co-Authors block (its `suffix` attribute).
 
 ### `coauthors_posts_link`
 
@@ -35,8 +37,9 @@ Arguments used to render a single co-author's posts-link. Filter the associative
 
 ### `coauthors_wp_list_authors_array`
 
-The ordered array of authors before `coauthors_wp_list_authors()` renders them. Use this to filter the listing rather than post-process the output.
+The array of authors built by `coauthors_get_users()`, which `coauthors_wp_list_authors()` uses to build its listing. Use this to filter the listing rather than post-process the output. The array is keyed by the author term's name (the author's `user_login`).
 
+- **Parameters:** `array $authors`
 - **File:** `template-tags.php`
 
 ### `get_coauthors`
@@ -48,15 +51,16 @@ The resolved co-authors for a post. Runs after the plugin's lookup but before an
 
 ### `coauthors_open_graph_tags`
 
-The Open Graph tags the plugin contributes to the document head.
+The Open Graph tags after Co-Authors Plus has adjusted Jetpack's tags. The plugin hooks Jetpack's `jetpack_open_graph_tags` filter to set the author archive tags (and `article:author` on single posts) from the co-author, then passes the result through this filter. It only runs when Jetpack outputs Open Graph tags.
 
+- **Parameters:** `array $og_tags`
 - **File:** `php/class-coauthors-plus.php`
 
 ## Post type and taxonomy configuration
 
 ### `coauthors_supported_post_types`
 
-Post types that Co-Authors Plus attaches to. Defaults to every registered post type that supports `author`, minus `revision`, `attachment`, `customize_changeset`, `wp_template` and `wp_template_part`. Note that this is not the same as the public post types: a post type is included on its `author` support alone, whether or not it is public, and a public post type registered without `author` support (WooCommerce's `product`, for example) is not included.
+Post types that Co-Authors Plus attaches to. Defaults to every registered post type that supports `author`, minus `revision`, `attachment`, `customize_changeset`, `wp_template`, `wp_template_part` and `wp_block`. Note that this is not the same as the public post types: a post type is included on its `author` support alone, whether or not it is public, and a public post type registered without `author` support (WooCommerce's `product`, for example) is not included.
 
 The `author` taxonomy is registered for this list on `init` at priority 100, so a post type must have its `author` support in place by then — `add_post_type_support()` called later leaves the post type out of the taxonomy, and the plugin's author query filters will skip it.
 
@@ -76,6 +80,13 @@ Post types counted towards a co-author's published post count.
 
 The `WP_User` used as the default author when a post has none. Defaults to the current user.
 
+### `coauthors_post_author_value`
+
+The user ID to save in the `post_author` column when a post of a supported type is saved (autosaves are skipped). It runs on core's `wp_insert_post_data` filter after the plugin has worked out the value, so it can force `post_author` to a generic user. It does not change the post's co-authors.
+
+- **Parameters:** `int $post_author`, `int $post_id` (`0` for a new post)
+- **File:** `php/class-coauthors-plus.php`
+
 ### `coauthors_plus_is_author_query`
 
 Whether Co-Authors Plus should rewrite an author query to include co-author taxonomy terms. Returning `false` leaves the query as a standard WordPress `post_author` query.
@@ -89,19 +100,32 @@ Whether to combine the `post_author` column query with the taxonomy query. Retur
 
 ## Permissions
 
+See [Roles and capabilities](./roles-and-capabilities.md) for how these filters fit together.
+
 ### `coauthors_plus_edit_authors`
 
-Whether the current user can assign co-authors to posts. Defaults to `edit_others_posts`.
+Whether the current user can assign co-authors to posts. Defaults to whether the user has `edit_others_posts`. Super admins can always assign co-authors, and the filter is not applied for them.
 
+- **Parameters:** `bool $can_set_authors`
 - **File:** `php/class-coauthors-plus.php`
 
 ### `coauthors_edit_author_cap`
 
-Capability required to appear in the co-author search results. Defaults to `edit_posts`.
+Capability required to appear in the co-author search results. Defaults to `edit_posts`. The same capability limits the users offered in the guest author "WordPress User Mapping" dropdown.
 
 ### `coauthors_edit_ignored_authors`
 
-Array of user logins hidden from the co-author search results.
+Array of `user_nicename` values hidden from the co-author search results. Defaults to the co-authors the search request asked to exclude (usually the ones already on the post).
+
+- **Parameters:** `array $ignored_authors`
+- **File:** `php/class-coauthors-plus.php`
+
+### `coauthors_rest_view_description_cap`
+
+Capability required to see the `description` of an author term in core's `/wp/v2/coauthors` responses. Defaults to `edit_posts`. For users without it, the `description` key is removed from the response. The term description holds the plugin's search index for the author, which can include the email address. This filter does not affect the `coauthors/v1` endpoints.
+
+- **Parameters:** `string $capability`
+- **File:** `php/class-coauthors-plus.php`
 
 ## Guest authors
 
@@ -115,11 +139,25 @@ Whether to force guest authors even when the feature would otherwise be skipped.
 
 ### `coauthors_guest_author_manage_cap`
 
-Capability required to manage guest authors. Defaults to `list_users`.
+Capability required to manage guest authors. Defaults to `list_users`. See [Roles and capabilities](./roles-and-capabilities.md).
 
 ### `coauthors_guest_author_parent_page`
 
 Admin menu parent under which the Guest Authors UI appears. Defaults to `users.php`.
+
+### `coauthors_guest_author_labels`
+
+Labels for the `guest-author` post type and the Guest Authors screens. The array has the keys `singular`, `plural`, `all_items`, `add_new_item`, `edit_item`, `new_item`, `view_item`, `search_items`, `not_found`, `not_found_in_trash`, `update_item`, `metabox_about`, `featured_image`, `set_featured_image`, `use_featured_image` and `remove_featured_image`.
+
+- **Parameters:** `array $labels`
+- **File:** `php/class-coauthors-guest-authors.php`
+
+### `coauthors_guest_author_linked_account_args`
+
+Arguments passed to `wp_dropdown_users()` for the "WordPress User Mapping" dropdown on the guest author edit screen. By default it excludes users already linked to another guest author and lists only users with the `coauthors_edit_author_cap` capability.
+
+- **Parameters:** `array $args`
+- **File:** `php/class-coauthors-guest-authors.php`
 
 ### `coauthors_guest_author_fields`
 
@@ -131,6 +169,9 @@ Array of field definitions rendered on the guest author profile screen.
 ### `coauthors_guest_author_sortable_columns`
 
 Sortable columns in the Guest Authors list table.
+
+- **Parameters:** `array $sortable_columns`
+- **File:** `php/class-coauthors-wp-list-table.php`
 
 ### `coauthors_guest_author_query_args`
 
@@ -144,17 +185,25 @@ Columns shown on the Guest Authors list table.
 
 Row actions shown below each guest author in the list table.
 
+- **Parameters:** `array $actions`, `object $item` (the guest author)
+
 ### `coauthors_show_create_profile_user_link`
 
-Whether to show the "Create profile" link on user edit screens. Defaults to `false`.
+Whether to show a "Create Profile" row action on the Users list for users who have no guest author profile yet. The action creates a guest author linked to that user. Defaults to `false`. Users who already have a profile always get an "Edit Profile" action.
 
 ### `coauthors_guest_author_personal_export_extra_data`
 
-Extra data to include when exporting a guest author's personal data (WordPress privacy tools).
+Extra data to include when exporting a guest author's personal data (WordPress privacy tools). Return an array of `name` and `value` pairs; they are added to the guest author's export item.
+
+- **Parameters:** `array $extra_data` (empty by default), `int $author_id`, `string $email_address`
+- **File:** `php/class-coauthors-guest-authors.php`
 
 ### `coauthors_name_field_type_{$field}`
 
-Dynamic filter per name field, used to switch input types on the guest author profile form.
+Dynamic filter per field, used to switch the input type of a field in the Name and Contact Info boxes on the guest author profile form. Defaults to the field's `input` value, or `text`. Returning `checkbox` renders a checkbox. The suffix is the field's post meta key, which carries the `cap-` prefix, for example `coauthors_name_field_type_cap-website`.
+
+- **Parameters:** `string $input`
+- **File:** `php/class-coauthors-guest-authors.php`
 
 ## Meta box
 
@@ -169,6 +218,13 @@ Where the meta box appears (`normal`, `side`, `advanced`). Defaults to `side`.
 ### `coauthors_meta_box_priority`
 
 Meta box priority. Defaults to `high`.
+
+### `coauthors_search_authors_get_terms_args`
+
+Arguments for the `get_terms()` call that finds co-authors when searching. Defaults to `search` (the search text), `get` (`all`) and `number` (`10`). Raise `number` to return more than 10 results. This search backs the classic editor meta box, the block editor's `coauthors/v1/search` endpoint and the guest author screens.
+
+- **Parameters:** `array $args`
+- **File:** `php/class-coauthors-plus.php`
 
 ### `coauthors_ajax_suggest_author_data`
 
@@ -212,7 +268,10 @@ Return `false` to stop Co-Authors Plus from registering its blocks. Useful when 
 
 ### `coauthors_blocks_store_data`
 
-Server-side example data passed to block editor placeholders when no authors are loaded yet.
+Server-side example data passed to block editor placeholders when no authors are loaded yet. The array has one key, `authorPlaceholder`, an author shaped like a `coauthors/v1/coauthors` response item.
+
+- **Parameters:** `array $data`
+- **File:** `php/blocks/class-blocks.php`
 
 ### `co-authors-plus.author-placeholder` (JavaScript)
 
@@ -231,6 +290,8 @@ Schema for a single co-author resource returned by the REST controller.
 ### `rest_prepare_coauthor`
 
 The `WP_REST_Response` for a single co-author, after the default preparation. Use this to add custom fields.
+
+For a registered user, `$author` is the user's data object (`WP_User::$data`), not the `WP_User` itself. For a guest author it is the guest author object.
 
 - **Parameters:** `WP_REST_Response $response`, `object $author`, `WP_REST_Request $request`
 
@@ -299,13 +360,13 @@ Number of characters before the sidebar autocomplete begins searching. Defaults 
 
 ### `cap_guest_author_create`
 
-Fires after a guest author is created via the admin UI.
+Fires after a guest author is created from an existing user with the "Create Profile" action on the Users list. It does not fire when a guest author is added from the Guest Authors screen, or from WP-CLI.
 
 - **File:** `php/class-coauthors-guest-authors.php`
 
 ### `cap_guest_author_del`
 
-Fires after a guest author is deleted.
+Fires after a guest author is deleted from the Guest Authors screen. It does not fire when code calls `CoAuthors_Guest_Authors::delete()` directly.
 
 ### `coauthors_guest_author_custom_columns`
 
@@ -313,6 +374,11 @@ Fires while rendering a custom column for a guest author row.
 
 - **Parameters:** `string $column_name`, `int $author_id`
 - **File:** `php/class-coauthors-wp-list-table.php`
+
+## Using these hooks
+
+- Many of these hooks run in the admin, REST requests, the front end, cron and WP-CLI. Don't assume a current user, a global `$post` or an admin screen exists; check before you rely on them.
+- Inside a callback, use `get_coauthors()` and `is_coauthor_for_post()` (see [Template tags](./template-tags.md)) rather than querying `post_author` yourself. They already handle the `author` taxonomy and the `post_author` fallback.
 
 ## Deprecated
 

@@ -34,9 +34,12 @@ co-authors-plus/
 ├── src/                               # JavaScript/React source (blocks, store)
 ├── build/                             # Compiled JavaScript output
 ├── tests/
-│   └── Integration/                   # Integration tests (requires wp-env)
+│   ├── Unit/                          # PHP unit tests (no WordPress; Brain Monkey)
+│   ├── Integration/                   # Integration tests (requires wp-env)
+│   ├── Behat/                         # Behat context (FeatureContext)
+│   └── e2e/                           # Playwright E2E specs (requires wp-env)
 ├── features/                          # Behat acceptance tests
-├── .github/workflows/                 # CI: cs-lint, integration, lint, build, behat, deploy
+├── .github/workflows/                 # CI: cs-lint, unit, integration, behat, lint, js-test, build, e2e, deploy
 └── .phpcs.xml.dist                    # PHPCS configuration
 ```
 
@@ -63,6 +66,7 @@ co-authors-plus/
 composer cs                # Check code standards (PHPCS)
 composer cs-fix            # Auto-fix code standard violations
 composer lint              # PHP syntax lint
+composer test:unit         # Run PHP unit tests (no WordPress or wp-env needed)
 composer test:integration  # Run integration tests (requires wp-env)
 composer test:integration-ms  # Run multisite integration tests
 composer coverage          # Run tests with HTML coverage report
@@ -70,18 +74,22 @@ composer behat             # Run Behat acceptance tests
 npm run build              # Build JavaScript/block assets
 npm run lint:js            # Lint JavaScript (ESLint)
 npm run lint:css           # Lint CSS (Stylelint)
+npm run test:unit          # Run JS unit tests (Vitest, src/**/*.test.js)
+npm run test:e2e           # Run Playwright E2E tests (requires wp-env and npm run build)
 ```
 
-**Note:** This plugin has integration tests and Behat acceptance tests — no separate unit test suite.
+**Note:** The test suites are PHP unit (`tests/Unit`), PHP integration (`tests/Integration`), Behat (`features/`), JS unit (Vitest) and E2E (Playwright, `tests/e2e`). Only the PHP and JS unit suites run without wp-env.
+
+**Note:** `composer test:integration` (`--env-cwd=wp-content/plugins/co-authors-plus`) and Behat's `FeatureContext::get_plugin_slug()` assume the checkout directory is named `co-authors-plus`, because wp-env mounts the plugin under the directory's name.
 
 ## Conventions
 
 Follow the standards documented in `~/code/plugin-standards/` for full details. Key points:
 
 - **Commits**: Use the `/commit` skill. Favour explaining "why" over "what".
-- **PRs**: Use the `/pr` skill. Squash and merge by default.
+- **PRs**: Use the `/pr` skill. Merge with a merge commit; squash and rebase merging are disabled on this repo.
 - **Branch naming**: `feature/description`, `fix/description` from `develop`.
-- **Testing**: Integration tests for WordPress-dependent behaviour. Use the existing `TestCase` base class in `tests/Integration/`. Behat for acceptance testing.
+- **Testing**: Unit tests for logic that doesn't need WordPress, using the `TestCase` base class in `tests/Unit/`. Integration tests for WordPress-dependent behaviour, using the `TestCase` base class in `tests/Integration/`. Behat for WP-CLI acceptance testing.
 - **Code style**: WordPress coding standards via PHPCS. Tabs for indentation.
 - **i18n**: All user-facing strings must use the `co-authors-plus` text domain.
 
