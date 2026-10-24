@@ -30,7 +30,7 @@ class BlockCoAuthorsRenderTest extends TestCase {
 	const PROBE_BLOCK = 'cap-test/render-probe';
 
 	/**
-	 * One entry per render of the probe block, holding the author context it saw.
+	 * One entry per render of the probe block, holding the context it saw.
 	 *
 	 * @var array
 	 */
@@ -163,6 +163,27 @@ class BlockCoAuthorsRenderTest extends TestCase {
 	}
 
 	/**
+	 * The template's blocks get each author added to the post context the
+	 * Co-Authors block sits in, rather than in place of it.
+	 */
+	public function test_inner_blocks_keep_the_post_context(): void {
+		$author = $this->create_author( 'ada' );
+		$post   = $this->create_post( $author );
+
+		$this->render_block_with_probe(
+			array(
+				'postId'   => $post->ID,
+				'postType' => 'post',
+			)
+		);
+
+		$this->assertCount( 1, $this->probe_renders );
+		$this->assertSame( $author->ID, $this->probe_renders[0]['co-authors-plus/author']['id'] ?? null );
+		$this->assertSame( $post->ID, $this->probe_renders[0]['postId'] ?? null );
+		$this->assertSame( 'post', $this->probe_renders[0]['postType'] ?? null );
+	}
+
+	/**
 	 * Without a post to read authors from, the block renders nothing and its
 	 * inner blocks are not rendered at all.
 	 *
@@ -188,9 +209,9 @@ class BlockCoAuthorsRenderTest extends TestCase {
 		register_block_type(
 			self::PROBE_BLOCK,
 			array(
-				'uses_context'    => array( 'co-authors-plus/author' ),
+				'uses_context'    => array( 'co-authors-plus/author', 'postId', 'postType' ),
 				'render_callback' => static function ( $attributes, $content, $block ) use ( &$renders ): string {
-					$renders[] = $block->context['co-authors-plus/author'] ?? null;
+					$renders[] = $block->context;
 					return '<span data-cap-probe></span>';
 				},
 			)

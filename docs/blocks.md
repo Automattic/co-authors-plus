@@ -108,14 +108,14 @@ It supports border, margin and padding.
 
 ### Posts, pages and Query Loops
 
-Blocks receive the post context. The Co-Authors block uses the post ID to find the co-authors, then gives each copy of its inner blocks two context values:
+Blocks receive the post context. The Co-Authors block uses the post ID to find the co-authors, then renders each copy of its inner blocks with its own context, including `postId` and `postType`, plus two more values:
 
 - `co-authors-plus/author`: the co-author, shaped like a response from the `coauthors/v1/coauthors` endpoint.
 - `co-authors-plus/layout`: the Co-Authors block's layout type, such as `default`.
 
 ### Author archives
 
-To show an author's details on their own archive, use the co-author blocks directly, without a Co-Authors block around them. On an author archive, Co-Authors Plus gives `co-authors-plus/author` context to any block that uses it and doesn't already have it. The author is the archive's queried author, which the plugin resolves from the `author_name` query var.
+To show an author's details on their own archive, use the co-author blocks directly, without a Co-Authors block around them. On an author archive, Co-Authors Plus gives `co-authors-plus/author` context to any block that uses it and doesn't already have it. The author is the archive's queried author, which the plugin resolves from the `author_name` query var. It is added to the block's existing context, so a block in a Query Loop's post template still receives `postId` and `postType`.
 
 ### Using the author context in your own block
 
