@@ -198,6 +198,11 @@ class CoauthorsWpListAuthorsTest extends TestCase {
 	 * Checks all the co-authors of the blog with style option.
 	 */
 	public function test_list_authors_with_style_arg_enabled(): void {
+		$author = $this->create_author();
+		$editor = $this->create_editor();
+		$this->create_post( $author );
+		$this->create_post( $editor );
+		$this->create_guest_author( 'empty_guest' );
 
 		$coauthors = coauthors_wp_list_authors(
 			array(
@@ -208,6 +213,32 @@ class CoauthorsWpListAuthorsTest extends TestCase {
 
 		$this->assertStringNotContainsString( '<li>', $coauthors );
 		$this->assertStringNotContainsString( '</li>', $coauthors );
+		$this->assertStringContainsString( 'href="' . get_author_posts_url( $author->ID, $author->user_nicename ) . '"', $coauthors, 'Author link not found.' );
+		$this->assertStringContainsString( 'href="' . get_author_posts_url( $editor->ID, $editor->user_nicename ) . '"', $coauthors, 'Editor link not found.' );
+		$this->assertStringContainsString( '</a>, <a ', $coauthors, 'Authors are not comma-separated.' );
+		$this->assertStringNotContainsString( 'empty_guest', $coauthors, 'Author without posts should be hidden.' );
+		$this->assertStringEndsWith( '</a>', $coauthors, 'Trailing separator not trimmed.' );
+	}
+
+	/**
+	 * Checks a non-list style still includes authors without posts when hide_empty is disabled.
+	 */
+	public function test_list_authors_with_style_arg_enabled_and_hide_empty_disabled(): void {
+		$author = $this->create_author();
+		$this->create_post( $author );
+		$this->create_guest_author( 'empty_guest' );
+
+		$coauthors = coauthors_wp_list_authors(
+			array(
+				'echo'       => false,
+				'style'      => 'none',
+				'hide_empty' => false,
+			)
+		);
+
+		$this->assertStringNotContainsString( '<li>', $coauthors );
+		$this->assertStringContainsString( 'href="' . get_author_posts_url( $author->ID, $author->user_nicename ) . '"', $coauthors, 'Author link not found.' );
+		$this->assertStringContainsString( ', empty_guest', $coauthors, 'Author without posts not listed.' );
 	}
 
 	/**
