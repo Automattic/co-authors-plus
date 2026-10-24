@@ -23,7 +23,7 @@ The slug is made from the display name when you first save the profile. After th
 A profile can't be saved when:
 
 - its slug matches a WordPress user on the same site, unless the profile is linked to that user.
-- another guest author already has the same slug.
+- another guest author already has the same slug, including one in the trash.
 
 ### Other ways to create guest authors
 
@@ -130,7 +130,7 @@ On **Users > Guest Authors**, select **Delete** under the guest author. If the g
 
 Deleting a guest author never deletes posts, and never deletes the linked user. To delete the posts as well, delete them first, then the guest author.
 
-Delete guest authors from this screen, not by trashing the `guest-author` post elsewhere (for example at `edit.php?post_type=guest-author`). Trashing skips the steps above: the profile stops resolving, but its author term is left on the posts.
+Delete guest authors from this screen, not by trashing the `guest-author` post elsewhere (for example at `edit.php?post_type=guest-author`). Trashing skips the steps above. The guest author keeps its slug, so it stays on the bylines of its posts while it's in the trash, and restoring it brings the profile back as it was. Only deleting from this screen reassigns the guest author's posts or takes it off their bylines, and removes its author term.
 
 ## Deleting a WordPress user
 
