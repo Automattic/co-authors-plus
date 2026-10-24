@@ -1113,17 +1113,22 @@ class CoAuthors_Plus {
 			$author_name_var = $query->get( 'author_name' );
 			if ( $author_name_var && is_string( $author_name_var ) ) {
 				$author_name = sanitize_title( $author_name_var );
+				$coauthor    = $this->get_coauthor_by( 'user_nicename', $author_name );
 			} else {
-				$author_data = get_userdata( $query->get( $this->coauthor_taxonomy ) );
+				$author_id   = $query->get( $this->coauthor_taxonomy );
+				$author_data = get_userdata( $author_id );
 				if ( is_object( $author_data ) ) {
-					$author_name = $author_data->user_nicename;
+					$coauthor = $this->get_coauthor_by( 'user_nicename', $author_data->user_nicename );
 				} else {
+					$coauthor = $this->get_coauthor_by( 'id', $author_id );
+				}
+
+				if ( ! is_object( $coauthor ) ) {
 					return $where;
 				}
 			}
 
-			$coauthor = $this->get_coauthor_by( 'user_nicename', $author_name );
-			$terms    = $this->collect_coauthor_terms( $coauthor );
+			$terms = $this->collect_coauthor_terms( $coauthor );
 
 			// Whether to include the original 'post_author' value in the query.
 			// Don't include it if we're forcing guest authors, or it's obvious our query is for a guest author's posts
@@ -1283,11 +1288,12 @@ class CoAuthors_Plus {
 		$all_terms = array();
 		foreach ( $author_ids as $author_id ) {
 			$author_data = get_userdata( $author_id );
-			if ( ! $author_data ) {
-				continue;
+			if ( $author_data ) {
+				$coauthor = $this->get_coauthor_by( 'user_nicename', $author_data->user_nicename );
+			} else {
+				$coauthor = $this->get_coauthor_by( 'id', $author_id );
 			}
 
-			$coauthor = $this->get_coauthor_by( 'user_nicename', $author_data->user_nicename );
 			if ( ! $coauthor ) {
 				continue;
 			}
