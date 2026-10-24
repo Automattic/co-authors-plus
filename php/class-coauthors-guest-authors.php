@@ -1532,7 +1532,7 @@ class CoAuthors_Guest_Authors {
 
 			$reassign_to_term = $coauthors_plus->get_author_term( $reassign_to_author );
 			// In the case where the guest author and its linked account shared the same term, we don't want to reassign
-			if ( $guest_author_term->term_id != $reassign_to_term->term_id ) {
+			if ( $guest_author_term && $reassign_to_term && $guest_author_term->term_id != $reassign_to_term->term_id ) {
 				wp_delete_term(
 					$guest_author_term->term_id,
 					$coauthors_plus->coauthor_taxonomy,
@@ -1542,7 +1542,9 @@ class CoAuthors_Guest_Authors {
 					)
 				);
 			}
-		} else {
+		} elseif ( $guest_author_term ) {
+			// A guest author linked to a user shares the user's term, which is gone
+			// already when this runs as part of deleting or removing that user.
 			wp_delete_term( $guest_author_term->term_id, $coauthors_plus->coauthor_taxonomy );
 		}
 
