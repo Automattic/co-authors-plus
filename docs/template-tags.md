@@ -162,7 +162,7 @@ coauthors_wp_list_authors( $args = array() );
 | `feed_image` | `''` | If set, use this image URL for the feed link. |
 | `feed_type` | `''` | Feed type passed to `get_author_feed_link()`. |
 | `echo` | `true` | Echo the output. If `false`, return it. |
-| `style` | `'list'` | `'list'` wraps each co-author in `<li>`, so add your own `<ul>` around it. Any other value separates co-authors with commas, but currently only produces output when `hide_empty` is `false`. |
+| `style` | `'list'` | `'list'` wraps each co-author in `<li>`, so add your own `<ul>` around it. Any other value separates co-authors with commas. |
 | `html` | `true` | If `false`, output plain names separated by commas, with no links. |
 | `number` | `20` | Maximum number of co-authors to fetch. |
 | `guest_authors_only` | `false` | Only list guest authors. |
