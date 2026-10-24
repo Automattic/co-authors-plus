@@ -56,6 +56,13 @@ class CoAuthors_Plus {
 	private $processing_rest_save = false;
 
 	/**
+	 * Post a co-author may save as the post author, set once core has verified the save nonce.
+	 *
+	 * @var int
+	 */
+	private $coauthor_save_post_id = 0;
+
+	/**
 	 * @var CoAuthors_Guest_Authors
 	 */
 	public $guest_authors;
@@ -98,6 +105,7 @@ class CoAuthors_Plus {
 
 		// Filter to allow co-authors to edit posts
 		add_filter( 'map_meta_cap', array( $this, 'filter_map_meta_cap' ), 10, 4 );
+		add_action( 'check_admin_referer', array( $this, 'allow_coauthor_save' ), 10, 2 );
 
 		// Handle the custom co-author meta box
 		add_action( 'add_meta_boxes', array( $this, 'add_coauthors_box' ) );
@@ -2492,16 +2500,34 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Lets a co-author save a post they're co-author of from the classic editor or Quick Edit.
+	 * Notes the post being saved once core has verified its save nonce.
+	 *
+	 * Core's post.php verifies the update-post_{ID} nonce before it saves a post
+	 * from the classic editor (editpost) or stores a preview (preview), and both
+	 * then reach _wp_translate_postdata(). Any other nonce check clears it.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param int|string $action The nonce action.
+	 * @param int|false  $result Whether the nonce is valid.
+	 */
+	public function allow_coauthor_save( $action, $result ): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Core has just verified the nonce.
+		$post_id = isset( $_POST['post_ID'] ) ? absint( $_POST['post_ID'] ) : 0;
+
+		$this->coauthor_save_post_id = ( $result && $post_id && 'update-post_' . $post_id === $action ) ? $post_id : 0;
+	}
+
+	/**
+	 * Lets a co-author save a post they're co-author of from the classic editor.
 	 *
 	 * Core checks the edit_others_posts cap in _wp_translate_postdata() when the
 	 * submitted post_author is not the current user, which is always true for a
-	 * co-author who is not the post author. We only allow it while saving a post
-	 * the user is co-author of, and only when the post author is not changed.
-	 *
-	 * The grant stops once pre_post_update fires, which is after
-	 * _wp_translate_postdata(). Later checks in the same save, such as the sticky
-	 * handling in edit_post(), still see the user's own caps.
+	 * co-author who is not the post author. We only allow it for the post whose
+	 * save nonce core has just verified, only when the post author is not
+	 * changed, and only for the first check after the nonce, which is the one in
+	 * _wp_translate_postdata(). Other admin requests, and later checks in the same
+	 * save such as the sticky handling in edit_post(), see the user's own caps.
 	 *
 	 * @since 4.2.0
 	 *
@@ -2511,20 +2537,11 @@ class CoAuthors_Plus {
 	 * @return string[] Primitive caps required by the user.
 	 */
 	private function maybe_allow_coauthor_save( $caps, $cap, int $user_id ): array {
-		if ( did_action( 'pre_post_update' ) ) {
+		if ( ! $this->coauthor_save_post_id || did_action( 'pre_post_update' ) ) {
 			return $caps;
 		}
 
-		// Core checks the nonce for these requests before saving.
-		// phpcs:disable WordPress.Security.NonceVerification.Missing
-		if ( empty( $_POST['post_ID'] ) || ! isset( $_POST['post_author'] ) ) {
-			return $caps;
-		}
-
-		$post             = get_post( absint( $_POST['post_ID'] ) );
-		$submitted_author = absint( ! empty( $_POST['post_author_override'] ) ? $_POST['post_author_override'] : $_POST['post_author'] );
-		// phpcs:enable WordPress.Security.NonceVerification.Missing
-
+		$post = get_post( $this->coauthor_save_post_id );
 		if ( ! $post || 'revision' === $post->post_type || ! $this->is_post_type_enabled( $post->post_type ) ) {
 			return $caps;
 		}
@@ -2534,7 +2551,20 @@ class CoAuthors_Plus {
 			return $caps;
 		}
 
-		if ( (int) $post->post_author !== $submitted_author || ! is_coauthor_for_post( $user_id, $post->ID ) ) {
+		// Only the first check after the nonce.
+		$this->coauthor_save_post_id = 0;
+
+		// Core verified the nonce before allow_coauthor_save() ran.
+		// phpcs:disable WordPress.Security.NonceVerification.Missing
+		if ( ! isset( $_POST['post_author'] ) ) {
+			return $caps;
+		}
+
+		$submitted_author = absint( ! empty( $_POST['post_author_override'] ) ? $_POST['post_author_override'] : $_POST['post_author'] );
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		// Core skips the check for the post author, so they never need the grant.
+		if ( (int) $post->post_author === $user_id || (int) $post->post_author !== $submitted_author || ! is_coauthor_for_post( $user_id, $post->ID ) ) {
 			return $caps;
 		}
 
