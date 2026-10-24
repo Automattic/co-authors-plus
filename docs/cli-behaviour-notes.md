@@ -937,7 +937,10 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
 
 ## delete-postmeta-that-skip-author-term-backfill
 
-(Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
+(Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.
+Every scenario for this command lives in
+`features/create-author-terms-for-posts.feature`, alongside the backfill that
+writes the marker.)
 
 - ~~Success/failure per post is reported with bare emoji (`Success: 👍` /
   `Error: 👎`), carrying no post ID and so no diagnostic value.~~ **FIXED.** Each
@@ -960,32 +963,31 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   failing the whole run on it was over-reading a weak signal. The scenario that
   pinned the abort is inverted: it now asserts the *second* post's meta really is
   gone, which is what fails against the old code.
-- ~~With no `--specific-post-ids` the lookup WP_Query uses defaults, so skip metas
-  on drafts, pages or other post types are never found.~~ **STALE, not fixed as
-  written** — there is no `WP_Query` in this command any more; the bare lookup is a
-  direct prepared read of the postmeta table, superseded by the struck entry below.
-  (The struck entry's own wording is also inaccurate: it says the query "now passes
-  `post_type=any`, `post_status=any` and `posts_per_page=-1`", which describes an
-  approach that was tried and replaced. Another reminder that "Noted; not pinned"
-  entries are the ones to distrust.)
-- When there is nothing to delete the command prints nothing at all (no summary,
-  exit 0). Pinned.
-
-
-- Hardened 2026-09-02 after adversarial review: 6 scenarios for this command.
 - ~~Bare (no `--specific-post-ids`) mode never sees skip metas on unpublished
   posts, nor on pages or other post types, and silently caps at
   `posts_per_page` (10 by default) with no warning and no summary. An operator
   who backfills 30 pages and then runs the bare delete gets no output, exit 0,
-  and nothing deleted.~~ **FIXED.** The lookup query set only `meta_key` and
-  `fields`, so it inherited `post_type=post`, `post_status=publish` and the
-  site's `posts_per_page`. It now passes `post_type=any`, `post_status=any` and
-  `posts_per_page=-1`, and both scenarios are re-pinned to the corrected
-  behaviour.
-- The "nothing to delete" scenario now asserts rc 0 and empty STDERR. On its own
-  `STDOUT should be empty` is vacuous: the harness moves `Error:`/`Warning:` lines
-  into STDERR whenever the exit code is non-zero, so an unregistered subcommand
-  after the class split would have kept that scenario green.
+  and nothing deleted.~~ **FIXED.** The lookup was a `WP_Query` that set only
+  `meta_key` and `fields`, so it inherited `post_type=post`, `post_status=publish`
+  and the site's `posts_per_page`. There is no `WP_Query` any more: the bare
+  lookup is a prepared `SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s`,
+  which has no post type, status or page size to inherit, and needs no
+  `posts_per_page=-1`. Two scenarios pin it: a draft's marker is deleted, and so
+  are all 11 markers when there are more than a default page of them.
+- ~~A non-numeric entry in `--specific-post-ids` is cast to 0 and reported against
+  "post 0", which reads as a real post.~~ **FIXED.** It is named in a warning
+  (``Ignoring non-numeric post ID `abc` in --specific-post-ids.``) and skipped,
+  and the valid IDs in the same list are still processed, exit 0. The check sits
+  inside the loop rather than before the bare-mode fallback, so a list of nothing
+  but non-numeric entries is not emptied and silently widened into a run over every
+  marker on the site. Pinned.
+- When there is nothing to delete the command prints nothing at all (no summary,
+  exit 0). Pinned, with rc 0 and empty STDERR asserted too: on its own
+  `STDOUT should be empty` is vacuous, because the harness moves
+  `Error:`/`Warning:` lines into STDERR whenever the exit code is non-zero, so an
+  unregistered subcommand after the class split would have kept that scenario
+  green.
+
 ## list-posts-without-terms
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
