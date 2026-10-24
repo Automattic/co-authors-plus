@@ -1129,8 +1129,8 @@ writes the marker.)
   is refused the same way rather than reporting `Found 0 authors in CSV`. `user_email`
   is optional. Both `_n()` branches pinned
   (features/fixtures/guest-authors-missing-user-login.csv, guest-authors-empty.csv).
-- Per-author failures are warnings only; once the file is readable the command always
-  exits 0.
+- Per-author failures are warnings only; once the file is readable and has both
+  required columns the command always exits 0.
 
 - Re-calibrated 2026-09-02: confirmed, plus a new branch finding.
   - The first/last-name logic at :1108-1119 has a GAP: the `if` needs a space in
