@@ -325,7 +325,7 @@ class CoAuthors_Guest_Authors {
 		}
 
 		if ( ! empty( $_GET['guest_author'] ) ) {
-			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_login );
+			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_nicename );
 		} else {
 			$ignore = array();
 		}
