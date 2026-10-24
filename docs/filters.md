@@ -139,7 +139,7 @@ Whether to force guest authors even when the feature would otherwise be skipped.
 
 ### `coauthors_guest_author_manage_cap`
 
-Capability required to manage guest authors. Defaults to `list_users`. See [Roles and capabilities](./roles-and-capabilities.md).
+Capability required to manage guest authors. Defaults to `list_users`. Deleting a guest author also needs `delete_post` on the profile, on the confirmation screen and when the deletion runs, whatever this filter returns. See [Roles and capabilities](./roles-and-capabilities.md).
 
 ### `coauthors_guest_author_parent_page`
 
