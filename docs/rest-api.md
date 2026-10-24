@@ -79,7 +79,7 @@ Searches registered users and guest authors. Used by the sidebar autocomplete.
 | `q` | string | yes | Search text. |
 | `existing_authors` | string | no | Comma-separated list of author IDs to exclude from results. |
 
-**Permission:** same as below — `edit_others_posts` via `coauthors_plus_edit_authors`.
+**Permission:** same as below. The requester must be able to set authors on at least one supported post type, for example with `edit_others_posts` or `edit_others_pages`, filterable via `coauthors_plus_edit_authors`.
 
 ### `GET /coauthors/v1/authors-by-term-ids?ids={csv}`
 
@@ -112,7 +112,7 @@ An array of author objects, each shaped like:
 
 ### `GET /coauthors/v1/authors/{post_id}`
 
-Returns rich co-author data for a post. Similar to `/coauthors/v1/coauthors?post_id=` but older and protected by the author-editing capability rather than public-visibility.
+Returns rich co-author data for a post. Similar to `/coauthors/v1/coauthors?post_id=` but older and protected by the author-editing capability for the post's type (such as `edit_others_pages` for a page) rather than public-visibility.
 
 ### `POST /coauthors/v1/authors/{post_id}`
 

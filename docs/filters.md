@@ -91,7 +91,7 @@ Whether to combine the `post_author` column query with the taxonomy query. Retur
 
 ### `coauthors_plus_edit_authors`
 
-Whether the current user can assign co-authors to posts. Defaults to `edit_others_posts`.
+Whether the current user can assign co-authors. Defaults to the post type's `edit_others_posts` cap, such as `edit_others_pages` for pages, or `edit_others_posts` when the post type isn't known. The second argument is the post type, or `null` when it isn't known.
 
 - **File:** `php/class-coauthors-plus.php`
 

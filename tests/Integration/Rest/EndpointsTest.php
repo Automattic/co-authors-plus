@@ -605,7 +605,7 @@ class EndpointsTest extends TestCase {
 	}
 
 	/**
-	 * The routes without a post keep the global check.
+	 * An Editor can use the routes without a post.
 	 *
 	 * @covers \CoAuthors\API\Endpoints::can_edit_coauthors
 	 */
