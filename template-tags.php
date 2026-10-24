@@ -231,22 +231,7 @@ function coauthors( $between = null, $betweenLast = null, $before = null, $after
  * @param bool   $echo Whether the co-authors should be echoed or returned. Defaults to true.
  */
 function coauthors_posts_links( $between = null, $betweenLast = null, $before = null, $after = null, $echo = true ) {
-
-	global $coauthors_plus_template_filters;
-
-	$modify_filter = ! empty( $coauthors_plus_template_filters ) && $coauthors_plus_template_filters instanceof CoAuthors_Template_Filters;
-
-	if ( $modify_filter ) {
-
-		/**
-		 * Removing "the_author" filter so that it won't get called in loop and append names for each author.
-		 *
-		 * Ref : https://github.com/Automattic/Co-Authors-Plus/issues/279
-		 */
-		remove_filter( 'the_author', array( $coauthors_plus_template_filters, 'filter_the_author' ) );
-	}
-
-	$coauthors_posts_links = coauthors__echo(
+	return coauthors__echo(
 		'coauthors_posts_links_single',
 		'callback',
 		array(
@@ -258,12 +243,6 @@ function coauthors_posts_links( $between = null, $betweenLast = null, $before = 
 		null,
 		$echo
 	);
-
-	if ( $modify_filter ) {
-		add_filter( 'the_author', array( $coauthors_plus_template_filters, 'filter_the_author' ) );
-	}
-
-	return $coauthors_posts_links;
 }
 
 /**
@@ -282,17 +261,37 @@ function coauthors_posts_links_single( $author ) {
 		);
 		return;
 	}
-	$args        = array(
+
+	/*
+	 * When template tags are auto-applied, filter_the_author() replaces the name
+	 * with the whole co-author list, so take it off while this link is built.
+	 *
+	 * @see https://github.com/Automattic/Co-Authors-Plus/issues/279
+	 */
+	global $coauthors_plus_template_filters;
+	$the_author_filter = array( $coauthors_plus_template_filters, 'filter_the_author' );
+	$priority          = $coauthors_plus_template_filters instanceof CoAuthors_Template_Filters ? has_filter( 'the_author', $the_author_filter ) : false;
+	if ( false !== $priority ) {
+		remove_filter( 'the_author', $the_author_filter, $priority );
+	}
+
+	$display_name = apply_filters( 'the_author', $author->display_name );
+	$args         = array(
 		'before_html' => '',
 		'href'        => get_author_posts_url( $author->ID, $author->user_nicename ),
 		'rel'         => 'author',
 		/* translators: %s: author display name */
-		'title'       => sprintf( __( 'Posts by %s', 'co-authors-plus' ), apply_filters( 'the_author', $author->display_name ) ),
+		'title'       => sprintf( __( 'Posts by %s', 'co-authors-plus' ), $display_name ),
 		'class'       => 'author url fn',
-		'text'        => apply_filters( 'the_author', $author->display_name ),
+		'text'        => $display_name,
 		'after_html'  => '',
 	);
-	$args        = apply_filters( 'coauthors_posts_link', $args, $author );
+	$args         = apply_filters( 'coauthors_posts_link', $args, $author );
+
+	if ( false !== $priority ) {
+		add_filter( 'the_author', $the_author_filter, $priority );
+	}
+
 	$single_link = sprintf(
 		'<a href="%1$s" title="%2$s" class="%3$s" rel="%4$s">%5$s</a>',
 		esc_url( $args['href'] ),
