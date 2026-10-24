@@ -1,6 +1,7 @@
 <?php
 /**
- * Tests for the co-author clean-up that runs when a user is deleted.
+ * Tests for the co-author clean-up that runs when a user is deleted, or is
+ * removed from a site on multisite.
  *
  * @package Automattic\CoAuthorsPlus
  */
@@ -88,5 +89,78 @@ class UserRemovalTest extends TestCase {
 		// Neither the prefixed term nor an unprefixed replacement survives.
 		$this->assertNull( term_exists( 'cap-deletedauthor', $this->_cap->coauthor_taxonomy ) );
 		$this->assertNull( term_exists( 'deletedauthor', $this->_cap->coauthor_taxonomy ) );
+	}
+
+	/**
+	 * Set up a user who authors a post on the main site and, on a second site,
+	 * a post and a linked guest author.
+	 *
+	 * @param \WP_User $user          The user to set up.
+	 * @param \WP_User $site_reassign A second member of the second site.
+	 * @return array{blog_id: int, main_post_id: int, site_post_id: int, guest_author_id: int}
+	 */
+	private function set_up_user_on_second_site( \WP_User $user, \WP_User $site_reassign ): array {
+		$main_post_id = $this->create_post( $user )->ID;
+		$blog_id      = (int) $this->factory()->blog->create();
+		add_user_to_blog( $blog_id, $user->ID, 'author' );
+		add_user_to_blog( $blog_id, $site_reassign->ID, 'author' );
+
+		switch_to_blog( $blog_id );
+		$site_post_id    = $this->create_post( $user )->ID;
+		$guest_author_id = $this->_cap->guest_authors->create_guest_author_from_user_id( $user->ID );
+		restore_current_blog();
+
+		$this->assertIsInt( $guest_author_id );
+
+		return compact( 'blog_id', 'main_post_id', 'site_post_id', 'guest_author_id' );
+	}
+
+	/**
+	 * Removing a user from a site with a reassignment moves their bylines and
+	 * deletes their linked guest author on that site, leaving other sites alone.
+	 *
+	 * @group ms-required
+	 *
+	 * @covers ::remove_user_from_blog_action
+	 */
+	public function test_remove_user_from_site_with_reassign_cleans_up_that_site_only(): void {
+		$removed  = $this->create_author( 'removedauthor' );
+		$reassign = $this->create_author( 'reassignauthor' );
+		$setup    = $this->set_up_user_on_second_site( $removed, $reassign );
+
+		remove_user_from_blog( $removed->ID, $setup['blog_id'], $reassign->ID );
+
+		switch_to_blog( $setup['blog_id'] );
+		$site_terms   = $this->get_author_term_slugs( $setup['site_post_id'] );
+		$guest_author = get_post( $setup['guest_author_id'] );
+		restore_current_blog();
+
+		$this->assertSame( array( 'cap-reassignauthor' ), $site_terms );
+		$this->assertNull( $guest_author, 'The guest author linked to the removed user should be deleted on that site.' );
+		$this->assertSame( array( 'cap-removedauthor' ), $this->get_author_term_slugs( $setup['main_post_id'] ) );
+	}
+
+	/**
+	 * Removing a user from a site without a reassignment leaves their posts
+	 * attributed to them, as WordPress does with post_author.
+	 *
+	 * @group ms-required
+	 *
+	 * @covers ::remove_user_from_blog_action
+	 */
+	public function test_remove_user_from_site_without_reassign_keeps_their_bylines(): void {
+		$removed = $this->create_author( 'removedauthor' );
+		$member  = $this->create_author( 'memberauthor' );
+		$setup   = $this->set_up_user_on_second_site( $removed, $member );
+
+		remove_user_from_blog( $removed->ID, $setup['blog_id'] );
+
+		switch_to_blog( $setup['blog_id'] );
+		$site_terms   = $this->get_author_term_slugs( $setup['site_post_id'] );
+		$guest_author = get_post( $setup['guest_author_id'] );
+		restore_current_blog();
+
+		$this->assertSame( array( 'cap-removedauthor' ), $site_terms );
+		$this->assertNotNull( $guest_author );
 	}
 }
