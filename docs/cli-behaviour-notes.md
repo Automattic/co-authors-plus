@@ -1108,6 +1108,25 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   `--orderby=slug --order=asc`. They previously relied on `wp term list`'s default
   name-ascending order coinciding with slug order, which only held because the
   admin term is named "admin".
+
+## create-guest-authors
+
+- ~~Every `WP_Error` from `create_guest_author_from_user_id()` was counted as
+  "already had a guest author profile". A user refused for any other reason, such
+  as a login that collides with an unlinked guest author, landed in that tally and
+  the error message was never shown.~~ **FIXED.** The command now asks
+  `get_guest_author_by( 'linked_account', ... )` before creating, and only that
+  counts as already having a profile. Reading it from the error code was not an
+  option: `create()` returns the same `duplicate-field` error for a user's own
+  linked profile and for an unrelated guest author holding the login. Any other
+  error is a warning naming the user and the reason, followed by an
+  `N of M users could not be given a guest author profile.` tally. The run carries
+  on and exits 0, as the CSV and WXR importers do.
+- The same lookup fixes a duplicate profile: the profile's login comes from the
+  user's display name, so after a rename the second run no longer collided and
+  created another profile linked to the same account. That user is now counted as
+  already having one. Both are pinned in features/create-guest-author.feature.
+
 ## create-guest-authors-from-csv
 
 (Calibrated against the live env 2026-09-01; all scenarios green.)
