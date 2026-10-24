@@ -920,6 +920,20 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   re-selected by every batch and consumes the budget, so the others are never
   reached and the progress line repeats for the same post. On a large site that is
   indistinguishable from a hang, which is probably how it was recorded as a loop.
+- ~~`--records-per-batch` is interpolated into the SQL `LIMIT` unvalidated, so a
+  non-numeric value gives a database error and the run still ends
+  `Success: Done!`.~~ **FIXED.** It must be a positive integer (`FILTER_VALIDATE_INT`
+  with `min_range` 1, so `0` and `5abc` are refused too), else `WP_CLI::error()`
+  before anything runs. The `LIMIT` also casts, as a backstop.
+- ~~`--post-types` is not checked against the post types Co-Authors Plus is enabled
+  for. A typo matches nothing and the run reports success; a real but unsupported
+  type such as `attachment` or `revision` gets author terms written to it.~~
+  **FIXED.** Any value outside `supported_post_types()` is an error that lists the
+  enabled types and the rejected ones. An error rather than warn-and-skip (the
+  approach `delete-postmeta-that-skip-author-term-backfill` takes for bad
+  `--specific-post-ids` entries): this validates a whole flag before any write, as
+  the ID-range check above does, and a warning would scroll past in a long run that
+  quietly did only part of what was asked.
 
 ## delete-postmeta-that-skip-author-term-backfill
 
