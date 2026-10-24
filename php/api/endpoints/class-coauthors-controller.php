@@ -533,11 +533,12 @@ class CoAuthors_Controller extends WP_REST_Controller {
 		$response = rest_ensure_response( $data );
 
 		/**
-		 * Filters the post data for a REST API response.
+		 * Filters the co-author data for a REST API response.
 		 *
 		 * @since 3.6.0
 		 * @param WP_REST_Response $response The response object.
-		 * @param stdClass|WP_User $author
+		 * @param stdClass         $author   The author: a registered user's WP_User->data, with
+		 *                                   `description` added, or the guest author object.
 		 * @param WP_REST_Request  $request  Request object.
 		 */
 		return apply_filters( 'rest_prepare_coauthor', $response, $author, $request );
