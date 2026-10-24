@@ -337,7 +337,7 @@ wp co-authors-plus import-coauthors --file=<path> [--dry-run] [--skip-create]
 
 Guest authors are matched by login. Posts are matched by slug and post type, in any status. Each guest author is added to the byline at its recorded position, alongside any co-authors the post already has. A post that already has the guest author is left alone, so an interrupted import can be run again.
 
-The command warns when the file came from a different version of the plugin, and for each post it couldn't find. These are warnings, not errors, and the command exits with 0. The dry run counts every post it can find, including posts that already have the guest author, so its figure can be higher than a real run's.
+The command warns when the file came from a different version of the plugin, and for each post it couldn't find. These are warnings, not errors, and the command exits with 0. The dry run makes the same checks as a real run, so it counts only the posts a real run would add a guest author to.
 
 ## Multisite
 
