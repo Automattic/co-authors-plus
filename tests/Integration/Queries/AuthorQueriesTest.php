@@ -10,6 +10,7 @@
  * @see https://github.com/Automattic/co-authors-plus/issues/508
  * @see https://github.com/Automattic/co-authors-plus/issues/1102
  * @see https://github.com/Automattic/co-authors-plus/issues/1296
+ * @see https://github.com/Automattic/co-authors-plus/issues/1377
  *
  * @package Automattic\CoAuthorsPlus
  */
@@ -149,6 +150,22 @@ class AuthorQueriesTest extends TestCase {
 		$this->assertQueryReturns( array( $post->ID ), $query );
 	}
 
+	/**
+	 * An `author` ID query must find a post for a guest author by their post ID.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1377
+	 */
+	public function test_author_id_finds_post_for_a_guest_author(): void {
+		$guest_id = $this->create_guest_author( 'guest_single_id' );
+		$author   = $this->create_author( 'guest_single_owner' );
+		$post     = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( 'guest_single_id' ) );
+
+		$query = new WP_Query( array( 'author' => $guest_id ) );
+
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
+
 	// -- author (comma-separated IDs), issue #1102 --------------------------
 
 	/**
@@ -169,6 +186,31 @@ class AuthorQueriesTest extends TestCase {
 			array( $post->ID ),
 			$query,
 			'Comma-separated author IDs must find the post via taxonomy when post_author is not in the list.'
+		);
+	}
+
+	/**
+	 * Comma-separated author IDs must find posts when a guest author ID is included.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1377
+	 */
+	public function test_author_comma_string_finds_post_for_a_guest_author(): void {
+		$author       = $this->create_author( 'comma_u1' );
+		$other_author = $this->create_author( 'comma_u2' );
+		$guest_id     = $this->create_guest_author( 'comma_g1' );
+
+		$post1 = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post1->ID, array( $author->user_login ) );
+
+		$post2 = $this->create_post( $other_author );
+		$this->_cap->add_coauthors( $post2->ID, array( 'comma_g1' ) );
+
+		$query = new WP_Query( array( 'author' => $author->ID . ',' . $guest_id ) );
+
+		$this->assertQueryReturns(
+			array( $post1->ID, $post2->ID ),
+			$query,
+			'Comma-separated author IDs must find posts for both users and guest authors.'
 		);
 	}
 
@@ -235,6 +277,76 @@ class AuthorQueriesTest extends TestCase {
 		$query = new WP_Query( array( 'author__in' => array( $author3->ID ) ) );
 
 		$this->assertQueryReturns( array(), $query, 'An unrelated author must not cause false positives.' );
+	}
+
+	/**
+	 * An `author__in` query must find a post for a guest author by their post ID.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1377
+	 */
+	public function test_author_in_finds_post_for_a_guest_author(): void {
+		$guest_id = $this->create_guest_author( 'guest_in_1' );
+		$author   = $this->create_author( 'guest_in_owner' );
+		$post     = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( 'guest_in_1' ) );
+
+		$query = new WP_Query( array( 'author__in' => array( $guest_id ) ) );
+
+		$this->assertQueryReturns(
+			array( $post->ID ),
+			$query,
+			'author__in must find a post where the guest author is queried by post ID.'
+		);
+	}
+
+	/**
+	 * An `author__in` query with multiple guest author IDs must find matching posts.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1377
+	 */
+	public function test_author_in_with_multiple_guest_author_ids(): void {
+		$guest1_id = $this->create_guest_author( 'guest_multi_1' );
+		$guest2_id = $this->create_guest_author( 'guest_multi_2' );
+
+		$author = $this->create_author( 'guest_multi_owner' );
+		$post1  = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post1->ID, array( 'guest_multi_1' ) );
+
+		$post2 = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post2->ID, array( 'guest_multi_2' ) );
+
+		$query = new WP_Query( array( 'author__in' => array( $guest1_id, $guest2_id ) ) );
+
+		$this->assertQueryReturns(
+			array( $post1->ID, $post2->ID ),
+			$query,
+			'author__in must find posts for multiple guest authors queried by post ID.'
+		);
+	}
+
+	/**
+	 * An `author__in` query with mixed user and guest author IDs must find matching posts.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1377
+	 */
+	public function test_author_in_with_mixed_user_and_guest_author_ids(): void {
+		$author       = $this->create_author( 'mixed_user_1' );
+		$other_author = $this->create_author( 'mixed_user_2' );
+		$guest_id     = $this->create_guest_author( 'mixed_guest_1' );
+
+		$post1 = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post1->ID, array( $author->user_login ) );
+
+		$post2 = $this->create_post( $other_author );
+		$this->_cap->add_coauthors( $post2->ID, array( 'mixed_guest_1' ) );
+
+		$query = new WP_Query( array( 'author__in' => array( $author->ID, $guest_id ) ) );
+
+		$this->assertQueryReturns(
+			array( $post1->ID, $post2->ID ),
+			$query,
+			'author__in must return posts matching either the WordPress user or the guest author.'
+		);
 	}
 
 	// -- late author vars via pre_get_posts, issue #1056 ---------------------
