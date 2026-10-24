@@ -1680,7 +1680,10 @@ class CoAuthors_Plus {
 		} else {
 			// If a co-author isn't currently set, we need to explicitly set one.
 			// This covers both classic and REST-created posts (e.g. auto-drafts).
-			if ( ! $this->has_author_terms( $post_id ) ) {
+			// Trashed posts are skipped: deleting a user without reassignment
+			// trashes their posts after their term is deleted, and this would
+			// recreate it. Restoring a post saves it again, which backfills then.
+			if ( 'trash' !== $post->post_status && ! $this->has_author_terms( $post_id ) ) {
 				$user = get_userdata( $post->post_author );
 				if ( $user ) {
 					$this->add_coauthors( $post_id, array( $user->user_nicename ) );
