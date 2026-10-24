@@ -122,7 +122,7 @@ class Coauthor_Import_Service {
 		$post_refs = isset( $entry['post_refs'] ) ? (array) $entry['post_refs'] : array();
 
 		foreach ( $post_refs as $ref ) {
-			$this->link( (array) $ref, $guest_author, $dry_run, $summary );
+			$this->link( (array) $ref, $guest_author, $dry_run, $skip_create, $summary );
 		}
 	}
 
@@ -158,10 +158,11 @@ class Coauthor_Import_Service {
 	 * @param array<string, mixed> $ref          One post_refs element.
 	 * @param object|false         $guest_author Resolved guest author, if any.
 	 * @param bool                 $dry_run      Whether to write anything.
+	 * @param bool                 $skip_create  Whether missing profiles are left uncreated.
 	 * @param array<string, mixed> $summary      Running summary, by reference.
 	 * @return void
 	 */
-	private function link( array $ref, $guest_author, bool $dry_run, array &$summary ): void {
+	private function link( array $ref, $guest_author, bool $dry_run, bool $skip_create, array &$summary ): void {
 		$slug = (string) ( $ref['post_slug'] ?? '' );
 
 		if ( '' === $slug ) {
@@ -178,7 +179,11 @@ class Coauthor_Import_Service {
 			return;
 		}
 
-		if ( $dry_run ) {
+		// A dry run counts only what a real run would change, so the preview
+		// and the run it previews report the same numbers.
+		if ( $dry_run && ! $guest_author && ! $skip_create ) {
+			// The profile would be created first, so it is assumed not to be
+			// on the post yet.
 			++$summary['posts_linked'];
 			return;
 		}
@@ -188,6 +193,13 @@ class Coauthor_Import_Service {
 				'No profile to link to "%s"; run without --skip-create to create it.',
 				$slug
 			);
+			return;
+		}
+
+		if ( $dry_run ) {
+			if ( ! in_array( (string) $guest_author->user_nicename, $this->assignments->nicenames_for_post( $post_id ), true ) ) {
+				++$summary['posts_linked'];
+			}
 			return;
 		}
 
