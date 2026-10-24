@@ -1118,9 +1118,15 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   parameters are passed without an explicit `$escape`. The assertion was dropped from
   the feature; the happy-path output is clean of warnings/deprecations because the CSV
   flow populates every array key that `create_guest_author()` reads.
-- There is no validation of required CSV columns (`// TODO: bail if required fields not
+- ~~There is no validation of required CSV columns (`// TODO: bail if required fields not
   found` at :1076). A CSV without `user_login`/`user_email` columns would hit undefined
-  array keys at :1097. Not pinned — the fixture supplies all columns.
+  array keys at :1097.~~ **FIXED.** The header is read before any row, and a file
+  without a `display_name` or `user_login` column (the two fields
+  `CoAuthors_Guest_Authors::create()` requires) is refused with `Error: The CSV file is
+  missing the required column(s): ...` and exit 1. An empty file has no header, so it
+  is refused the same way rather than reporting `Found 0 authors in CSV`. `user_email`
+  is optional. Both `_n()` branches pinned
+  (features/fixtures/guest-authors-missing-user-login.csv, guest-authors-empty.csv).
 - Per-author failures are warnings only; once the file is readable the command always
   exits 0.
 
@@ -1161,7 +1167,7 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
     markup is not the same as neutralising a payload.
   - `absint( 'abc' )` is 0, so no featured image is set and (as always) no `cap-avatar`
     meta exists — `avatar` is not one of `get_guest_author_fields()`.
-- **A header that omits columns still imports, noisily.** With header
+- ~~**A header that omits columns still imports, noisily.** With header
   `display_name,user_login` the command's own code emits `Undefined array key` for
   `user_email` twice (:1097 in the `Processing author %s (%s)` log, then :1102) and
   once each for `website` (:1103), `description` (:1104) and `avatar` (:1105), logs
@@ -1172,7 +1178,11 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   features/fixtures/guest-authors-missing-columns.csv, whose header also ends in a
   NAMELESS column carrying a value, exercising the `if ( empty( $field_keys[ $col_num ] ) )
   { continue; }` branch (:1099-1101) — the exact meta block shows the value is dropped.
-  The `// TODO: bail if required fields not found` at :1076 is still a TODO.
+  The `// TODO: bail if required fields not found` at :1076 is still a TODO.~~
+  **FIXED.** Every column the command reads now starts as an empty string, so an
+  omitted optional column (or a row shorter than the header) reads as empty: no
+  `Undefined array key` output, and the meta block is unchanged. The scenario now
+  asserts the warnings are absent.
 - **A failing row does not stop the import.** features/fixtures/guest-authors-invalid-row.csv
   (empty `display_name` on row 1, a good row 2) gives `Found 2 authors in CSV`,
   `Warning: -- Failed to create guest author: display_name is a required field`, then
