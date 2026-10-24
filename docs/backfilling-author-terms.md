@@ -51,9 +51,9 @@ With no options, it covers published posts of the `post` post type, 250 at a tim
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `--post-types=<post-types>` | `post` | Comma-separated post types to cover. |
+| `--post-types=<post-types>` | `post` | Comma-separated post types to cover. Each must be one Co-Authors Plus is enabled for. |
 | `--post-statuses=<post-statuses>` | `publish` | Comma-separated post statuses to cover, for example `publish,future,draft,pending,private`. |
-| `--records-per-batch=<number>` | `250` | How many posts to fetch per batch. |
+| `--records-per-batch=<number>` | `250` | How many posts to fetch per batch, as a positive integer. |
 | `--unbatched` | Off | Fetch every matching post in one query. Fine on a small site; on a large one it loads every row into memory at once. |
 | `--specific-post-ids=<ids>` | None | Comma-separated post IDs. Only these posts are considered, and they must still match the post types and statuses. |
 | `--above-post-id=<id>` | None | Only consider posts with an ID greater than this. |
@@ -61,7 +61,7 @@ With no options, it covers published posts of the `post` post type, 250 at a tim
 
 `--above-post-id` and `--below-post-id` can be used alone or together. Together, they select a range, which lets you split a large backfill across several runs. The command stops with an error if `--above-post-id` isn't less than `--below-post-id`. When `--specific-post-ids` is given, the range options are ignored, with a warning.
 
-The command doesn't check the post types you pass against the ones Co-Authors Plus is enabled for. To list the enabled post types:
+The command stops with an error before writing anything if `--records-per-batch` isn't a positive integer, or if `--post-types` includes a post type Co-Authors Plus isn't enabled for. To list the enabled post types:
 
 ```sh
 wp eval 'echo implode( ",", $GLOBALS["coauthors_plus"]->supported_post_types() );'
