@@ -30,7 +30,7 @@ This also gives a simpler author query. Posts that were never given a co-author 
 2. Fix the bylines of the posts where `post_author` is wrong, for example in the editor.
 3. Run `wp co-authors-plus create-author-terms-for-posts` for the rest, where `post_author` is known to be right. The posts you fixed in step 2 now have author terms, so it skips them. Unlike the older `create-terms-for-posts`, which covers every supported post type, it only covers published posts of the `post` post type unless you pass `--post-types` and `--post-statuses`, for example `--post-types=post,page --post-statuses=publish,draft,pending,private`.
 
-See [`coauthors_plus_should_query_post_author`](./filters.md#coauthors_plus_should_query_post_author) in the reference, and the wiki's [Backfilling coauthor terms for legacy posts](https://github.com/Automattic/Co-Authors-Plus/wiki/Backfilling-coauthor-terms-for-legacy-posts).
+See [`coauthors_plus_should_query_post_author`](./filters.md#coauthors_plus_should_query_post_author) in the reference, and [Backfilling author terms for existing posts](./backfilling-author-terms.md).
 
 ## Can I stop Co-Authors Plus changing one specific query?
 
@@ -57,7 +57,7 @@ Partly. If your theme uses `the_author()` and `the_author_posts_link()`, you can
 add_filter( 'coauthors_auto_apply_template_tags', '__return_true' );
 ```
 
-For full control over the markup, use the [template tags](https://github.com/Automattic/Co-Authors-Plus/wiki/Template-tags) or the [blocks](https://github.com/Automattic/Co-Authors-Plus/wiki/Blocks) instead.
+For full control over the markup, use the [template tags](./template-tags.md) or the [blocks](./blocks.md) instead.
 
 See [`coauthors_auto_apply_template_tags`](./filters.md#coauthors_auto_apply_template_tags) in the reference.
 
@@ -83,6 +83,8 @@ import { addFilter } from '@wordpress/hooks';
 addFilter( 'coAuthors.formatAuthorData.label', 'site/label', ( label, author ) =>
 	author.jobTitle ? `${ author.displayName } (${ author.jobTitle })` : label );
 ```
+
+The `import` line needs a build step. Without one, call `wp.hooks.addFilter()` instead, in a script you enqueue on `enqueue_block_editor_assets` with `wp-hooks` as a dependency.
 
 The classic editor has no JavaScript label filter, so change the `label` in PHP. It can be output as HTML, so keep it plain text:
 

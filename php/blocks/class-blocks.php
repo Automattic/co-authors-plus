@@ -94,9 +94,9 @@ class Blocks {
 			return $context;
 		}
 
-		return array(
-			'co-authors-plus/author' => $author,
-		);
+		$context['co-authors-plus/author'] = $author;
+
+		return $context;
 	}
 
 	/**

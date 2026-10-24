@@ -56,6 +56,13 @@ class CoAuthors_Plus {
 	private $processing_rest_save = false;
 
 	/**
+	 * Post a co-author may save as the post author, set once core has verified the save nonce.
+	 *
+	 * @var int
+	 */
+	private $coauthor_save_post_id = 0;
+
+	/**
 	 * @var CoAuthors_Guest_Authors
 	 */
 	public $guest_authors;
@@ -97,7 +104,8 @@ class CoAuthors_Plus {
 		add_action( 'wp_ajax_coauthors_ajax_suggest', array( $this, 'ajax_suggest' ) );
 
 		// Filter to allow co-authors to edit posts
-		add_filter( 'user_has_cap', array( $this, 'filter_user_has_cap' ), 10, 3 );
+		add_filter( 'map_meta_cap', array( $this, 'filter_map_meta_cap' ), 10, 4 );
+		add_action( 'check_admin_referer', array( $this, 'allow_coauthor_save' ), 10, 2 );
 
 		// Handle the custom co-author meta box
 		add_action( 'add_meta_boxes', array( $this, 'add_coauthors_box' ) );
@@ -367,7 +375,7 @@ class CoAuthors_Plus {
 
 		// Only memoise once every post type has had a chance to register. The first
 		// call can arrive before `init` — a capability check during bootstrap (e.g.
-		// kses_init() on set_current_user calling current_user_can()) reaches this
+		// kses_init() on set_current_user calling current_user_can()) used to reach this
 		// method via filter_user_has_cap() → get_to_be_filtered_caps(). Caching then
 		// would freeze a list containing only the built-in post types, permanently
 		// excluding every custom post type registered on `init` and hiding the
@@ -2007,7 +2015,7 @@ class CoAuthors_Plus {
 			return true;
 		}
 
-		// Instead of using current_user_can(), we need to manually check the allcaps because of filter_user_has_cap
+		// Check the role's own caps, so other cap filters can't change who sets authors.
 		$can_set_authors = isset( $current_user->allcaps['edit_others_posts'] ) && $current_user->allcaps['edit_others_posts'];
 
 		return apply_filters( 'coauthors_plus_edit_authors', $can_set_authors );
@@ -2403,9 +2411,13 @@ class CoAuthors_Plus {
 	 * Will only run once per request, and then cache the result.
 	 * The result is cached in $this->to_be_filtered_caps since CoAuthors_Plus is only instantiated once and stored as a global.
 	 *
+	 * @deprecated 4.2.0 No longer used, co-author caps are handled by filter_map_meta_cap().
+	 *
 	 * @return array caps that CAP should filter
 	 */
 	public function get_to_be_filtered_caps(): array {
+		_deprecated_function( __METHOD__, '4.2.0', 'CoAuthors_Plus::filter_map_meta_cap()' );
+
 		if ( ! empty( $this->supported_post_types() ) && empty( $this->to_be_filtered_caps ) ) {
 			$this->to_be_filtered_caps[] = 'edit_post'; // Need to filter this too, unfortunately: http://core.trac.wordpress.org/ticket/22415
 			$this->to_be_filtered_caps[] = 'read_post';
@@ -2426,50 +2438,151 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Allows guest authors to edit the post they're co-authors of
+	 * Allows co-authors to edit and delete the posts they're co-authors of.
+	 *
+	 * When the user is not the post author, WordPress asks for edit_others_posts
+	 * or delete_others_posts. A co-author should be treated like the post author,
+	 * so we ask for edit_posts or delete_posts instead. The status caps (such as
+	 * edit_published_posts or delete_private_posts) are kept, so the user's own
+	 * role still decides what they can do.
+	 *
+	 * This also covers read_post on drafts and pending posts, since core maps it to
+	 * edit_post. Private posts still need read_private_posts, same as before.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param string[] $caps    Primitive caps required by the user.
+	 * @param string   $cap     Capability being checked.
+	 * @param int      $user_id User ID.
+	 * @param array    $args    Extra arguments, the first one is the post ID.
+	 * @return string[] Primitive caps required by the user.
 	 */
-	public function filter_user_has_cap( $allcaps, $caps, $args ) {
-
-		$cap     = $args[0];
-		$user_id = $args[1] ?? 0;
-		$post_id = $args[2] ?? 0;
-
-		if ( ! in_array( $cap, $this->get_to_be_filtered_caps(), true ) ) {
-			return $allcaps;
+	public function filter_map_meta_cap( $caps, $cap, $user_id, $args ) {
+		if ( empty( $args ) && $user_id && is_admin() ) {
+			return $this->maybe_allow_coauthor_save( $caps, $cap, (int) $user_id );
 		}
 
-		$obj = get_post_type_object( get_post_type( $post_id ) );
-		if ( ! $obj || 'revision' === $obj->name ) {
-			return $allcaps;
-		}
-
-		// Even though we bail if cap is not among the to_be_filtered ones, there is a time in early request processing in which that list is not yet available, so the following block is needed
-		$caps_to_modify = array(
-			$obj->cap->edit_post,
-			'edit_post', // Need to filter this too, unfortunately: http://core.trac.wordpress.org/ticket/22415
-			$obj->cap->edit_others_posts, // This as well: http://core.trac.wordpress.org/ticket/22417
-			'read_post',
-			$obj->cap->read_post,
+		$actions = array(
+			'edit_post'   => 'edit',
+			'edit_page'   => 'edit',
+			'delete_post' => 'delete',
+			'delete_page' => 'delete',
 		);
-		if ( ! in_array( $cap, $caps_to_modify ) ) {
-			return $allcaps;
+		if ( ! isset( $actions[ $cap ] ) || empty( $args[0] ) || ! $user_id ) {
+			return $caps;
 		}
 
-		// We won't be doing any modification if they aren't already a co-author on the post
-		if ( ! is_user_logged_in() || ! is_coauthor_for_post( $user_id, $post_id ) ) {
-			return $allcaps;
+		$post = get_post( $args[0] );
+		if ( ! $post || 'revision' === $post->post_type || (int) $post->post_author === (int) $user_id ) {
+			return $caps;
 		}
 
-		$current_user = wp_get_current_user();
-		if ( 'publish' === get_post_status( $post_id ) &&
-		     ( isset( $obj->cap->edit_published_posts ) && ! empty( $current_user->allcaps[ $obj->cap->edit_published_posts ] ) ) ) {
-			$allcaps[ $obj->cap->edit_published_posts ] = true;
-		} elseif ( 'private' === get_post_status( $post_id ) &&
-		           ( isset( $obj->cap->edit_private_posts ) && ! empty( $current_user->allcaps[ $obj->cap->edit_private_posts ] ) ) ) {
-			$allcaps[ $obj->cap->edit_private_posts ] = true;
+		$post_type = get_post_type_object( $post->post_type );
+		if ( ! $post_type || ! $post_type->map_meta_cap || ! $this->is_post_type_enabled( $post->post_type ) ) {
+			return $caps;
 		}
 
-		$allcaps[ $obj->cap->edit_others_posts ] = true;
+		$action = $actions[ $cap ];
+		$key    = array_search( $post_type->cap->{ $action . '_others_posts' }, $caps, true );
+		if ( false === $key || ! is_coauthor_for_post( $user_id, $post->ID ) ) {
+			return $caps;
+		}
+
+		$caps[ $key ] = $post_type->cap->{ $action . '_posts' };
+
+		// Like core does for the post author, a trashed post that was published or
+		// scheduled still needs the published cap.
+		if ( 'trash' === $post->post_status && in_array( get_post_meta( $post->ID, '_wp_trash_meta_status', true ), array( 'publish', 'future' ), true ) ) {
+			$caps[] = $post_type->cap->{ $action . '_published_posts' };
+		}
+
+		return $caps;
+	}
+
+	/**
+	 * Notes the post being saved once core has verified its save nonce.
+	 *
+	 * Core's post.php verifies the update-post_{ID} nonce before it saves a post
+	 * from the classic editor (editpost) or stores a preview (preview), and both
+	 * then reach _wp_translate_postdata(). Any other nonce check clears it.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param int|string $action The nonce action.
+	 * @param int|false  $result Whether the nonce is valid.
+	 */
+	public function allow_coauthor_save( $action, $result ): void {
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Core has just verified the nonce.
+		$post_id = isset( $_POST['post_ID'] ) ? absint( $_POST['post_ID'] ) : 0;
+
+		$this->coauthor_save_post_id = ( $result && $post_id && 'update-post_' . $post_id === $action ) ? $post_id : 0;
+	}
+
+	/**
+	 * Lets a co-author save a post they're co-author of from the classic editor.
+	 *
+	 * Core checks the edit_others_posts cap in _wp_translate_postdata() when the
+	 * submitted post_author is not the current user, which is always true for a
+	 * co-author who is not the post author. We only allow it for the post whose
+	 * save nonce core has just verified, only when the post author is not
+	 * changed, and only for the first check after the nonce, which is the one in
+	 * _wp_translate_postdata(). Other admin requests, and later checks in the same
+	 * save such as the sticky handling in edit_post(), see the user's own caps.
+	 *
+	 * @since 4.2.0
+	 *
+	 * @param string[] $caps    Primitive caps required by the user.
+	 * @param string   $cap     Capability being checked.
+	 * @param int      $user_id User ID.
+	 * @return string[] Primitive caps required by the user.
+	 */
+	private function maybe_allow_coauthor_save( $caps, $cap, int $user_id ): array {
+		if ( ! $this->coauthor_save_post_id || did_action( 'pre_post_update' ) ) {
+			return $caps;
+		}
+
+		$post = get_post( $this->coauthor_save_post_id );
+		if ( ! $post || 'revision' === $post->post_type || ! $this->is_post_type_enabled( $post->post_type ) ) {
+			return $caps;
+		}
+
+		$post_type = get_post_type_object( $post->post_type );
+		if ( ! $post_type || $cap !== $post_type->cap->edit_others_posts ) {
+			return $caps;
+		}
+
+		// Only the first check after the nonce.
+		$this->coauthor_save_post_id = 0;
+
+		// Core verified the nonce before allow_coauthor_save() ran.
+		// phpcs:disable WordPress.Security.NonceVerification.Missing
+		if ( ! isset( $_POST['post_author'] ) ) {
+			return $caps;
+		}
+
+		$submitted_author = absint( ! empty( $_POST['post_author_override'] ) ? $_POST['post_author_override'] : $_POST['post_author'] );
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
+
+		// Core skips the check for the post author, so they never need the grant.
+		if ( (int) $post->post_author === $user_id || (int) $post->post_author !== $submitted_author || ! is_coauthor_for_post( $user_id, $post->ID ) ) {
+			return $caps;
+		}
+
+		return array( $post_type->cap->edit_posts );
+	}
+
+	/**
+	 * Allows guest authors to edit the post they're co-authors of
+	 *
+	 * @deprecated 4.2.0 Co-author caps are now handled by filter_map_meta_cap().
+	 *
+	 * @param array $allcaps All the capabilities of the user.
+	 * @param array $caps    Unused.
+	 * @param array $args    Unused.
+	 * @return array Unchanged capabilities.
+	 */
+	public function filter_user_has_cap( $allcaps, $caps = array(), $args = array() ) {
+		_deprecated_function( __METHOD__, '4.2.0', 'CoAuthors_Plus::filter_map_meta_cap()' );
 
 		return $allcaps;
 	}

@@ -920,10 +920,27 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   re-selected by every batch and consumes the budget, so the others are never
   reached and the progress line repeats for the same post. On a large site that is
   indistinguishable from a hang, which is probably how it was recorded as a loop.
+- ~~`--records-per-batch` is interpolated into the SQL `LIMIT` unvalidated, so a
+  non-numeric value gives a database error and the run still ends
+  `Success: Done!`.~~ **FIXED.** It must be a positive integer (`FILTER_VALIDATE_INT`
+  with `min_range` 1, so `0` and `5abc` are refused too), else `WP_CLI::error()`
+  before anything runs. The `LIMIT` also casts, as a backstop.
+- ~~`--post-types` is not checked against the post types Co-Authors Plus is enabled
+  for. A typo matches nothing and the run reports success; a real but unsupported
+  type such as `attachment` or `revision` gets author terms written to it.~~
+  **FIXED.** Any value outside `supported_post_types()` is an error that lists the
+  enabled types and the rejected ones. An error rather than warn-and-skip (the
+  approach `delete-postmeta-that-skip-author-term-backfill` takes for bad
+  `--specific-post-ids` entries): this validates a whole flag before any write, as
+  the ID-range check above does, and a warning would scroll past in a long run that
+  quietly did only part of what was asked.
 
 ## delete-postmeta-that-skip-author-term-backfill
 
-(Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
+(Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.
+Every scenario for this command lives in
+`features/create-author-terms-for-posts.feature`, alongside the backfill that
+writes the marker.)
 
 - ~~Success/failure per post is reported with bare emoji (`Success: 👍` /
   `Error: 👎`), carrying no post ID and so no diagnostic value.~~ **FIXED.** Each
@@ -946,32 +963,31 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   failing the whole run on it was over-reading a weak signal. The scenario that
   pinned the abort is inverted: it now asserts the *second* post's meta really is
   gone, which is what fails against the old code.
-- ~~With no `--specific-post-ids` the lookup WP_Query uses defaults, so skip metas
-  on drafts, pages or other post types are never found.~~ **STALE, not fixed as
-  written** — there is no `WP_Query` in this command any more; the bare lookup is a
-  direct prepared read of the postmeta table, superseded by the struck entry below.
-  (The struck entry's own wording is also inaccurate: it says the query "now passes
-  `post_type=any`, `post_status=any` and `posts_per_page=-1`", which describes an
-  approach that was tried and replaced. Another reminder that "Noted; not pinned"
-  entries are the ones to distrust.)
-- When there is nothing to delete the command prints nothing at all (no summary,
-  exit 0). Pinned.
-
-
-- Hardened 2026-09-02 after adversarial review: 6 scenarios for this command.
 - ~~Bare (no `--specific-post-ids`) mode never sees skip metas on unpublished
   posts, nor on pages or other post types, and silently caps at
   `posts_per_page` (10 by default) with no warning and no summary. An operator
   who backfills 30 pages and then runs the bare delete gets no output, exit 0,
-  and nothing deleted.~~ **FIXED.** The lookup query set only `meta_key` and
-  `fields`, so it inherited `post_type=post`, `post_status=publish` and the
-  site's `posts_per_page`. It now passes `post_type=any`, `post_status=any` and
-  `posts_per_page=-1`, and both scenarios are re-pinned to the corrected
-  behaviour.
-- The "nothing to delete" scenario now asserts rc 0 and empty STDERR. On its own
-  `STDOUT should be empty` is vacuous: the harness moves `Error:`/`Warning:` lines
-  into STDERR whenever the exit code is non-zero, so an unregistered subcommand
-  after the class split would have kept that scenario green.
+  and nothing deleted.~~ **FIXED.** The lookup was a `WP_Query` that set only
+  `meta_key` and `fields`, so it inherited `post_type=post`, `post_status=publish`
+  and the site's `posts_per_page`. There is no `WP_Query` any more: the bare
+  lookup is a prepared `SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = %s`,
+  which has no post type, status or page size to inherit, and needs no
+  `posts_per_page=-1`. Two scenarios pin it: a draft's marker is deleted, and so
+  are all 11 markers when there are more than a default page of them.
+- ~~A non-numeric entry in `--specific-post-ids` is cast to 0 and reported against
+  "post 0", which reads as a real post.~~ **FIXED.** It is named in a warning
+  (``Ignoring non-numeric post ID `abc` in --specific-post-ids.``) and skipped,
+  and the valid IDs in the same list are still processed, exit 0. The check sits
+  inside the loop rather than before the bare-mode fallback, so a list of nothing
+  but non-numeric entries is not emptied and silently widened into a run over every
+  marker on the site. Pinned.
+- When there is nothing to delete the command prints nothing at all (no summary,
+  exit 0). Pinned, with rc 0 and empty STDERR asserted too: on its own
+  `STDOUT should be empty` is vacuous, because the harness moves
+  `Error:`/`Warning:` lines into STDERR whenever the exit code is non-zero, so an
+  unregistered subcommand after the class split would have kept that scenario
+  green.
+
 ## list-posts-without-terms
 
 (Calibrated against the live env, 2026-09-01; re-verified green 2026-09-02.)
@@ -1108,6 +1124,25 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   `--orderby=slug --order=asc`. They previously relied on `wp term list`'s default
   name-ascending order coinciding with slug order, which only held because the
   admin term is named "admin".
+
+## create-guest-authors
+
+- ~~Every `WP_Error` from `create_guest_author_from_user_id()` was counted as
+  "already had a guest author profile". A user refused for any other reason, such
+  as a login that collides with an unlinked guest author, landed in that tally and
+  the error message was never shown.~~ **FIXED.** The command now asks
+  `get_guest_author_by( 'linked_account', ... )` before creating, and only that
+  counts as already having a profile. Reading it from the error code was not an
+  option: `create()` returns the same `duplicate-field` error for a user's own
+  linked profile and for an unrelated guest author holding the login. Any other
+  error is a warning naming the user and the reason, followed by an
+  `N of M users could not be given a guest author profile.` tally. The run carries
+  on and exits 0, as the CSV and WXR importers do.
+- The same lookup fixes a duplicate profile: the profile's login comes from the
+  user's display name, so after a rename the second run no longer collided and
+  created another profile linked to the same account. That user is now counted as
+  already having one. Both are pinned in features/create-guest-author.feature.
+
 ## create-guest-authors-from-csv
 
 (Calibrated against the live env 2026-09-01; all scenarios green.)
@@ -1118,11 +1153,17 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   parameters are passed without an explicit `$escape`. The assertion was dropped from
   the feature; the happy-path output is clean of warnings/deprecations because the CSV
   flow populates every array key that `create_guest_author()` reads.
-- There is no validation of required CSV columns (`// TODO: bail if required fields not
+- ~~There is no validation of required CSV columns (`// TODO: bail if required fields not
   found` at :1076). A CSV without `user_login`/`user_email` columns would hit undefined
-  array keys at :1097. Not pinned — the fixture supplies all columns.
-- Per-author failures are warnings only; once the file is readable the command always
-  exits 0.
+  array keys at :1097.~~ **FIXED.** The header is read before any row, and a file
+  without a `display_name` or `user_login` column (the two fields
+  `CoAuthors_Guest_Authors::create()` requires) is refused with `Error: The CSV file is
+  missing the required column(s): ...` and exit 1. An empty file has no header, so it
+  is refused the same way rather than reporting `Found 0 authors in CSV`. `user_email`
+  is optional. Both `_n()` branches pinned
+  (features/fixtures/guest-authors-missing-user-login.csv, guest-authors-empty.csv).
+- Per-author failures are warnings only; once the file is readable and has both
+  required columns the command always exits 0.
 
 - Re-calibrated 2026-09-02: confirmed, plus a new branch finding.
   - The first/last-name logic at :1108-1119 has a GAP: the `if` needs a space in
@@ -1161,7 +1202,7 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
     markup is not the same as neutralising a payload.
   - `absint( 'abc' )` is 0, so no featured image is set and (as always) no `cap-avatar`
     meta exists — `avatar` is not one of `get_guest_author_fields()`.
-- **A header that omits columns still imports, noisily.** With header
+- ~~**A header that omits columns still imports, noisily.** With header
   `display_name,user_login` the command's own code emits `Undefined array key` for
   `user_email` twice (:1097 in the `Processing author %s (%s)` log, then :1102) and
   once each for `website` (:1103), `description` (:1104) and `avatar` (:1105), logs
@@ -1172,7 +1213,11 @@ cap-admin term so a fresh run reports `Found 0 posts with missing author terms.`
   features/fixtures/guest-authors-missing-columns.csv, whose header also ends in a
   NAMELESS column carrying a value, exercising the `if ( empty( $field_keys[ $col_num ] ) )
   { continue; }` branch (:1099-1101) — the exact meta block shows the value is dropped.
-  The `// TODO: bail if required fields not found` at :1076 is still a TODO.
+  The `// TODO: bail if required fields not found` at :1076 is still a TODO.~~
+  **FIXED.** Every column the command reads now starts as an empty string, so an
+  omitted optional column (or a row shorter than the header) reads as empty: no
+  `Undefined array key` output, and the meta block is unchanged. The scenario now
+  asserts the warnings are absent.
 - **A failing row does not stop the import.** features/fixtures/guest-authors-invalid-row.csv
   (empty `display_name` on row 1, a good row 2) gives `Found 2 authors in CSV`,
   `Warning: -- Failed to create guest author: display_name is a required field`, then
