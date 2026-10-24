@@ -22,7 +22,7 @@ The slug is made from the display name when you first save the profile. After th
 
 A profile can't be saved when:
 
-- its slug matches a WordPress user on the same site, unless the profile is linked to that user.
+- its slug matches the login or nicename of a WordPress user, unless the profile is linked to that user. On multisite, this includes users who aren't members of the site. Profiles created in code or with WP-CLI follow the same rule.
 - another guest author already has the same slug.
 
 ### Other ways to create guest authors
