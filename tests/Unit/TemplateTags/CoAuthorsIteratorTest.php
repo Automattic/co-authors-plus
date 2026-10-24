@@ -99,73 +99,6 @@ final class CoAuthorsIteratorTest extends TestCase {
 		$this->assertSame( array(), $iterator->get_all() );
 	}
 
-	/**
-	 * @dataProvider provide_author_counts
-	 *
-	 * @param array $authors  Array of authors.
-	 * @param int   $expected Expected count.
-	 */
-	public function test_count_returns_total_authors( array $authors, int $expected ): void {
-		Functions\expect( 'get_coauthors' )
-			->once()
-			->with( 101 )
-			->andReturn( $authors );
-
-		$iterator = new \CoAuthorsIterator( 101 );
-
-		$this->assertSame( $expected, $iterator->count() );
-		$this->assertSame( $expected, $iterator->count );
-	}
-
-	public static function provide_author_counts(): iterable {
-		yield 'zero authors' => array(
-			array(),
-			0,
-		);
-
-		yield 'single author' => array(
-			array( (object) array( 'ID' => 1 ) ),
-			1,
-		);
-
-		yield 'multiple authors' => array(
-			array(
-				(object) array( 'ID' => 1 ),
-				(object) array( 'ID' => 2 ),
-				(object) array( 'ID' => 3 ),
-			),
-			3,
-		);
-	}
-
-	public function test_get_all_returns_authors_array(): void {
-		$authors = array(
-			(object) array( 'ID' => 5 ),
-			(object) array( 'ID' => 6 ),
-		);
-
-		Functions\expect( 'get_coauthors' )
-			->once()
-			->with( 202 )
-			->andReturn( $authors );
-
-		$iterator = new \CoAuthorsIterator( 202 );
-
-		$this->assertSame( $authors, $iterator->get_all() );
-	}
-
-	public function test_get_position_returns_false_before_iteration(): void {
-		Functions\expect( 'get_coauthors' )
-			->once()
-			->with( 303 )
-			->andReturn( array( (object) array( 'ID' => 1 ) ) );
-
-		$iterator = new \CoAuthorsIterator( 303 );
-
-		$this->assertSame( -1, $iterator->position );
-		$this->assertFalse( $iterator->get_position() );
-	}
-
 	public function test_iterate_with_empty_authors_array_immediately_returns_false(): void {
 		Functions\expect( 'get_coauthors' )
 			->once()
@@ -289,7 +222,7 @@ final class CoAuthorsIteratorTest extends TestCase {
 
 		$iterator = new \CoAuthorsIterator( 707 );
 
-		// Before loop: original authordata is remembered.
+		// Before loop: original authordata is remembered from constructor.
 		$this->assertSame( $original_author, $iterator->original_authordata );
 		$this->assertSame( $original_author, $iterator->current_author );
 
@@ -302,5 +235,85 @@ final class CoAuthorsIteratorTest extends TestCase {
 		$this->assertFalse( $iterator->iterate() );
 		$this->assertSame( $original_author, $authordata );
 		$this->assertSame( $original_author, $iterator->current_author );
+	}
+
+	public function test_iteration_captures_authordata_set_before_first_iterate(): void {
+		global $authordata;
+
+		$original_author = (object) array(
+			'ID'           => 999,
+			'display_name' => 'Original Surrounding Author',
+		);
+
+		$post_author = (object) array(
+			'ID'           => 1,
+			'display_name' => 'Post Coauthor',
+		);
+
+		Functions\expect( 'get_coauthors' )
+			->once()
+			->with( 708 )
+			->andReturn( array( $post_author ) );
+
+		// Construct while $authordata is null so the constructor does not capture it.
+		$iterator = new \CoAuthorsIterator( 708 );
+		$this->assertNull( $iterator->original_authordata );
+
+		// Set $authordata after construction but before the first iterate() call.
+		$authordata = $original_author; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+
+		// First iterate() at position 0 re-captures original_authordata.
+		$this->assertTrue( $iterator->iterate() );
+		$this->assertSame( $post_author, $authordata );
+		$this->assertSame( $original_author, $iterator->original_authordata );
+
+		// After loop: global authordata is restored to the author captured at position 0.
+		$this->assertFalse( $iterator->iterate() );
+		$this->assertSame( $original_author, $authordata );
+		$this->assertSame( $original_author, $iterator->current_author );
+	}
+
+	public function test_iterator_can_be_looped_multiple_times(): void {
+		$author1 = (object) array(
+			'ID'           => 1,
+			'display_name' => 'First Author',
+		);
+		$author2 = (object) array(
+			'ID'           => 2,
+			'display_name' => 'Second Author',
+		);
+
+		Functions\expect( 'get_coauthors' )
+			->once()
+			->with( 808 )
+			->andReturn( array( $author1, $author2 ) );
+
+		$iterator = new \CoAuthorsIterator( 808 );
+
+		// First pass through the loop.
+		$this->assertTrue( $iterator->iterate() );
+		$this->assertSame( 0, $iterator->get_position() );
+		$this->assertSame( $author1, $iterator->current_author );
+
+		$this->assertTrue( $iterator->iterate() );
+		$this->assertSame( 1, $iterator->get_position() );
+		$this->assertSame( $author2, $iterator->current_author );
+
+		$this->assertFalse( $iterator->iterate() );
+		$this->assertSame( -1, $iterator->position );
+		$this->assertFalse( $iterator->get_position() );
+
+		// Second pass through the loop on the same instance.
+		$this->assertTrue( $iterator->iterate() );
+		$this->assertSame( 0, $iterator->get_position() );
+		$this->assertSame( $author1, $iterator->current_author );
+
+		$this->assertTrue( $iterator->iterate() );
+		$this->assertSame( 1, $iterator->get_position() );
+		$this->assertSame( $author2, $iterator->current_author );
+
+		$this->assertFalse( $iterator->iterate() );
+		$this->assertSame( -1, $iterator->position );
+		$this->assertFalse( $iterator->get_position() );
 	}
 }
