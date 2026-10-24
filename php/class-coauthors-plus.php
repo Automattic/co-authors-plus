@@ -2712,10 +2712,10 @@ class CoAuthors_Plus {
 	 * @since 3.1
 	 *
 	 * @param array $og_tags Required. Array of Open Graph Tags.
-	 * @param array $image_dimensions Required. Dimensions for images used.
+	 * @param array $image_dimensions Optional. Dimensions for images used.
 	 * @return array Open Graph Tags either as they were passed or updated.
 	 */
-	public function filter_jetpack_open_graph_tags( $og_tags, $image_dimensions ): array {
+	public function filter_jetpack_open_graph_tags( $og_tags, $image_dimensions = array() ): array {
 
 		if ( is_author() ) {
 			$author = get_queried_object();
