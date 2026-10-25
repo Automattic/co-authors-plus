@@ -23,6 +23,15 @@ class CoAuthors_Plus {
 
 	public $having_terms = '';
 
+	/**
+	 * Whether the current single-author query matches co-author terms only,
+	 * without the post_author fallback. Set in posts_where_filter() and read
+	 * by posts_join_filter() and posts_groupby_filter().
+	 *
+	 * @var bool
+	 */
+	private $author_terms_only = false;
+
 	public $to_be_filtered_caps = array();
 
 	/**
@@ -1062,14 +1071,17 @@ class CoAuthors_Plus {
 
 			$term_taxonomy_join = " INNER JOIN {$wpdb->term_taxonomy} ON ( tr1.term_taxonomy_id = {$wpdb->term_taxonomy}.term_taxonomy_id )";
 
+			// Only co-author terms can match, so rows without one are never needed.
+			$join_type = $this->author_terms_only ? 'INNER JOIN' : 'LEFT JOIN';
+
 			// 4.6+ uses a LEFT JOIN for tax queries, so we need to check for both.
 			if ( false === strpos( $join, trim( $term_relationship_inner_join ) )
-				&& false === strpos( $join, trim( $term_relationship_left_join ) ) ) {
-				$join .= $term_relationship_left_join;
+				&& false === strpos( $join, "{$wpdb->term_relationships} AS tr1 ON" ) ) {
+				$join .= str_replace( 'LEFT JOIN', $join_type, $term_relationship_left_join );
 			}
 
 			if ( false === strpos( $join, trim( $term_taxonomy_join ) ) ) {
-				$join .= str_replace( 'INNER JOIN', 'LEFT JOIN', $term_taxonomy_join );
+				$join .= str_replace( 'INNER JOIN', $join_type, $term_taxonomy_join );
 			}
 		}
 
@@ -1097,7 +1109,8 @@ class CoAuthors_Plus {
 			 * been left alone. The result was a silent, arbitrary HAVING that dropped
 			 * exactly those posts carrying some other co-author's term. See #1371.
 			 */
-			$this->having_terms = '';
+			$this->having_terms      = '';
+			$this->author_terms_only = false;
 
 			// Route to the multi-author path when author IDs are explicitly provided:
 			//
@@ -1159,7 +1172,11 @@ class CoAuthors_Plus {
 				$maybe_both_query = $maybe_both ? '$0 OR' : '';
 
 				// add the taxonomy terms to the where query
-				$where = preg_replace( '/\(?\b(?:' . $wpdb->posts . '\.)?post_author\s*(?:=|IN)\s*\(?\d+\)?\)?/', ' (' . $maybe_both_query . ' ' . $terms_implode . ')', $where, 1 );
+				$where = preg_replace( '/\(?\b(?:' . $wpdb->posts . '\.)?post_author\s*(?:=|IN)\s*\(?\d+\)?\)?/', ' (' . $maybe_both_query . ' ' . $terms_implode . ')', $where, 1, $replaced );
+
+				// Without the post_author fallback, every row left by the WHERE clause
+				// already carries one of the author's terms, so HAVING has nothing to drop.
+				$this->author_terms_only = ! $maybe_both && $replaced > 0;
 
 				// if there is a duplicate post_author query parameter, remove the duplicate
 				$where = preg_replace( '/AND\s*\((?:' . $wpdb->posts . '\.)?post_author\s*\=\s*\d+\)/', ' ', $where, 1 );
@@ -1181,6 +1198,9 @@ class CoAuthors_Plus {
 					if ( $current_coauthor_term instanceof \WP_Term ) {
 						$current_user_query  = $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $current_coauthor_term->term_id . '\'';
 						$this->having_terms .= ' ' . $wpdb->term_taxonomy . '.term_id = \'' . $current_coauthor_term->term_id . '\' OR ';
+
+						// Keep the full HAVING check when the private posts clause is rewritten.
+						$this->author_terms_only = false;
 
 						$where = preg_replace( '/(\b(?:' . $wpdb->posts . '\.)?post_author\s*=\s*(' . get_current_user_id() . ') )/', $current_user_query . ' ', $where, 1 ); // ' . $wpdb->postmeta . '.meta_id IS NOT NULL AND}
 					}
@@ -1230,7 +1250,7 @@ class CoAuthors_Plus {
 	/**
 	 * Build SQL WHERE and HAVING clause fragments from taxonomy terms.
 	 *
-	 * Constructs the OR-chain of taxonomy conditions for the WHERE clause and
+	 * Constructs a single `term_id IN (...)` condition for the WHERE clause and
 	 * populates $this->having_terms for use by posts_groupby_filter().
 	 *
 	 * The returned terms_implode string is trimmed of the trailing ' OR'. The
@@ -1245,15 +1265,25 @@ class CoAuthors_Plus {
 	protected function build_terms_clauses( array $terms ): string {
 		global $wpdb;
 
-		$terms_implode      = '';
+		$term_ids           = array();
 		$this->having_terms = '';
 
 		foreach ( $terms as $term ) {
-			$terms_implode      .= '(' . $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\') OR ';
+			$term_ids[]          = (int) $term->term_id;
 			$this->having_terms .= ' ' . $wpdb->term_taxonomy . '.term_id = \'' . $term->term_id . '\' OR ';
 		}
 
-		return rtrim( $terms_implode, ' OR' );
+		if ( empty( $term_ids ) ) {
+			return '';
+		}
+
+		$term_ids     = array_unique( $term_ids );
+		$placeholders = implode( ', ', array_fill( 0, count( $term_ids ), '%d' ) );
+
+		return $wpdb->prepare(
+			"{$wpdb->term_taxonomy}.taxonomy = %s AND {$wpdb->term_taxonomy}.term_id IN ({$placeholders})",  // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+			array_merge( array( $this->coauthor_taxonomy ), $term_ids )
+		);
 	}
 
 	/**
@@ -1359,6 +1389,9 @@ class CoAuthors_Plus {
 				if ( empty( $groupby ) ) {
 					$groupby = $wpdb->posts . '.ID';
 				}
+			} elseif ( $this->having_terms && $this->author_terms_only ) {
+				// GROUP BY still removes duplicate rows from a linked account term.
+				$groupby = $wpdb->posts . '.ID';
 			} elseif ( $this->having_terms ) {
 				$having  = 'MAX( IF ( ' . $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\', IF ( ' . $this->having_terms . ',2,1 ),0 ) ) <> 1 ';
 				$groupby = $wpdb->posts . '.ID HAVING ' . $having;

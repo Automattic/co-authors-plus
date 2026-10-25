@@ -436,4 +436,159 @@ class AuthorQueriesTest extends TestCase {
 			'A shared co-authored post must be returned once on the INNER JOIN path too.'
 		);
 	}
+
+	// -- Single-author SQL structure tests, issue #180 -------------------------
+
+	/**
+	 * The single-author WHERE clause uses the same `term_id IN (...)` form as
+	 * the multi-author path.
+	 */
+	public function test_author_name_query_uses_in_clause(): void {
+		$author = $this->create_author( 'single_in_clause' );
+		$post   = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( $author->user_login ) );
+
+		$query = new WP_Query( array( 'author_name' => $author->user_login ) );
+
+		$this->assertStringContainsString( 'term_id IN (', $query->request );
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
+
+	/**
+	 * By default the single-author query keeps the post_author fallback, so it
+	 * needs the LEFT JOIN and the HAVING check.
+	 */
+	public function test_author_name_query_keeps_left_join_and_having_by_default(): void {
+		global $wpdb;
+
+		$author = $this->create_author( 'single_default' );
+		$post   = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( $author->user_login ) );
+
+		$query = new WP_Query( array( 'author_name' => $author->user_login ) );
+
+		$this->assertStringContainsString( "LEFT JOIN {$wpdb->term_relationships} AS tr1", $query->request );
+		$this->assertStringContainsString( 'HAVING', $query->request );
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
+
+	/**
+	 * When `coauthors_plus_should_query_post_author` opts out of the fallback,
+	 * only co-author terms can match, so the single-author query uses INNER
+	 * JOINs and drops the HAVING check.
+	 */
+	public function test_author_name_query_uses_inner_join_without_having_when_post_author_excluded(): void {
+		global $wpdb;
+
+		$author1 = $this->create_author( 'single_inner_a1' );
+		$author2 = $this->create_author( 'single_inner_a2' );
+		$post    = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post->ID, array( $author1->user_login, $author2->user_login ) );
+
+		add_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+
+		$query = new WP_Query( array( 'author_name' => $author2->user_login ) );
+
+		remove_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+
+		$this->assertStringContainsString( "INNER JOIN {$wpdb->term_relationships} AS tr1", $query->request );
+		$this->assertStringContainsString( "INNER JOIN {$wpdb->term_taxonomy} ON ( tr1.", $query->request );
+		$this->assertStringContainsString( 'GROUP BY', $query->request );
+		$this->assertStringNotContainsString( 'HAVING', $query->request );
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
+
+	/**
+	 * Without the fallback, a post whose post_author is the queried user but
+	 * whose co-author terms no longer include them must not be returned.
+	 */
+	public function test_author_name_query_ignores_stale_post_author_when_post_author_excluded(): void {
+		global $wpdb;
+
+		$author1  = $this->create_author( 'single_stale_a1' );
+		$author2  = $this->create_author( 'single_stale_a2' );
+		$own_post = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $own_post->ID, array( $author1->user_login ) );
+		$stale_post = $this->create_post( $author2 );
+		$this->_cap->add_coauthors( $stale_post->ID, array( $author2->user_login ) );
+
+		// Leave post_author pointing at author1 while the terms only name author2.
+		$wpdb->update( $wpdb->posts, array( 'post_author' => $author1->ID ), array( 'ID' => $stale_post->ID ) );
+		clean_post_cache( $stale_post->ID );
+
+		add_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+
+		$query = new WP_Query( array( 'author_name' => $author1->user_login ) );
+
+		remove_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+
+		$this->assertQueryReturns( array( $own_post->ID ), $query );
+	}
+
+	/**
+	 * Without HAVING, GROUP BY must still return a post once when another tax
+	 * query join gives it several rows.
+	 */
+	public function test_author_name_query_with_category_returns_post_once_when_post_author_excluded(): void {
+		$author = $this->create_author( 'single_cat' );
+		$post   = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( $author->user_login ) );
+		$cat1 = self::factory()->category->create();
+		$cat2 = self::factory()->category->create();
+		wp_set_post_categories( $post->ID, array( $cat1, $cat2 ) );
+
+		add_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+
+		$query = new WP_Query(
+			array(
+				'author_name'   => $author->user_login,
+				'category__in'  => array( $cat1, $cat2 ),
+			)
+		);
+
+		remove_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+
+		$this->assertStringNotContainsString( 'HAVING', $query->request );
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
+
+	/**
+	 * A logged-in user viewing another author's archive gets the private posts
+	 * clause rewritten, so the full HAVING check is kept even without the fallback.
+	 */
+	public function test_author_archive_keeps_having_for_private_posts_clause_when_post_author_excluded(): void {
+		$viewer = $this->create_author( 'single_viewer' );
+		$author = $this->create_author( 'single_viewed' );
+		$this->_cap->add_coauthors( $this->create_post( $viewer )->ID, array( $viewer->user_login ) );
+		$post = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( $author->user_login ) );
+
+		add_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+		wp_set_current_user( $viewer->ID );
+
+		$this->go_to( add_query_arg( 'author', $author->ID, home_url( '/' ) ) );
+
+		remove_filter( 'coauthors_plus_should_query_post_author', '__return_false' );
+
+		$this->assertStringContainsString( 'HAVING', $GLOBALS['wp_query']->request );
+		$this->assertQueryReturns( array( $post->ID ), $GLOBALS['wp_query'] );
+	}
+
+	/**
+	 * A guest author archive never uses the post_author fallback, so it also
+	 * takes the INNER JOIN path without HAVING.
+	 */
+	public function test_guest_author_query_uses_inner_join_without_having(): void {
+		global $wpdb;
+
+		$this->create_guest_author( 'single_guest' );
+		$post = $this->create_post();
+		$this->_cap->add_coauthors( $post->ID, array( 'single_guest' ) );
+
+		$query = new WP_Query( array( 'author_name' => 'single_guest' ) );
+
+		$this->assertStringContainsString( "INNER JOIN {$wpdb->term_relationships} AS tr1", $query->request );
+		$this->assertStringNotContainsString( 'HAVING', $query->request );
+		$this->assertQueryReturns( array( $post->ID ), $query );
+	}
 }
