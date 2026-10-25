@@ -553,8 +553,46 @@ class CoAuthors_Plus {
 			$user  = get_user_by( $key, $value );
 		}
 
+		if ( ! $user && 'slug' === $key ) {
+			$user = $this->get_user_by_author_term_name( $value );
+		}
+
 		if ( false === $user ) {
 			return null;
+		}
+
+		return $user;
+	}
+
+	/**
+	 * Find a WP user through the name of their author term.
+	 *
+	 * The term slug is a sanitize_title() copy of the user_nicename, so a
+	 * nicename that sanitize_title() changes (e.g. "john doe" from a direct
+	 * DB write or the pre_user_nicename filter) can't be found by slug. The
+	 * term name holds the user_login, so use that instead.
+	 *
+	 * @since 4.2.0
+	 * @see https://github.com/Automattic/co-authors-plus/issues/142
+	 *
+	 * @param string $slug Unprefixed author term slug.
+	 * @return WP_User|false
+	 */
+	private function get_user_by_author_term_name( string $slug ) {
+		$slug = sanitize_title( $slug );
+		$term = get_term_by( 'slug', Prefix::prefix_slug( $slug ), $this->coauthor_taxonomy );
+		if ( ! $term ) {
+			$term = get_term_by( 'slug', $slug, $this->coauthor_taxonomy );
+		}
+		if ( ! $term ) {
+			return false;
+		}
+
+		$user = get_user_by( 'login', $term->name );
+
+		// The login could belong to someone else, so the nicename must match too.
+		if ( ! $user || sanitize_title( $user->user_nicename ) !== $slug ) {
+			return false;
 		}
 
 		return $user;
