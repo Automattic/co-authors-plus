@@ -76,6 +76,7 @@ class CoAuthors_Plus {
 	public function register_hooks(): void {
 
 		// Register our models
+		add_action( 'init', array( $this, 'register_author_taxonomy' ), 0 );
 		add_action( 'init', array( $this, 'action_init' ) );
 		add_action( 'init', array( $this, 'action_init_late' ), 100 );
 
@@ -259,9 +260,31 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Register the 'author' taxonomy and add post type support
+	 * Register the 'author' taxonomy again for all supported post types, and add the REST save hooks
 	 */
 	public function action_init_late(): void {
+
+		// Register again, so post types and filters added during `init` are picked up.
+		$this->register_author_taxonomy();
+
+		// Bridge REST API saves to add_coauthors() for post_author sync and legacy filter compatibility.
+		foreach ( $this->supported_post_types() as $post_type ) {
+			add_filter( "rest_pre_insert_{$post_type}", array( $this, 'set_post_author_for_rest_save' ), 10, 2 );
+			add_action( "rest_after_insert_{$post_type}", array( $this, 'sync_coauthors_on_rest_save' ), 10, 2 );
+		}
+	}
+
+	/**
+	 * Register the 'author' taxonomy used to store the co-author relationships.
+	 *
+	 * Runs on `init` priority 0, so code hooked to `init` before priority 100
+	 * can already read and write co-author terms. At that point only the post
+	 * types registered so far are attached, so action_init_late() calls it again
+	 * once every post type has been registered.
+	 *
+	 * @since 4.2.0
+	 */
+	public function register_author_taxonomy(): void {
 
 		// Register new taxonomy so that we can store all the relationships.
 		$args = array(
@@ -292,17 +315,13 @@ class CoAuthors_Plus {
 		// If we use the nasty SQL query, we need our custom callback. Otherwise, we still need to flush cache.
 		if ( apply_filters( 'coauthors_plus_should_query_post_author', true ) ) {
 			$args['update_count_callback'] = array( $this, '_update_users_posts_count' );
+			// The filter can change between the early and the late call.
+			remove_action( 'edited_term_taxonomy', array( $this, 'action_edited_term_taxonomy_flush_cache' ), 10 );
 		} else {
 			add_action( 'edited_term_taxonomy', array( $this, 'action_edited_term_taxonomy_flush_cache' ), 10, 2 );
 		}
 
 		register_taxonomy( $this->coauthor_taxonomy, $this->supported_post_types(), $args );
-
-		// Bridge REST API saves to add_coauthors() for post_author sync and legacy filter compatibility.
-		foreach ( $this->supported_post_types() as $post_type ) {
-			add_filter( "rest_pre_insert_{$post_type}", array( $this, 'set_post_author_for_rest_save' ), 10, 2 );
-			add_action( "rest_after_insert_{$post_type}", array( $this, 'sync_coauthors_on_rest_save' ), 10, 2 );
-		}
 	}
 
 	/**
@@ -1771,7 +1790,7 @@ class CoAuthors_Plus {
 
 		/*
 		 * The author taxonomy is registered with 'sort' => true (see
-		 * action_init_late()), and this is a non-append call, so
+		 * register_author_taxonomy()), and this is a non-append call, so
 		 * wp_set_object_terms() writes wp_term_relationships.term_order in the
 		 * order the slugs are passed here. That is what makes the byline order
 		 * round-trip: the read path orders by term_order ASC.
