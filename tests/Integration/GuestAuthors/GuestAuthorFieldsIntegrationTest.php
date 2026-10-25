@@ -74,6 +74,49 @@ class GuestAuthorFieldsIntegrationTest extends TestCase {
 	}
 
 	/**
+	 * Issue #317: a contact method added by a plugin like Yoast SEO is stored on
+	 * the guest author, loaded back, and included in the personal data export.
+	 *
+	 * @covers CoAuthors_Guest_Authors::get_guest_author_fields()
+	 * @covers CoAuthors_Guest_Authors::personal_data_exporter()
+	 */
+	public function test_user_contact_method_is_saved_loaded_and_exported(): void {
+
+		global $coauthors_plus;
+
+		add_filter(
+			'user_contactmethods',
+			static function ( $methods ) {
+				$methods['twitter'] = 'X username (without @)';
+				return $methods;
+			}
+		);
+
+		$guest_author_obj = $coauthors_plus->guest_authors;
+
+		$guest_author_id = $guest_author_obj->create(
+			array(
+				'display_name' => 'Social Guest',
+				'user_login'   => 'social-guest',
+				'user_email'   => 'social-guest@example.com',
+				'twitter'      => 'socialguest',
+			)
+		);
+
+		$guest_author = $guest_author_obj->get_guest_author_by( 'ID', $guest_author_id, true );
+		$this->assertSame( 'socialguest', $guest_author->twitter );
+
+		$export = $guest_author_obj->personal_data_exporter( 'social-guest@example.com' );
+		$this->assertContains(
+			array(
+				'name'  => 'X username (without @)',
+				'value' => 'socialguest',
+			),
+			$export['data'][0]['data']
+		);
+	}
+
+	/**
 	 * Provides field groups mapped to their expected field keys.
 	 *
 	 * @return array<string, array{0: string, 1: string[]}>

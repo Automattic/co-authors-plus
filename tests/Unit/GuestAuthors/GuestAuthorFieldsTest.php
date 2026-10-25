@@ -34,6 +34,8 @@ final class GuestAuthorFieldsTest extends TestCase {
 		Functions\when( '__' )->returnArg();
 		// apply_filters( $tag, $fields, $groups ) returns the fields unchanged.
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		// No plugin adds contact methods unless a test says so.
+		Functions\when( 'wp_get_user_contact_methods' )->justReturn( array() );
 	}
 
 	/**
@@ -63,6 +65,58 @@ final class GuestAuthorFieldsTest extends TestCase {
 			array( 'display_name', 'first_name', 'last_name', 'user_login', 'user_email', 'linked_account', 'website', 'description' ),
 			$keys
 		);
+	}
+
+	/**
+	 * Issue #317: contact methods added by plugins such as Yoast SEO show up on
+	 * guest authors too, but never replace a field we already define.
+	 */
+	public function test_user_contact_methods_are_added_to_contact_info(): void {
+		Functions\when( 'wp_get_user_contact_methods' )->justReturn(
+			array(
+				'twitter' => 'X username (without @)',
+				'website' => 'Should not replace our Website field',
+			)
+		);
+
+		$fields = $this->guest_authors->get_guest_author_fields( 'contact-info' );
+
+		$this->assertSame( array( 'user_email', 'website', 'twitter' ), array_column( $fields, 'key' ) );
+		$this->assertSame( 'Website', $fields[1]['label'] );
+		$this->assertSame( 'sanitize_url', $fields[1]['sanitize_function'] );
+		$this->assertSame(
+			array(
+				'key'   => 'twitter',
+				'label' => 'X username (without @)',
+				'group' => 'contact-info',
+			),
+			$fields[2]
+		);
+	}
+
+	/**
+	 * A site that already adds 'twitter' through the coauthors_guest_author_fields
+	 * filter keeps its own definition, and the field is listed only once.
+	 */
+	public function test_filter_field_replaces_contact_method_with_same_key(): void {
+		Functions\when( 'wp_get_user_contact_methods' )->justReturn( array( 'twitter' => 'X username (without @)' ) );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $tag, $fields ) {
+				$fields[] = array(
+					'key'               => 'twitter',
+					'label'             => 'Twitter',
+					'group'             => 'contact-info',
+					'sanitize_function' => 'sanitize_key',
+				);
+				return $fields;
+			}
+		);
+
+		$fields = $this->guest_authors->get_guest_author_fields( 'contact-info' );
+
+		$this->assertSame( array( 'user_email', 'website', 'twitter' ), array_column( $fields, 'key' ) );
+		$this->assertSame( 'Twitter', $fields[2]['label'] );
+		$this->assertSame( 'sanitize_key', $fields[2]['sanitize_function'] );
 	}
 
 	public function test_every_field_has_a_key_and_a_label(): void {

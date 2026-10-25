@@ -1243,6 +1243,21 @@ class CoAuthors_Guest_Authors {
 				'sanitize_function' => 'wp_kses_post',
 			),
 		);
+
+		// Show the same contact methods as the user profile screen, for example
+		// the social profiles Yoast SEO adds. Keys we already define win.
+		$existing_keys = array_column( $global_fields, 'key' );
+		foreach ( wp_get_user_contact_methods() as $key => $label ) {
+			if ( in_array( $key, $existing_keys, true ) ) {
+				continue;
+			}
+			$global_fields[] = array(
+				'key'   => $key,
+				'label' => $label,
+				'group' => 'contact-info',
+			);
+		}
+
 		$fields_to_return = array();
 		foreach ( $global_fields as $single_field ) {
 			if ( in_array( $single_field['group'], $groups ) || 'all' === $groups[0] && 'hidden' !== $single_field['group'] ) {
@@ -1250,7 +1265,11 @@ class CoAuthors_Guest_Authors {
 			}
 		}
 
-		return apply_filters( 'coauthors_guest_author_fields', $fields_to_return, $groups );
+		$fields_to_return = apply_filters( 'coauthors_guest_author_fields', $fields_to_return, $groups );
+
+		// Sites may already add a contact method key, like 'twitter', with this
+		// filter. Keep one field per key so the form has no duplicate inputs.
+		return array_values( array_column( $fields_to_return, null, 'key' ) );
 
 	}
 
@@ -1383,7 +1402,8 @@ class CoAuthors_Guest_Authors {
 				$value_key = 'ID';
 			}
 
-			$cache_key = $this->get_cache_key( $key, $guest_author->$value_key );
+			// A cached object may predate a field, for example a new contact method.
+			$cache_key = $this->get_cache_key( $key, $guest_author->$value_key ?? '' );
 
 			wp_cache_delete( $cache_key, self::$cache_group );
 		}
@@ -1770,6 +1790,11 @@ class CoAuthors_Guest_Authors {
 			'jabber'       => __( 'Jabber / Google Talk', 'co-authors-plus' ),
 			'description'  => __( 'Biographical Info', 'co-authors-plus' ),
 		);
+
+		// Also export contact fields like the social profiles from user contact methods.
+		foreach ( $this->get_guest_author_fields( 'contact-info' ) as $field ) {
+			$author_data += array( $field['key'] => $field['label'] );
+		}
 
 		$author_data_to_export = array();
 

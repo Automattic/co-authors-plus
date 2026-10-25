@@ -14,6 +14,24 @@ use Yoast\WP\SEO\Generators\Schema\Author;
 class CoAuthor extends Author {
 
 	/**
+	 * Social profile keys, matching the private list in Yoast's Person schema.
+	 *
+	 * @var string[]
+	 */
+	const SOCIAL_PROFILES = array(
+		'facebook',
+		'instagram',
+		'linkedin',
+		'pinterest',
+		'twitter',
+		'myspace',
+		'youtube',
+		'soundcloud',
+		'tumblr',
+		'wikipedia',
+	);
+
+	/**
 	 * The user ID of the author we're generating data for.
 	 *
 	 * @var int $user_id
@@ -151,7 +169,20 @@ class CoAuthor extends Author {
 			$same_as_urls[] = $guest_author->website;
 		}
 
-		// When CAP adds it, add the social profiles here.
+		// Same social profiles Yoast reads for users. Guest authors get them as
+		// contact-info fields from wp_get_user_contact_methods(). Yoast's
+		// wpseo_schema_person_social_profiles filter is skipped, it expects a user ID.
+		foreach ( self::SOCIAL_PROFILES as $profile ) {
+			$url = $guest_author->$profile ?? '';
+			if ( empty( $url ) ) {
+				continue;
+			}
+			// Yoast stores an X username, not a URL. Accept a pasted URL too.
+			if ( 'twitter' === $profile && ! \preg_match( '#^https?://#i', $url ) ) {
+				$url = 'https://x.com/' . \ltrim( $url, '@' );
+			}
+			$same_as_urls[] = $url;
+		}
 
 		if ( ! empty( $same_as_urls ) ) {
 			$same_as_urls   = \array_values( \array_unique( $same_as_urls ) );
