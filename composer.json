@@ -1,6 +1,6 @@
 {
 	"name": "automattic/co-authors-plus",
-	"description": "Multiple bylines and Guest Authors for WordPress",
+	"description": "Multiple bylines and Guest Authors for WordPress. Source only, without built assets: for sites, require wpackagist-plugin/co-authors-plus.",
 	"license": "GPL-2.0-or-later",
 	"type": "wordpress-plugin",
 	"authors": [

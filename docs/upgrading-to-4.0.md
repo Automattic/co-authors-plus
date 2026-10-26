@@ -8,6 +8,33 @@ If you only need the bullet-point view, the [CHANGELOG entry for 4.0.0](../CHANG
 
 The minimum supported WordPress version moved from 5.9 to 6.4. 6.4 has been the practical floor for the block editor integration for some time; this release makes it explicit. If you cannot upgrade WordPress, stay on the 3.7 branch.
 
+## Installing with Composer
+
+The compiled JavaScript and CSS in `build/` are no longer committed to Git. They are built when a release is deployed, so the WordPress.org release includes them, but the `automattic/co-authors-plus` package on Packagist does not: Packagist serves GitHub's archive of the tagged source, which has no `build/` directory.
+
+**Why it matters.** Without `build/`, the plugin's blocks aren't registered and the block editor's Authors panel doesn't load, so blocks that show bylines render nothing and editors can't change a post's co-authors in the block editor. The classic editor and the template tags still work. From 4.2.0, administrators see a notice when `build/` is missing.
+
+**If you install Co-Authors Plus with Composer,** require the WordPress.org release through [WPackagist](https://wpackagist.org/) instead, and remove `automattic/co-authors-plus`:
+
+```json
+{
+	"repositories": [
+		{
+			"type": "composer",
+			"url": "https://wpackagist.org",
+			"only": [ "wpackagist-plugin/*", "wpackagist-theme/*" ]
+		}
+	],
+	"require": {
+		"wpackagist-plugin/co-authors-plus": "^4.1"
+	}
+}
+```
+
+[WP Packages](https://wp-packages.org/) works the same way, with `https://repo.wp-packages.org` as the URL and `wp-plugin/co-authors-plus` as the package name.
+
+**If you work from a Git checkout,** or install `automattic/co-authors-plus` with `--prefer-source`, run `npm ci && npm run build` in the plugin directory. The Packagist archive can't be built in place, because it leaves out the JavaScript source.
+
 ## Block editor data store is now the core entity store
 
 Before 4.0, the sidebar maintained a custom Redux store under the `cap/authors` namespace for the authors of the post being edited. That store has been removed. Co-author data now reads and writes through WordPress's own `core/editor` store, the same way any other post attribute does.
