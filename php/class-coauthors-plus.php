@@ -2902,9 +2902,11 @@ class CoAuthors_Plus {
 	 * @return WP_REST_Response $response Same response, possibly mutated to eliminate value of description.
 	 */
 	public function conditionally_hide_author_term_description( WP_REST_Response $response ): \WP_REST_Response {
+		// The description holds every co-author's email address, which core only
+		// shows to users who can list users.
 		$capability = apply_filters(
 			'coauthors_rest_view_description_cap',
-			'edit_posts'
+			'list_users'
 		);
 
 		if ( current_user_can( $capability ) ) {
