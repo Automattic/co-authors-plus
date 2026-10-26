@@ -14,7 +14,7 @@ The compiled JavaScript and CSS in `build/` are no longer committed to Git. They
 
 **Why it matters.** Without `build/`, the plugin's blocks aren't registered and the block editor's Authors panel doesn't load, so blocks that show bylines render nothing and editors can't change a post's co-authors in the block editor. The classic editor and the template tags still work. From 4.2.0, administrators see a notice when `build/` is missing.
 
-**If you install Co-Authors Plus with Composer,** require the WordPress.org release through [WP Packages](https://wp-packages.org/) instead, and remove `automattic/co-authors-plus`:
+**If you install Co-Authors Plus with Composer,** require the WordPress.org release through [WP Packages](https://wp-packages.org/packages/wp-plugin/co-authors-plus) instead, and remove `automattic/co-authors-plus`:
 
 ```json
 {
