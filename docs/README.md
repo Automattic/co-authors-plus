@@ -15,6 +15,7 @@ What Co-Authors Plus does, and how to install it, is covered in the [README](../
 
 ## Extending Co-Authors Plus
 
+- [Customizing Co-Authors Plus](./customizing.md): recipes for the most common filters.
 - [Filters and actions](./filters.md): every hook the plugin provides.
 - [REST API](./rest-api.md): the `coauthors/v1` endpoints and the `coauthors` field on core post responses.
 

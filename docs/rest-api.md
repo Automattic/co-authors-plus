@@ -10,13 +10,13 @@ Since the block editor integration landed in 4.0, the preferred way to read and 
 
 Lists the `author` taxonomy terms — one per co-author. Each response item is a standard WP taxonomy term: `id`, `name`, `slug`, `description`, `taxonomy`, etc.
 
-This is the endpoint to use when you want to enumerate all co-authors on a site.
+Since 4.2.0, this endpoint and `GET /wp/v2/coauthors/{id}` need the `edit_posts` capability. A term's `name` is the co-author's user login, which core keeps out of public responses. Other requests get a `401` or `403`, and so do the `wp:term` links embedded in post responses. To show co-authors on the front end, use the `coauthors/v1` endpoints below.
 
-The term `description` holds the plugin's search index for the author (names, login, ID and email). It is removed from the response for users without the `edit_posts` capability. Change that capability with [`coauthors_rest_view_description_cap`](./filters.md#coauthors_rest_view_description_cap).
+The term `description` holds the plugin's search index for the author (names, login, ID and email). It is removed from the response for users without the `list_users` capability. Change that capability with [`coauthors_rest_view_description_cap`](./filters.md#coauthors_rest_view_description_cap).
 
 ### `GET /wp/v2/coauthors/{id}`
 
-Returns a single taxonomy term.
+Returns a single taxonomy term. It needs `edit_posts`, like the list.
 
 ### `GET /wp/v2/posts/{id}`
 
@@ -113,7 +113,7 @@ Searches registered users and guest authors. Used by the sidebar autocomplete.
 
 Returns up to 10 authors (see [`coauthors_search_authors_get_terms_args`](./filters.md#coauthors_search_authors_get_terms_args)), in the same shape as the `authors-by-term-ids` response below. Registered users without the `edit_posts` capability are left out (see [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap)).
 
-**Permission:** the requester must be able to set authors (`edit_others_posts` by default, filterable via `coauthors_plus_edit_authors`).
+**Permission:** the requester must be able to set authors on at least one supported post type, for example with `edit_others_posts` or `edit_others_pages`, filterable via `coauthors_plus_edit_authors`.
 
 ### `GET /coauthors/v1/authors-by-term-ids?ids={csv}`
 
@@ -150,7 +150,7 @@ Term IDs that don't resolve to an author are skipped. The `search`, `authors-by-
 
 ### `GET /coauthors/v1/authors/{post_id}`
 
-Returns rich co-author data for a post. Similar to `/coauthors/v1/coauthors?post_id=` but older and protected by the author-editing capability rather than public-visibility.
+Returns rich co-author data for a post. Similar to `/coauthors/v1/coauthors?post_id=` but older and protected by the author-editing capability for the post's type (such as `edit_others_pages` for a page) rather than public-visibility.
 
 **Permission:** the requester must be able to edit the post (`edit_post`) and to set authors.
 

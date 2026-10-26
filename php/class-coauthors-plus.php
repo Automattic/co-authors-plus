@@ -94,7 +94,8 @@ class CoAuthors_Plus {
 		add_filter( 'wp_insert_post_data', array( $this, 'coauthors_set_post_author_field' ), 10, 2 );
 
 		// Action to reassign posts when a guest author is deleted
-		add_action( 'delete_user', array( $this, 'delete_user_action' ) );
+		add_action( 'delete_user', array( $this, 'delete_user_action' ), 10, 2 );
+		add_action( 'remove_user_from_blog', array( $this, 'remove_user_from_blog_action' ), 10, 3 );
 
 		// Keep an existing co-author's search term (and its cache) in step when the user's profile changes.
 		add_action( 'profile_update', array( $this, 'update_author_term_on_profile_update' ) );
@@ -221,7 +222,8 @@ class CoAuthors_Plus {
 	 * for posts and users where Co Authors is enabled
 	 */
 	public function enqueue_sidebar_plugin_assets(): void {
-		if ( $this->is_post_type_enabled() && $this->current_user_can_set_authors() ) {
+		$post_type = $this->get_current_post_type();
+		if ( $this->is_post_type_enabled( $post_type ) && $this->current_user_can_set_authors( $post_type ) ) {
 			$asset_file = dirname( COAUTHORS_PLUS_FILE ) . '/build/index.asset.php';
 
 			if ( ! file_exists( $asset_file ) ) {
@@ -305,12 +307,17 @@ class CoAuthors_Plus {
 			 * to read back in that order. Without the pair, bylines come back in an
 			 * arbitrary order. See AddCoauthorsTest for the round-trip coverage.
 			 */
-			'sort'         => true,
-			'args'         => array( 'orderby' => 'term_order' ),
-			'show_ui'      => false,
-			'show_in_rest' => true,
-			'rest_base'    => 'coauthors',
+			'sort'                  => true,
+			'args'                  => array( 'orderby' => 'term_order' ),
+			'show_ui'               => false,
+			'show_in_rest'          => true,
+			'rest_base'             => 'coauthors',
+			'rest_controller_class' => \CoAuthors\API\Endpoints\Author_Terms_Controller::class,
 		);
+
+		// Core checks this cap before writing terms from REST `coauthors` or `tax_input`.
+		// filter_assign_author_terms_cap() grants it only to users who can set authors.
+		$args['capabilities'] = array( 'assign_terms' => 'coauthors_assign_author_terms' );
 
 		// If we use the nasty SQL query, we need our custom callback. Otherwise, we still need to flush cache.
 		if ( apply_filters( 'coauthors_plus_should_query_post_author', true ) ) {
@@ -322,6 +329,7 @@ class CoAuthors_Plus {
 		}
 
 		register_taxonomy( $this->coauthor_taxonomy, $this->supported_post_types(), $args );
+		add_filter( 'map_meta_cap', array( $this, 'filter_assign_author_terms_cap' ), 10, 3 );
 	}
 
 	/**
@@ -527,18 +535,29 @@ class CoAuthors_Plus {
 	public function is_post_type_enabled( $post_type = null ): bool {
 
 		if ( ! $post_type ) {
-			$post_type = get_post_type();
-			// get_current_screen() is only available once the admin screen is initialised.
-			// Bail out of the screen look-up when the function does not exist yet — e.g.
-			// when save_post fires during plugins_loaded from a third-party plugin, or
-			// during a REST / WP-CLI request where the admin screen is never set up.
-			if ( ! $post_type && is_admin() && function_exists( 'get_current_screen' ) ) {
-				$screen    = get_current_screen();
-				$post_type = $screen ? $screen->post_type : '';
-			}
+			$post_type = $this->get_current_post_type();
 		}
 
 		return in_array( $post_type, $this->supported_post_types() );
+	}
+
+	/**
+	 * Get the post type of the current post, or of the current admin screen.
+	 *
+	 * @return string Post type, or an empty string when there is none.
+	 */
+	private function get_current_post_type(): string {
+		$post_type = get_post_type();
+		// get_current_screen() is only available once the admin screen is initialised.
+		// Bail out of the screen look-up when the function does not exist yet — e.g.
+		// when save_post fires during plugins_loaded from a third-party plugin, or
+		// during a REST / WP-CLI request where the admin screen is never set up.
+		if ( ! $post_type && is_admin() && function_exists( 'get_current_screen' ) ) {
+			$screen    = get_current_screen();
+			$post_type = $screen ? $screen->post_type : '';
+		}
+
+		return (string) $post_type;
 	}
 
 	/**
@@ -556,7 +575,8 @@ class CoAuthors_Plus {
 	 * Adds a custom 'Authors' box
 	 */
 	public function add_coauthors_box(): void {
-		if ( $this->is_post_type_enabled() && $this->current_user_can_set_authors() ) {
+		$post_type = $this->get_current_post_type();
+		if ( $this->is_post_type_enabled( $post_type ) && $this->current_user_can_set_authors( $post_type ) ) {
 			if ( false === $this->is_block_editor() ) {
 				add_meta_box( $this->coauthors_meta_box_name, apply_filters( 'coauthors_meta_box_title', __( 'Authors', 'co-authors-plus' ) ), array( $this, 'coauthors_meta_box' ), get_post_type(), apply_filters( 'coauthors_meta_box_context', 'side' ), apply_filters( 'coauthors_meta_box_priority', 'high' ) );
 			}
@@ -829,7 +849,7 @@ class CoAuthors_Plus {
 	 * Quick Edit co-authors box.
 	 */
 	public function _action_quick_edit_custom_box( $column_name, $post_type ): void {
-		if ( 'coauthors' !== $column_name || ! $this->is_post_type_enabled( $post_type ) || ! $this->current_user_can_set_authors() ) {
+		if ( 'coauthors' !== $column_name || ! $this->is_post_type_enabled( $post_type ) || ! $this->current_user_can_set_authors( $post_type ) ) {
 			return;
 		}
 		?>
@@ -1429,7 +1449,7 @@ class CoAuthors_Plus {
 		if (
 			$has_coauthor_form_data
 			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
-			&& $this->current_user_can_set_authors()
+			&& $this->current_user_can_set_authors( $data['post_type'] )
 		) {
 
 			// rawurlencode() is for encoding co-author name with special characters to compare names when getting co-author.
@@ -1482,11 +1502,23 @@ class CoAuthors_Plus {
 	 *
 	 * @see https://github.com/Automattic/co-authors-plus/issues/1269
 	 *
+	 * A request that sends `coauthors` from a user who can't set authors is
+	 * rejected. Core's own term check skips an empty list and IDs that aren't
+	 * terms, which would otherwise let that user clear the byline.
+	 *
 	 * @param stdClass        $prepared_post Post object derived from the REST request.
 	 * @param WP_REST_Request $request       The REST request.
-	 * @return stdClass The (possibly modified) prepared post object.
+	 * @return stdClass|WP_Error The (possibly modified) prepared post object, or an error.
 	 */
 	public function set_post_author_for_rest_save( $prepared_post, $request ) {
+		if ( null !== $request->get_param( 'coauthors' ) && ! $this->current_user_can_set_authors() ) {
+			return new WP_Error(
+				'rest_cannot_assign_term',
+				__( 'Sorry, you are not allowed to change the authors of this post.', 'co-authors-plus' ),
+				array( 'status' => rest_authorization_required_code() )
+			);
+		}
+
 		// Flag the REST save so coauthors_set_post_author_field() does not later
 		// re-derive post_author from author terms that have not yet been reordered.
 		// Reset in sync_coauthors_on_rest_save() (rest_after_insert_{post_type}).
@@ -1500,7 +1532,7 @@ class CoAuthors_Plus {
 			return $prepared_post;
 		}
 
-		if ( ! $this->current_user_can_set_authors() ) {
+		if ( ! $this->current_user_can_set_authors( $prepared_post->post_type ) ) {
 			return $prepared_post;
 		}
 
@@ -1697,7 +1729,7 @@ class CoAuthors_Plus {
 			return;
 		}
 
-		if ( isset( $_POST['coauthors-nonce'], $_POST['coauthors'] ) && $this->current_user_can_set_authors() ) {
+		if ( isset( $_POST['coauthors-nonce'], $_POST['coauthors'] ) && $this->current_user_can_set_authors( $post->post_type ) ) {
 			// if current_user_can_set_authors and nonce valid
 			check_admin_referer( 'coauthors-edit', 'coauthors-nonce' );
 
@@ -1707,7 +1739,10 @@ class CoAuthors_Plus {
 		} else {
 			// If a co-author isn't currently set, we need to explicitly set one.
 			// This covers both classic and REST-created posts (e.g. auto-drafts).
-			if ( ! $this->has_author_terms( $post_id ) ) {
+			// Trashed posts are skipped: deleting a user without reassignment
+			// trashes their posts after their term is deleted, and this would
+			// recreate it. Restoring a post saves it again, which backfills then.
+			if ( 'trash' !== $post->post_status && ! $this->has_author_terms( $post_id ) ) {
 				$user = get_userdata( $post->post_author );
 				if ( $user ) {
 					$this->add_coauthors( $post_id, array( $user->user_nicename ) );
@@ -1797,39 +1832,35 @@ class CoAuthors_Plus {
 		 */
 		wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
 
-		// If the original post_author is no longer assigned,
-		// update to the first WP_User $coauthor
-		$post_author_user = get_user_by( 'id', get_post( $post_id )->post_author );
-		if ( empty( $post_author_user )
-			|| ! in_array( $post_author_user->user_login, $coauthors ) ) {
-			foreach ( $coauthor_objects as $coauthor_object ) {
-				if ( $coauthor_object instanceof WP_User ) {
-					$new_author = $coauthor_object;
-					break;
-				} elseif ( isset( $coauthor_object->wp_user ) && $coauthor_object->wp_user instanceof WP_User ) {
-					$new_author = $coauthor_object->wp_user;
-					break;
-				}
+		// post_author is the first co-author with a WordPress account, the same
+		// rule the editors follow, so reordering the byline moves it.
+		foreach ( $coauthor_objects as $coauthor_object ) {
+			if ( $coauthor_object instanceof WP_User ) {
+				$new_author = $coauthor_object;
+				break;
+			} elseif ( isset( $coauthor_object->wp_user ) && $coauthor_object->wp_user instanceof WP_User ) {
+				$new_author = $coauthor_object->wp_user;
+				break;
 			}
+		}
 
-			/*
-			 * If setting a fresh group of authors for a post, (i.e. $append === false),
-			 * then perhaps one of those authors should be a WP_USER. However,
-			 * if $append === true, and we are perhaps unable to find a
-			 * WP_USER (perhaps none was given), we don't really
-			 * care whether post_author should be updated.
-			 * */
-			if ( false === $append && empty( $new_author ) ) {
-				return false;
-			}
+		/*
+		 * If setting a fresh group of authors for a post, (i.e. $append === false),
+		 * then perhaps one of those authors should be a WP_USER. However,
+		 * if $append === true, and we are perhaps unable to find a
+		 * WP_USER (perhaps none was given), we don't really
+		 * care whether post_author should be updated.
+		 * */
+		if ( false === $append && empty( $new_author ) ) {
+			return false;
+		}
 
-			if ( ! empty( $new_author ) ) {
-				$update = $wpdb->update( $wpdb->posts, array( 'post_author' => $new_author->ID ), array( 'ID' => $post_id ) );
-				clean_post_cache( $post_id );
+		if ( ! empty( $new_author ) ) {
+			$update = $wpdb->update( $wpdb->posts, array( 'post_author' => $new_author->ID ), array( 'ID' => $post_id ) );
+			clean_post_cache( $post_id );
 
-				if ( is_bool( $update ) ) {
-					return $update;
-				}
+			if ( is_bool( $update ) ) {
+				return $update;
 			}
 		}
 		return true;
@@ -1841,12 +1872,14 @@ class CoAuthors_Plus {
 	 * - Co-Author term is removed from all associated posts
 	 * - Option to specify alternate co-author in place for each post
 	 *
-	 * @param delete_id
+	 * @param int      $delete_id ID of the user being deleted.
+	 * @param int|null $reassign  ID of the user to reassign posts to, as passed to the
+	 *                            delete_user hook. Null when the content is deleted.
 	 */
-	public function delete_user_action( $delete_id ): void {
+	public function delete_user_action( $delete_id, $reassign = null ): void {
 		global $wpdb;
 
-		$reassign_id = isset( $_POST['reassign_user'] ) ? absint( $_POST['reassign_user'] ) : false; // phpcs:ignore
+		$reassign_id = absint( $reassign );
 
 		// If reassign posts, do that -- use coauthors_update_post
 		if ( $reassign_id ) {
@@ -1883,6 +1916,28 @@ class CoAuthors_Plus {
 					$this->guest_authors->delete( $associated_user->ID );
 				}
 			}
+		}
+	}
+
+	/**
+	 * Action taken when a user is removed from a site on multisite.
+	 *
+	 * When the user's posts are reassigned, the user's bylines on that site are
+	 * moved and cleaned up as they are when a user is deleted. Without a
+	 * reassignment, WordPress leaves the posts attributed to the user, so their
+	 * bylines are left alone too.
+	 *
+	 * Core has already switched to the site the user is being removed from.
+	 *
+	 * @since 4.2.1
+	 *
+	 * @param int $user_id  ID of the user being removed.
+	 * @param int $blog_id  ID of the site the user is being removed from.
+	 * @param int $reassign ID of the user to reassign posts to, or 0.
+	 */
+	public function remove_user_from_blog_action( $user_id, $blog_id, $reassign = 0 ): void {
+		if ( $reassign ) {
+			$this->delete_user_action( $user_id, $reassign );
 		}
 	}
 
@@ -2022,9 +2077,16 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Checks to see if the current user can set co-authors or not
+	 * Checks to see if the current user can set co-authors or not.
+	 *
+	 * The user needs the post type's edit_others_posts cap, such as
+	 * edit_others_pages for pages. Without a known post type, edit_others_posts
+	 * is checked.
+	 *
+	 * @param string|null $post_type Optional. Post type the co-authors are set on.
+	 * @return bool
 	 */
-	public function current_user_can_set_authors() {
+	public function current_user_can_set_authors( $post_type = null ) {
 		$current_user = wp_get_current_user();
 		if ( ! $current_user ) {
 			return false;
@@ -2034,10 +2096,43 @@ class CoAuthors_Plus {
 			return true;
 		}
 
-		// Check the role's own caps, so other cap filters can't change who sets authors.
-		$can_set_authors = isset( $current_user->allcaps['edit_others_posts'] ) && $current_user->allcaps['edit_others_posts'];
+		$post_type_object = $post_type ? get_post_type_object( $post_type ) : null;
+		$cap              = $post_type_object ? $post_type_object->cap->edit_others_posts : 'edit_others_posts';
 
-		return apply_filters( 'coauthors_plus_edit_authors', $can_set_authors );
+		// Check the user's own caps, not current_user_can(), so cap filters can't change
+		// who sets authors. For one, filter_map_meta_cap() grants a co-author this cap
+		// while they save a post, which must not let them change the authors.
+		$can_set_authors = isset( $current_user->allcaps[ $cap ] ) && $current_user->allcaps[ $cap ];
+
+		/**
+		 * Filters whether the current user can set co-authors.
+		 *
+		 * @param bool        $can_set_authors Whether the current user can set co-authors.
+		 * @param string|null $post_type       Post type the co-authors are set on, or null when not known.
+		 */
+		return apply_filters( 'coauthors_plus_edit_authors', $can_set_authors, $post_type );
+	}
+
+	/**
+	 * Map the author taxonomy's assign_terms cap to whether the user can set authors.
+	 *
+	 * @param string[] $caps    Primitive caps the user needs.
+	 * @param string   $cap     Cap being checked.
+	 * @param int      $user_id User being checked.
+	 * @return string[] Primitive caps the user needs.
+	 */
+	public function filter_assign_author_terms_cap( $caps, $cap, $user_id ) {
+		if ( 'coauthors_assign_author_terms' !== $cap ) {
+			return $caps;
+		}
+
+		// current_user_can_set_authors() only answers for the current user, so check
+		// anyone else against its unfiltered default.
+		if ( get_current_user_id() !== (int) $user_id ) {
+			return array( 'edit_others_posts' );
+		}
+
+		return $this->current_user_can_set_authors() ? array( 'exist' ) : array( 'do_not_allow' );
 	}
 
 	/**
@@ -2293,7 +2388,8 @@ class CoAuthors_Plus {
 	public function enqueue_scripts( $hook_suffix ): void {
 		global $pagenow, $post;
 
-		if ( ! $this->is_valid_page() || ! $this->is_post_type_enabled() || ! $this->current_user_can_set_authors() ) {
+		$post_type = $this->get_current_post_type();
+		if ( ! $this->is_valid_page() || ! $this->is_post_type_enabled( $post_type ) || ! $this->current_user_can_set_authors( $post_type ) ) {
 			return;
 		}
 
@@ -2389,7 +2485,8 @@ class CoAuthors_Plus {
 	 */
 	public function js_vars(): void {
 
-		if ( ! $this->is_valid_page() || ! $this->is_post_type_enabled() || ! $this->current_user_can_set_authors() ) {
+		$post_type = $this->get_current_post_type();
+		if ( ! $this->is_valid_page() || ! $this->is_post_type_enabled( $post_type ) || ! $this->current_user_can_set_authors( $post_type ) ) {
 			return;
 		}
 		?>
@@ -2994,9 +3091,11 @@ class CoAuthors_Plus {
 	 * @return WP_REST_Response $response Same response, possibly mutated to eliminate value of description.
 	 */
 	public function conditionally_hide_author_term_description( WP_REST_Response $response ): \WP_REST_Response {
+		// The description holds every co-author's email address, which core only
+		// shows to users who can list users.
 		$capability = apply_filters(
 			'coauthors_rest_view_description_cap',
-			'edit_posts'
+			'list_users'
 		);
 
 		if ( current_user_can( $capability ) ) {
@@ -3028,7 +3127,7 @@ class CoAuthors_Plus {
 	 * @return void
 	 */
 	public function _action_bulk_edit_custom_box( string $column_name, string $post_type ): void {
-		if ( 'coauthors' !== $column_name || ! $this->is_post_type_enabled( $post_type ) || ! $this->current_user_can_set_authors() ) {
+		if ( 'coauthors' !== $column_name || ! $this->is_post_type_enabled( $post_type ) || ! $this->current_user_can_set_authors( $post_type ) ) {
 			return;
 		}
 		?>
@@ -3058,7 +3157,7 @@ class CoAuthors_Plus {
 	 * @return array $updated The updated post IDs, unchanged.
 	 */
 	public function action_bulk_edit_update_coauthors( array $updated, array $postarr ): array {
-		if ( empty( $postarr['coauthors'] ) || ! $this->is_post_type_enabled( $postarr['post_type'] ) || ! $this->current_user_can_set_authors() ) {
+		if ( empty( $postarr['coauthors'] ) || ! $this->is_post_type_enabled( $postarr['post_type'] ) || ! $this->current_user_can_set_authors( $postarr['post_type'] ) ) {
 			return $updated;
 		}
 
