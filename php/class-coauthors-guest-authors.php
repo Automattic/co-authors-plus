@@ -138,7 +138,8 @@ class CoAuthors_Guest_Authors {
 			'exclude_from_search' => true,
 			'show_ui'             => true,
 			'show_in_menu'        => false,
-			'show_in_rest'        => true,
+			// Nothing reads guest authors through core REST; coauthors/v1 is the supported route.
+			'show_in_rest'        => false,
 			'supports'            => array(
 				'thumbnail',
 			),
