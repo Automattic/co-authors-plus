@@ -153,6 +153,11 @@ class CoAuthors_Plus {
 		// Block editor assets for the sidebar plugin.
 		add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_sidebar_plugin_assets' ) );
 
+		// The asset loaders skip a missing build/ silently, so say so instead.
+		if ( ! file_exists( dirname( COAUTHORS_PLUS_FILE ) . '/build/index.asset.php' ) ) {
+			add_action( 'admin_notices', array( $this, 'missing_build_notice' ) );
+		}
+
 		// REST API: Depending on user capabilities, hide author term description.
 		add_action( 'rest_prepare_author', array( $this, 'conditionally_hide_author_term_description' ) );
 
@@ -259,6 +264,29 @@ class CoAuthors_Plus {
 			wp_enqueue_script( 'coauthors-sidebar-js' );
 			wp_enqueue_style( 'coauthors-sidebar-css' );
 		}
+	}
+
+	/**
+	 * Tell administrators that the build directory is missing.
+	 *
+	 * Without build/, the blocks aren't registered and the block editor's Authors
+	 * panel doesn't load, and nothing says why. The Packagist package and Git
+	 * checkouts don't include build/.
+	 *
+	 * @since 4.2.0
+	 */
+	public function missing_build_notice(): void {
+		if ( ! current_user_can( 'activate_plugins' ) ) {
+			return;
+		}
+
+		$message = sprintf(
+			/* translators: %s: URL of the "Installing with Composer" documentation. */
+			__( 'Co-Authors Plus is missing its build directory, so its blocks and the block editor\'s Authors panel will not work. Install the WordPress.org release, or see <a href="%s">Installing with Composer</a>.', 'co-authors-plus' ),
+			esc_url( 'https://github.com/Automattic/co-authors-plus/blob/main/docs/upgrading-to-4.0.md#installing-with-composer' )
+		);
+
+		echo '<div class="notice notice-error"><p>' . wp_kses( $message, array( 'a' => array( 'href' => array() ) ) ) . '</p></div>';
 	}
 
 	/**

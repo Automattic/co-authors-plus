@@ -28,6 +28,7 @@ What Co-Authors Plus does, and how to install it, is covered in the [README](../
 ## Upgrading
 
 - [Upgrading to 4.0](./upgrading-to-4.0.md).
+- [Installing with Composer](./upgrading-to-4.0.md#installing-with-composer): which package to require, since the Packagist one has no built files.
 - [Recovering from the 4.0.0 REST backfill regression](./recovering-from-4.0.0.md): for sites that ran 4.0.0.
 
 ## Contributing
