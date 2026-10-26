@@ -61,7 +61,7 @@ Yes! You can [use Co-Authors Plus on WordPress multisite](https://github.com/Aut
 
 ### Who needs permission to do what?
 
-A WordPress user will need the `edit_others_posts` capability to assign co-authors to posts, or the equivalent for other post types, such as `edit_others_pages` for pages. This is typically granted to the Editor role but can be altered with the `coauthors_plus_edit_authors` filter.
+By default, a WordPress user needs the `edit_others_posts` capability to assign co-authors to posts, or the equivalent for other post types, such as `edit_others_pages` for pages. This is typically granted to the Editor role but can be altered with the `coauthors_plus_edit_authors` filter. The [roles and capabilities guide](https://github.com/Automattic/co-authors-plus/blob/main/docs/roles-and-capabilities.md#assigning-co-authors) has an example that lets the Author role assign co-authors.
 
 A WordPress user will need the `list_users` capability to open the Guest Authors screen. This is typically granted to the Administrator role but can be altered with the `coauthors_guest_author_manage_cap` filter. The [roles and capabilities guide](https://github.com/Automattic/co-authors-plus/blob/main/docs/roles-and-capabilities.md) covers every permission check in detail.
 

@@ -106,6 +106,8 @@ See [Roles and capabilities](./roles-and-capabilities.md) for how these filters 
 
 Whether the current user can assign co-authors. Defaults to the post type's `edit_others_posts` capability, such as `edit_others_pages` for pages, or `edit_others_posts` when the post type isn't known. Super admins can always assign co-authors, and the filter is not applied for them.
 
+The filter receives the post type the co-authors are set on, or `null` when it isn't known. It does not receive the post itself. See [Roles and capabilities](./roles-and-capabilities.md#assigning-co-authors) for every place this check runs, and for an example that lets the Author role assign co-authors.
+
 - **Parameters:** `bool $can_set_authors`, `string|null $post_type` (the post type, or `null` when it isn't known)
 - **File:** `php/class-coauthors-plus.php`
 
