@@ -1797,19 +1797,13 @@ class CoAuthors_Guest_Authors {
 			);
 		}
 
-		$author_data = array(
-			'ID'           => __( 'ID', 'co-authors-plus' ),
-			'user_login'   => __( 'Login Name', 'co-authors-plus' ),
-			'display_name' => __( 'Display Name', 'co-authors-plus' ),
-			'user_email'   => __( 'Email', 'co-authors-plus' ),
-			'first_name'   => __( 'First Name', 'co-authors-plus' ),
-			'last_name'    => __( 'Last Name', 'co-authors-plus' ),
-			'website'      => __( 'Website', 'co-authors-plus' ),
-			'aim'          => __( 'AIM', 'co-authors-plus' ),
-			'yahooim'      => __( 'Yahoo IM', 'co-authors-plus' ),
-			'jabber'       => __( 'Jabber / Google Talk', 'co-authors-plus' ),
-			'description'  => __( 'Biographical Info', 'co-authors-plus' ),
-		);
+		// Export whatever the profile stores, under the labels the edit screen
+		// shows, so fields added through coauthors_guest_author_fields are
+		// covered too.
+		$author_data = array( 'ID' => __( 'ID', 'co-authors-plus' ) );
+		foreach ( $this->get_guest_author_fields() as $field ) {
+			$author_data[ $field['key'] ] = $field['label'] ?? $field['key'];
+		}
 
 		$author_data_to_export = array();
 

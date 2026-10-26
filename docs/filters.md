@@ -193,7 +193,7 @@ Whether to show a "Create Profile" row action on the Users list for users who ha
 
 ### `coauthors_guest_author_personal_export_extra_data`
 
-Extra data to include when exporting a guest author's personal data (WordPress privacy tools). Return an array of `name` and `value` pairs; they are added to the guest author's export item.
+Extra data to include when exporting a guest author's personal data (WordPress privacy tools). Return an array of `name` and `value` pairs; they are added to the guest author's export item, after the profile fields. The export already includes every profile field with a value, including fields added with `coauthors_guest_author_fields`, so use this filter for data stored elsewhere.
 
 - **Parameters:** `array $extra_data` (empty by default), `int $author_id`, `string $email_address`
 - **File:** `php/class-coauthors-guest-authors.php`

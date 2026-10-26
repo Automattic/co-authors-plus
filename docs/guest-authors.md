@@ -93,7 +93,7 @@ add_filter( 'coauthors_guest_author_fields', function ( $fields, $groups ) {
 A field can have these keys:
 
 - `key`: the field name. Stored as `cap-<key>`.
-- `label`: the label on the edit screen.
+- `label`: the label on the edit screen and in the [personal data export](#privacy).
 - `group`: one of the groups above.
 - `input`: the input type for the Name and Contact Info boxes. Defaults to `text`. Use `checkbox` for a checkbox. The [`coauthors_name_field_type_{$field}`](./filters.md#coauthors_name_field_type_field) filter can change it per field.
 - `sanitize_function`: a callable that cleans the value on save. Defaults to `sanitize_text_field()`.
@@ -118,7 +118,7 @@ The `guest-author` post type is registered with `public`, `publicly_queryable`, 
 Things to know:
 
 - The `coauthors/v1/coauthors` endpoints return a co-author's display name, description, slug, archive link, featured image and avatars, but not their email address. See the [REST API](./rest-api.md).
-- Guest authors are included in **Tools > Export Personal Data**, matched by email address. The [`coauthors_guest_author_personal_export_extra_data`](./filters.md#coauthors_guest_author_personal_export_extra_data) filter adds your own fields. The plugin doesn't register a personal data eraser. To remove a guest author's data, delete the profile.
+- Guest authors are included in **Tools > Export Personal Data**, matched by email address. The export has the guest author's ID and every profile field that has a value, under the labels the edit screen shows. That includes the linked account and any field added with [`coauthors_guest_author_fields`](./filters.md#coauthors_guest_author_fields). The [`coauthors_guest_author_personal_export_extra_data`](./filters.md#coauthors_guest_author_personal_export_extra_data) filter adds other data. The plugin doesn't register a personal data eraser. To remove a guest author's data, delete the profile.
 
 ## Deleting a guest author
 
