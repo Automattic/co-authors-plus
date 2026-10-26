@@ -34,6 +34,7 @@ final class GuestAuthorFieldsTest extends TestCase {
 		Functions\when( '__' )->returnArg();
 		// apply_filters( $tag, $fields, $groups ) returns the fields unchanged.
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'wp_strip_all_tags' )->alias( 'strip_tags' );
 		// No plugin adds contact methods unless a test says so.
 		Functions\when( 'wp_get_user_contact_methods' )->justReturn( array() );
 	}
@@ -92,6 +93,20 @@ final class GuestAuthorFieldsTest extends TestCase {
 			),
 			$fields[2]
 		);
+	}
+
+	/**
+	 * Yoast's Wikipedia label has HTML. The guest author form prints labels as
+	 * plain text, so the tags are removed and a line break becomes a space.
+	 */
+	public function test_contact_method_label_html_is_removed(): void {
+		Functions\when( 'wp_get_user_contact_methods' )->justReturn(
+			array( 'wikipedia' => 'Wikipedia page about you<br/><small>(if one exists)</small>' )
+		);
+
+		$fields = $this->guest_authors->get_guest_author_fields( 'contact-info' );
+
+		$this->assertSame( 'Wikipedia page about you (if one exists)', $fields[2]['label'] );
 	}
 
 	/**

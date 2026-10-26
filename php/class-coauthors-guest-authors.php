@@ -1253,7 +1253,8 @@ class CoAuthors_Guest_Authors {
 			}
 			$global_fields[] = array(
 				'key'   => $key,
-				'label' => $label,
+				// Labels can have HTML, like Yoast's Wikipedia one. Fields here use plain text.
+				'label' => wp_strip_all_tags( preg_replace( '#<br\s*/?>#i', ' ', $label ) ),
 				'group' => 'contact-info',
 			);
 		}
