@@ -22,14 +22,22 @@ These places use it:
 - `post_author` changes on REST saves of the `coauthors` field.
 - the `coauthors/v1` endpoints `search`, `authors-by-term-ids` and `authors/{post_id}`. The `authors/{post_id}` endpoints also need `edit_post` on the post. See the [REST API](./rest-api.md).
 
-To let more users assign co-authors:
+To let more users assign co-authors, such as the Author role, allow anyone who can publish posts of that type:
 
 ```php
-// Let anyone who can edit posts change the byline.
-add_filter( 'coauthors_plus_edit_authors', function ( $can_set_authors ) {
-	return $can_set_authors || current_user_can( 'edit_posts' );
-} );
+add_filter( 'coauthors_plus_edit_authors', function ( $can_set_authors, $post_type ) {
+	$post_type_object = $post_type ? get_post_type_object( $post_type ) : null;
+	$cap              = $post_type_object ? $post_type_object->cap->publish_posts : 'publish_posts';
+
+	return $can_set_authors || current_user_can( $cap );
+}, 10, 2 );
 ```
+
+Before using a filter like this:
+
+- Only use it on version 4.1.2 or later. From 4.1.2 the plugin also checks `edit_post` on each post, so users can only change co-authors on posts they can already edit. On older versions, they could change co-authors on any post.
+- To check the post type, use the `$post_type` argument, not `get_current_screen()`. The block editor saves posts and searches for co-authors through REST API requests, where there is no admin screen. In those requests the function may not be defined at all, which causes a fatal error, or it returns `null`, so a callback that relies on it returns `false` and co-author changes made in the block editor are silently dropped.
+- A user who can assign co-authors can put any eligible user on the byline and take anyone off it, including themselves and the original author. An Author could publish a post under an Editor's name, or a co-author they added could remove them from their own post.
 
 Returning `false` from the filter doesn't stop Administrators on a single site, or super admins on multisite, because the filter isn't applied for them.
 

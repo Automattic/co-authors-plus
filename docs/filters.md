@@ -106,21 +106,7 @@ See [Roles and capabilities](./roles-and-capabilities.md) for how these filters 
 
 Whether the current user can assign co-authors. Defaults to the post type's `edit_others_posts` capability, such as `edit_others_pages` for pages, or `edit_others_posts` when the post type isn't known. Super admins can always assign co-authors, and the filter is not applied for them.
 
-The filter receives the post type the co-authors are set on, or `null` when it isn't known. It does not receive the post itself. See [Roles and capabilities](./roles-and-capabilities.md#assigning-co-authors) for every place this check runs.
-
-To let users with the Author role assign co-authors, allow anyone who can publish posts:
-
-```php
-add_filter( 'coauthors_plus_edit_authors', function ( $can_set_authors ) {
-	return $can_set_authors || current_user_can( 'publish_posts' );
-} );
-```
-
-Things to keep in mind:
-
-- Only use this snippet on version 4.1.2 or later. From 4.1.2 the plugin also checks `edit_post` on each post, so users can only change co-authors on posts they can already edit.
-- To limit the snippet to some post types, use the `$post_type` argument (add the filter with `10, 2`), and decide what to return when it is `null`. Do not use `get_current_screen()` for this. The block editor saves posts and searches for co-authors through REST API requests, where there is no admin screen. In those requests the function may not be defined at all, which causes a fatal error, or it is defined and returns `null`, so a callback that reads the post type from it returns `false` and co-author changes made in the block editor are silently dropped.
-- A user who can assign co-authors can also remove them. Once an author adds another author to a post, that co-author can edit the post and take the original author off the byline.
+The filter receives the post type the co-authors are set on, or `null` when it isn't known. It does not receive the post itself. See [Roles and capabilities](./roles-and-capabilities.md#assigning-co-authors) for every place this check runs, and for an example that lets the Author role assign co-authors.
 
 - **Parameters:** `bool $can_set_authors`, `string|null $post_type` (the post type, or `null` when it isn't known)
 - **File:** `php/class-coauthors-plus.php`
