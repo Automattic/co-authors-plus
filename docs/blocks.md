@@ -82,7 +82,7 @@ Like the Avatar block in core, this shows a small square image of the co-author.
 | `align` | | Alignment, in the layouts other than inline. |
 | `verticalAlign` | | Vertical alignment, in the inline layout. |
 
-The available sizes come from `rest_get_avatar_sizes()` (24, 48 and 96 by default). To change them, use the [`rest_avatar_sizes`](https://developer.wordpress.org/reference/hooks/rest_avatar_sizes/) filter. The block outputs nothing when **Show Avatars** is turned off in the Discussion settings. It supports border, margin and padding.
+The available sizes come from `rest_get_avatar_sizes()` (24, 48 and 96 by default). To change them, use the [`rest_avatar_sizes`](https://developer.wordpress.org/reference/hooks/rest_avatar_sizes/) filter. If the block's saved size is no longer available, it uses the next larger size, or the largest, shown at the saved width and height. The image's alt text is the co-author's name followed by "Avatar". The block outputs nothing when **Show Avatars** is turned off in the Discussion settings. It supports border, margin and padding.
 
 ## Co-Author Biography
 
