@@ -138,7 +138,7 @@ Array of `user_nicename` values hidden from the co-author search results. Defaul
 
 ### `coauthors_rest_view_description_cap`
 
-Capability required to see the `description` of an author term in core's `/wp/v2/coauthors` responses. Defaults to `edit_posts`. For users without it, the `description` key is removed from the response. Since 4.2.0 the endpoints themselves need `edit_posts`, so only a capability above that changes anything. The term description holds the plugin's search index for the author, which can include the email address. This filter does not affect the `coauthors/v1` endpoints.
+Capability required to see the `description` of an author term in core's `/wp/v2/coauthors` responses. Defaults to `list_users` (`edit_posts` before 4.1.3). For users without it, the `description` key is removed from the response. Since 4.2.0 the endpoints themselves need `edit_posts`, so a capability below that has no effect. The term description holds the plugin's search index for the author, which can include the email address. This filter does not affect the `coauthors/v1` endpoints.
 
 - **Parameters:** `string $capability`
 - **File:** `php/class-coauthors-plus.php`
@@ -168,7 +168,7 @@ The value is read once on `init` at the default priority, and only when guest au
 
 ### `coauthors_guest_author_manage_cap`
 
-Capability required to manage guest authors. Defaults to `list_users`. Deleting a guest author also needs `delete_post` on the profile, on the confirmation screen and when the deletion runs, whatever this filter returns. See [Roles and capabilities](./roles-and-capabilities.md).
+Capability required to manage guest authors, and to change which user a guest author is linked to. Defaults to `list_users`. Deleting a guest author also needs `delete_post` on the profile, on the confirmation screen and when the deletion runs, whatever this filter returns. See [Roles and capabilities](./roles-and-capabilities.md).
 
 ### `coauthors_guest_author_parent_page`
 

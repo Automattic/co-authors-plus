@@ -2,14 +2,14 @@
 # This file is distributed under the GPL v2 or later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Co-Authors Plus 4.1.2\n"
+"Project-Id-Version: Co-Authors Plus 4.1.3\n"
 "Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/co-authors-plus\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2026-10-21T19:54:09+00:00\n"
+"POT-Creation-Date: 2026-10-26T12:14:10+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "X-Generator: WP-CLI 2.12.0\n"
 "X-Domain: co-authors-plus\n"
@@ -269,8 +269,8 @@ msgid "Names of co-authors to save."
 msgstr ""
 
 #: php/class-coauthors-guest-authors.php:95
-#: php/class-coauthors-guest-authors.php:1707
-#: php/class-coauthors-guest-authors.php:1780
+#: php/class-coauthors-guest-authors.php:1710
+#: php/class-coauthors-guest-authors.php:1783
 msgid "Guest Author"
 msgstr ""
 
@@ -287,7 +287,7 @@ msgid "Add New Guest Author"
 msgstr ""
 
 #: php/class-coauthors-guest-authors.php:99
-#: php/class-coauthors-plus.php:787
+#: php/class-coauthors-plus.php:800
 msgid "Edit Guest Author"
 msgstr ""
 
@@ -482,7 +482,7 @@ msgid "<strong>Avatar</strong> — uses the featured image of the guest author p
 msgstr ""
 
 #: php/class-coauthors-guest-authors.php:481
-#: php/class-coauthors-guest-authors.php:1211
+#: php/class-coauthors-guest-authors.php:1214
 #: php/class-coauthors-wp-list-table.php:180
 msgid "Linked Account"
 msgstr ""
@@ -594,197 +594,201 @@ msgstr ""
 msgid "Add New"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:762
+#: php/class-coauthors-guest-authors.php:763
 msgid "WordPress User Mapping"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:767
+#: php/class-coauthors-guest-authors.php:768
 msgid "-- Not mapped --"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:920
-#: php/class-coauthors-guest-authors.php:931
+#: php/class-coauthors-guest-authors.php:921
+#: php/class-coauthors-guest-authors.php:932
 msgid "Guest authors cannot be created without display names."
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:945
+#: php/class-coauthors-guest-authors.php:946
 msgid "There is a WordPress user with the same username as this guest author, please go back and link them in order to update."
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:951
+#: php/class-coauthors-guest-authors.php:952
 msgid "Display name conflicts with another guest author display name."
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1175
-#: php/class-coauthors-guest-authors.php:1737
+#: php/class-coauthors-guest-authors.php:1178
+#: php/class-coauthors-guest-authors.php:1740
 msgid "ID"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1182
-#: php/class-coauthors-guest-authors.php:1739
+#: php/class-coauthors-guest-authors.php:1185
+#: php/class-coauthors-guest-authors.php:1742
 #: php/class-coauthors-wp-list-table.php:176
 msgid "Display Name"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1188
-#: php/class-coauthors-guest-authors.php:1741
+#: php/class-coauthors-guest-authors.php:1191
+#: php/class-coauthors-guest-authors.php:1744
 #: php/class-coauthors-wp-list-table.php:177
 msgid "First Name"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1193
-#: php/class-coauthors-guest-authors.php:1742
+#: php/class-coauthors-guest-authors.php:1196
+#: php/class-coauthors-guest-authors.php:1745
 #: php/class-coauthors-wp-list-table.php:178
 msgid "Last Name"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1198
+#: php/class-coauthors-guest-authors.php:1201
 msgid "Slug"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1205
+#: php/class-coauthors-guest-authors.php:1208
 #: php/class-coauthors-wp-list-table.php:179
 msgid "E-mail"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1216
-#: php/class-coauthors-guest-authors.php:1743
+#: php/class-coauthors-guest-authors.php:1219
+#: php/class-coauthors-guest-authors.php:1746
 msgid "Website"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1222
-#: php/class-coauthors-guest-authors.php:1747
+#: php/class-coauthors-guest-authors.php:1225
+#: php/class-coauthors-guest-authors.php:1750
 msgid "Biographical Info"
 msgstr ""
 
 #. translators: Name of a form field.
-#: php/class-coauthors-guest-authors.php:1399
+#: php/class-coauthors-guest-authors.php:1402
 #, php-format
 msgid "%s is a required field"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1405
+#: php/class-coauthors-guest-authors.php:1408
 msgid "user_login cannot duplicate existing guest author or mapped user"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1448
+#: php/class-coauthors-guest-authors.php:1451
 msgid "Failed to create author term. The author slug may conflict with an existing user."
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1474
+#: php/class-coauthors-guest-authors.php:1477
 msgid "Guest author does not exist"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1489
+#: php/class-coauthors-guest-authors.php:1492
 msgid "Reassignment co-author does not exist"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1529
+#: php/class-coauthors-guest-authors.php:1532
 msgid "No user exists with that ID"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1591
+#: php/class-coauthors-guest-authors.php:1594
 msgid "Edit Profile"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1600
+#: php/class-coauthors-guest-authors.php:1603
 msgid "Create Profile"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1738
+#: php/class-coauthors-guest-authors.php:1741
 msgid "Login Name"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1740
+#: php/class-coauthors-guest-authors.php:1743
 msgid "Email"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1744
+#: php/class-coauthors-guest-authors.php:1747
 msgid "AIM"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1745
+#: php/class-coauthors-guest-authors.php:1748
 msgid "Yahoo IM"
 msgstr ""
 
-#: php/class-coauthors-guest-authors.php:1746
+#: php/class-coauthors-guest-authors.php:1749
 msgid "Jabber / Google Talk"
 msgstr ""
 
-#: php/class-coauthors-plus.php:264
-#: php/class-coauthors-plus.php:525
-#: php/class-coauthors-plus.php:655
-#: php/class-coauthors-plus.php:801
-#: php/class-coauthors-plus.php:2481
-#: php/class-coauthors-plus.php:2792
+#: php/class-coauthors-plus.php:272
+#: php/class-coauthors-plus.php:538
+#: php/class-coauthors-plus.php:668
+#: php/class-coauthors-plus.php:814
+#: php/class-coauthors-plus.php:2633
+#: php/class-coauthors-plus.php:2946
 #: build/index.js:1
 #: src/index.js:24
 msgid "Authors"
 msgstr ""
 
-#: php/class-coauthors-plus.php:265
+#: php/class-coauthors-plus.php:273
 msgid "All Authors"
 msgstr ""
 
-#: php/class-coauthors-plus.php:595
+#: php/class-coauthors-plus.php:608
 msgid "<strong>Note:</strong> To edit post authors, please enable JavaScript or use a JavaScript-capable browser"
 msgstr ""
 
-#: php/class-coauthors-plus.php:602
-#: php/class-coauthors-plus.php:803
-#: php/class-coauthors-plus.php:2176
+#: php/class-coauthors-plus.php:615
+#: php/class-coauthors-plus.php:816
+#: php/class-coauthors-plus.php:2223
 msgid "Click on an author to change them. Drag to change their order. Click on <strong>Remove</strong> to remove them."
 msgstr ""
 
-#: php/class-coauthors-plus.php:717
+#: php/class-coauthors-plus.php:730
 msgid "Linked Guest Author"
 msgstr ""
 
-#: php/class-coauthors-plus.php:718
+#: php/class-coauthors-plus.php:731
 #: php/class-coauthors-wp-list-table.php:181
 msgid "Posts"
 msgstr ""
 
-#: php/class-coauthors-plus.php:768
+#: php/class-coauthors-plus.php:781
 msgid "View posts by this author"
 msgstr ""
 
-#: php/class-coauthors-plus.php:846
-#: php/class-coauthors-plus.php:864
+#: php/class-coauthors-plus.php:859
+#: php/class-coauthors-plus.php:877
 msgid "No co-author exists for that term"
 msgstr ""
 
-#: php/class-coauthors-plus.php:1643
-#: php/class-coauthors-plus.php:1671
+#: php/class-coauthors-plus.php:1408
+msgid "Sorry, you are not allowed to change the authors of this post."
+msgstr ""
+
+#: php/class-coauthors-plus.php:1668
+#: php/class-coauthors-plus.php:1696
 msgid "This filter is deprecated when saving via the REST API and will be removed in a future version. Use the set_object_terms action for the author taxonomy instead."
 msgstr ""
 
-#: php/class-coauthors-plus.php:2171
+#: php/class-coauthors-plus.php:2218
 #: php/class-coauthors-wp-list-table.php:243
 msgid "Edit"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2172
+#: php/class-coauthors-plus.php:2219
 msgid "Remove"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2173
+#: php/class-coauthors-plus.php:2220
 msgid "Are you sure you want to remove this author?"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2174
+#: php/class-coauthors-plus.php:2221
 msgid "Click to change this author, or drag to change their position"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2175
+#: php/class-coauthors-plus.php:2222
 msgid "Search for an author"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2217
+#: php/class-coauthors-plus.php:2264
 msgid "Mine"
 msgstr ""
 
-#: php/class-coauthors-plus.php:2795
+#: php/class-coauthors-plus.php:2949
 msgid "Leave the field below blank to keep the Authors unchanged. Any change here will overwrite all previously assigned Authors."
 msgstr ""
 

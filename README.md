@@ -1,6 +1,6 @@
 # Co-Authors Plus
 
-Stable tag: 4.1.2  
+Stable tag: 4.1.3  
 Requires at least: 6.4  
 Tested up to: 7.0  
 Requires PHP: 7.4  
@@ -83,11 +83,21 @@ Yes. Many parts of Co-Authors Plus can be changed with a filter, for example mak
 
 The highlights of recent releases are below. Every change, including older releases, is listed in [CHANGELOG.md](https://github.com/Automattic/co-authors-plus/blob/main/CHANGELOG.md).
 
+### 4.1.3
+
+- **Changed:** Co-authors now get the rights the post's author would have under the co-author's own role. A Subscriber credited on a post can no longer edit it, and co-authors can trash posts they are credited on when their role allows it for their own posts.
+- **Changed:** Only Administrators can link a guest author to a WordPress account by default. Change this with the `coauthors_guest_author_manage_cap` filter.
+- **Security:** Tighten permission checks when changing a post's co-authors, linking guest authors to accounts, and reading author details through the REST API.
+
 ### 4.1.2
 
 - **Security:** Tighten permission checks when changing a post's co-authors. Thanks to Faisal Ahammad for responsibly disclosing the issue.
 
 ## Upgrade Notice
+
+### 4.1.3
+
+Security release that tightens several co-author permission checks. Co-authors now get the rights the post's author would have under their own role, and only Administrators can link guest authors to accounts by default. Updating is recommended.
 
 ### 4.1.2
 

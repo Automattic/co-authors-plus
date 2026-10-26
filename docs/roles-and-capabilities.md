@@ -92,7 +92,7 @@ Guest authors are managed from the **Users > Guest Authors** screen. These check
 | Open **Users > Guest Authors**, and its search | `list_users` | Administrator | [`coauthors_guest_author_manage_cap`](./filters.md#coauthors_guest_author_manage_cap) |
 | Delete a guest author from that screen | `delete_post` on the profile, for the **Delete** link, the confirmation screen and the deletion; the confirmation screen and the deletion also need `list_users` | Administrator | `coauthors_guest_author_manage_cap`, for `list_users` |
 | **Create Profile** and **Edit Profile** on the Users list | `list_users` | Administrator. **Create Profile** is hidden unless [`coauthors_show_create_profile_user_link`](./filters.md#coauthors_show_create_profile_user_link) returns `true` | `coauthors_guest_author_manage_cap` |
-| Link a guest author to a user | Anyone who can edit the profile | As above | [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap) limits who can be linked |
+| Link a guest author to a user | `list_users`, as well as being able to edit the profile | Administrator | `coauthors_guest_author_manage_cap`. [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap) limits who can be linked |
 
 To let Editors use the Guest Authors screen:
 
@@ -115,9 +115,9 @@ get_role( 'editor' )->add_cap( 'manage_guest_authors' );
 
 ## Co-author biographies in REST responses
 
-Core's `/wp/v2/coauthors` endpoints return the `author` taxonomy terms, and only to users with `edit_posts`. For users without the capability from [`coauthors_rest_view_description_cap`](./filters.md#coauthors_rest_view_description_cap), `edit_posts` by default, the `description` key is removed from each term.
+Core's `/wp/v2/coauthors` endpoints return the `author` taxonomy terms, and only to users with `edit_posts`. For users without the capability from [`coauthors_rest_view_description_cap`](./filters.md#coauthors_rest_view_description_cap), `list_users` by default (Administrator), the `description` key is removed from each term.
 
-The term description isn't a biography. It's the plugin's search index for the co-author: display name, first and last name, login, ID and email address. Raising the capability hides it from more users. Lowering it below `edit_posts` has no effect, because users without `edit_posts` can't read the terms at all.
+The term description isn't a biography. It's the plugin's search index for the co-author: display name, first and last name, login, ID and email address. Lowering the capability shows it to more users, down to `edit_posts`. Lowering it below that has no effect, because users without `edit_posts` can't read the terms at all.
 
 This filter doesn't affect the `coauthors/v1` endpoints. For those, see the [REST API](./rest-api.md).
 
