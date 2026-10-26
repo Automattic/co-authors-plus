@@ -605,7 +605,7 @@ class EndpointsTest extends TestCase {
 	}
 
 	/**
-	 * The routes without a post keep the global check.
+	 * An Editor can use the routes without a post.
 	 *
 	 * @covers \CoAuthors\API\Endpoints::can_edit_coauthors
 	 */
@@ -622,6 +622,69 @@ class EndpointsTest extends TestCase {
 
 		$this->assertSame( 200, rest_do_request( $search )->get_status() );
 		$this->assertSame( 200, rest_do_request( $by_terms )->get_status() );
+	}
+
+	/**
+	 * A user who can edit others' pages but not others' posts.
+	 */
+	private function create_pages_only_editor(): \WP_User {
+		$user = $this->create_editor( 'pages_only' );
+		$user->add_cap( 'edit_others_posts', false );
+
+		return $user;
+	}
+
+	/**
+	 * Setting co-authors on a post checks that post's type.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::can_edit_post_coauthors
+	 */
+	public function test_pages_only_editor_can_update_coauthors_on_a_page_but_not_a_post(): void {
+		$author = $this->create_author();
+		$page   = self::factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_type'   => 'page',
+			)
+		);
+		$post   = $this->create_post( $author );
+		$this->_cap->add_coauthors( $page, array( $author->user_nicename ) );
+		wp_set_current_user( $this->create_pages_only_editor()->ID );
+
+		$page_request = new \WP_REST_Request( 'POST', '/coauthors/v1/authors/' . $page );
+		$page_request->set_param( 'new_authors', 'author,pages_only' );
+		$post_request = new \WP_REST_Request( 'POST', '/coauthors/v1/authors/' . $post->ID );
+		$post_request->set_param( 'new_authors', 'author,pages_only' );
+
+		$this->assertSame( 200, rest_do_request( $page_request )->get_status() );
+		$this->assertSame( 403, rest_do_request( $post_request )->get_status() );
+		$this->assertPostHasCoAuthors( $post->ID, array( $author ) );
+	}
+
+	/**
+	 * The routes without a post let in anyone who can set authors on a
+	 * supported post type, so the block editor can search on pages.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::can_edit_coauthors
+	 */
+	public function test_pages_only_editor_can_use_the_routes_without_a_post(): void {
+		wp_set_current_user( $this->create_pages_only_editor()->ID );
+		$this->assertTrue( $this->_api->can_edit_coauthors() );
+
+		$posts_only = static function () {
+			return array( 'post' );
+		};
+		add_filter( 'coauthors_supported_post_types', $posts_only );
+		$this->_cap->supported_post_types = array();
+
+		try {
+			$can_edit_without_pages = $this->_api->can_edit_coauthors();
+		} finally {
+			remove_filter( 'coauthors_supported_post_types', $posts_only );
+			$this->_cap->supported_post_types = array();
+		}
+
+		$this->assertFalse( $can_edit_without_pages, 'Pages are not a supported post type here.' );
 	}
 
 	/**

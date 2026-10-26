@@ -272,7 +272,7 @@ wp co-authors-plus create-guest-authors [--offset=<offset>] [--number=<number>]
 - `--offset`: how many users to skip before starting. Defaults to 0.
 - `--number`: how many users to process. Defaults to all of them.
 
-Users are taken in `user_login` order, so `--offset` and `--number` let you work through a large user list in chunks. Users that already have a linked profile are skipped, so an interrupted run can be repeated. The command shows a progress bar, then the number of profiles created and skipped. Any user whose profile couldn't be created is counted as skipped.
+Users are taken in `user_login` order, so `--offset` and `--number` let you work through a large user list in chunks. Users that already have a linked profile are skipped, even if their display name has changed since, so an interrupted run can be repeated. The command shows a progress bar, then the number of profiles created and skipped. A user whose profile can't be created, for example because an unlinked guest author already has the login, gets a warning with the reason. A user that fails doesn't stop the run. The command reports how many users failed, and exits with 0.
 
 On multisite, it covers the users who are members of the current site.
 
@@ -288,7 +288,7 @@ wp co-authors-plus create-guest-authors-from-csv --file=<file>
 
 The first row names the columns. The command reads `display_name`, `user_login`, `user_email`, `first_name`, `last_name`, `website`, `description` and `avatar` (an attachment ID for the profile image), and ignores other columns. Each row needs a `display_name` and a `user_login`. Where a row has neither `first_name` nor `last_name`, the display name is split at its first space.
 
-Include every column in the header, even if some are empty: a missing column produces PHP warnings for every row. See the [behavior notes](./cli-behaviour-notes.md#create-guest-authors-from-csv).
+The header must include the `display_name` and `user_login` columns. If either is missing, or the file is empty, the command exits with an error and imports nothing. Any other column can be left out, and is treated as empty.
 
 Existing profiles are detected as for `create-author`. A row that fails doesn't stop the import. The command reports how many rows failed, and exits with 0.
 
@@ -337,7 +337,7 @@ wp co-authors-plus import-coauthors --file=<path> [--dry-run] [--skip-create]
 
 Guest authors are matched by login. Posts are matched by slug and post type, in any status. Each guest author is added to the byline at its recorded position, alongside any co-authors the post already has. A post that already has the guest author is left alone, so an interrupted import can be run again.
 
-The command warns when the file came from a different version of the plugin, and for each post it couldn't find. These are warnings, not errors, and the command exits with 0. The dry run counts every post it can find, including posts that already have the guest author, so its figure can be higher than a real run's.
+The command warns when the file came from a different version of the plugin, and for each post it couldn't find. These are warnings, not errors, and the command exits with 0. The dry run makes the same checks as a real run, so it counts only the posts a real run would add a guest author to.
 
 ## Multisite
 

@@ -40,8 +40,9 @@ class Create_Guest_Authors_From_Csv_Command {
 	 * Create guest authors from a CSV file.
 	 *
 	 * The first row names the columns, which are matched against the guest author
-	 * fields. Where a row gives a display name but no first or last name, the display
-	 * name is split on the first space.
+	 * fields. The display_name and user_login columns are required; any other
+	 * column may be left out and is treated as empty. Where a row gives a display
+	 * name but no first or last name, the display name is split on the first space.
 	 *
 	 * ## OPTIONS
 	 *
@@ -77,27 +78,48 @@ class Create_Guest_Authors_From_Csv_Command {
 			WP_CLI::error( 'Failed to read file.' );
 		}
 
+		$header     = fgetcsv( $file );
+		$field_keys = false === $header ? array() : array_map( 'trim', $header );
+
+		// A guest author cannot be created without these, so a file lacking either
+		// column would fail every row. Refuse it before importing anything.
+		$missing = array_diff( array( 'display_name', 'user_login' ), $field_keys );
+
+		if ( ! empty( $missing ) ) {
+			WP_CLI::error(
+				sprintf(
+					/* translators: Comma-separated list of column names. */
+					_n(
+						'The CSV file is missing the required column: %s',
+						'The CSV file is missing the required columns: %s',
+						count( $missing ),
+						'co-authors-plus'
+					),
+					implode( ', ', $missing )
+				)
+			);
+		}
+
+		// Every column read below starts empty, so an optional column the header
+		// leaves out, or a row shorter than the header, reads as an empty value.
+		$empty_row = array_fill_keys(
+			array( 'display_name', 'user_login', 'user_email', 'website', 'description', 'avatar', 'first_name', 'last_name' ),
+			''
+		);
+
 		$authors = array();
 
-		$row = 0;
 		while ( false !== ( $data = fgetcsv( $file ) ) ) {
-			if ( 0 === $row ) {
-				$field_keys = array_map( 'trim', $data );
-				// TODO: bail if required fields not found.
-			} else {
-				$row_data    = array_map( 'trim', $data );
-				$author_data = array();
-				foreach ( $row_data as $col_num => $val ) {
-						// Don't use the value of the field key isn't set.
-					if ( empty( $field_keys[ $col_num ] ) ) {
-						continue;
-					}
-					$author_data[ $field_keys[ $col_num ] ] = $val;
+			$author_data = $empty_row;
+			foreach ( array_map( 'trim', $data ) as $col_num => $val ) {
+				// Don't use the value if the field key isn't set.
+				if ( empty( $field_keys[ $col_num ] ) ) {
+					continue;
 				}
-
-				$authors[] = $author_data;
+				$author_data[ $field_keys[ $col_num ] ] = $val;
 			}
-			$row++;
+
+			$authors[] = $author_data;
 		}
 		fclose( $file );
 

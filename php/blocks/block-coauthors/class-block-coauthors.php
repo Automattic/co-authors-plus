@@ -109,7 +109,8 @@ class Block_CoAuthors {
 
 		$blocks = self::render_coauthors_blocks_with_template(
 			self::get_block_as_template( $block ),
-			$authors
+			$authors,
+			$block->context
 		);
 
 		$separators = self::get_separators(
@@ -170,10 +171,11 @@ class Block_CoAuthors {
 	 * @since 3.6.0
 	 * @param array $template
 	 * @param array $authors
+	 * @param array $context Context of the Co-Authors block, passed on to the template.
 	 * @return array
 	 */
-	public static function render_coauthors_blocks_with_template( array $template, array $authors ): array {
-		$render_template = self::get_template_render_function( $template );
+	public static function render_coauthors_blocks_with_template( array $template, array $authors, array $context = array() ): array {
+		$render_template = self::get_template_render_function( $template, $context );
 
 		return array_map(
 			function( array $author ) use ( $render_template ): string {
@@ -287,16 +289,20 @@ class Block_CoAuthors {
 	 *
 	 * @since 3.6.0
 	 * @param array $block_template
+	 * @param array $context Context to add each author to.
 	 * @return callable
 	 */
-	private static function get_template_render_function( array $block_template ): callable {
-		return function( array $author ) use ( $block_template ): string {
+	private static function get_template_render_function( array $block_template, array $context ): callable {
+		return function( array $author ) use ( $block_template, $context ): string {
 			return (
 				new WP_Block(
 					$block_template,
-					array(
-						'co-authors-plus/author' => $author,
-						'co-authors-plus/layout' => $block_template['attrs']['layout']['type'] ?? 'default'
+					array_merge(
+						$context,
+						array(
+							'co-authors-plus/author' => $author,
+							'co-authors-plus/layout' => $block_template['attrs']['layout']['type'] ?? 'default'
+						)
 					)
 				)
 			)->render(

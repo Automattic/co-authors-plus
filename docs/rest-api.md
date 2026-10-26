@@ -113,7 +113,7 @@ Searches registered users and guest authors. Used by the sidebar autocomplete.
 
 Returns up to 10 authors (see [`coauthors_search_authors_get_terms_args`](./filters.md#coauthors_search_authors_get_terms_args)), in the same shape as the `authors-by-term-ids` response below. Registered users without the `edit_posts` capability are left out (see [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap)).
 
-**Permission:** the requester must be able to set authors (`edit_others_posts` by default, filterable via `coauthors_plus_edit_authors`).
+**Permission:** the requester must be able to set authors on at least one supported post type, for example with `edit_others_posts` or `edit_others_pages`, filterable via `coauthors_plus_edit_authors`.
 
 ### `GET /coauthors/v1/authors-by-term-ids?ids={csv}`
 
@@ -150,7 +150,7 @@ Term IDs that don't resolve to an author are skipped. The `search`, `authors-by-
 
 ### `GET /coauthors/v1/authors/{post_id}`
 
-Returns rich co-author data for a post. Similar to `/coauthors/v1/coauthors?post_id=` but older and protected by the author-editing capability rather than public-visibility.
+Returns rich co-author data for a post. Similar to `/coauthors/v1/coauthors?post_id=` but older and protected by the author-editing capability for the post's type (such as `edit_others_pages` for a page) rather than public-visibility.
 
 **Permission:** the requester must be able to edit the post (`edit_post`) and to set authors.
 
