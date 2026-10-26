@@ -142,8 +142,6 @@ When you delete a user, Co-Authors Plus deletes the user's author term, which re
 
 To keep a linked guest author, remove the link before you delete the user. See [Migrating users to guest authors](#migrating-users-to-guest-authors).
 
-The step that adds the replacement user to bylines reads the reassignment field from the admin **Delete Users** form. `wp user delete --reassign=<id>` changes `post_author` on the posts, as WordPress does, but doesn't add the replacement user to bylines.
-
 ## Migrating users to guest authors
 
 ### On the same site
@@ -174,7 +172,7 @@ If you also want to delete the user accounts, move the bylines from each user to
 
     The guest author is added at the end of the byline, and the user is removed in the next step.
 
-5. Delete the user, attributing their content to another user so WordPress doesn't trash it. The posts keep the guest author byline, and `post_author` becomes the user you name:
+5. Delete the user, attributing their content to another user so WordPress doesn't trash it. The posts keep the guest author byline, and `post_author` becomes the user you name. The user you name is also added to the end of each of those bylines, as described in [Deleting a WordPress user](#deleting-a-wordpress-user):
 
     ```sh
     wp user delete <user-login> --reassign=<user-id>
@@ -194,4 +192,4 @@ Guest authors, author terms and the links between guest authors and users all be
 
 [`create-guest-authors`](./wp-cli.md#create-guest-authors) covers the users who are members of the current site. Run it, and the other commands, once per site with `--url`. See [WP-CLI on multisite](./wp-cli.md#multisite).
 
-The bylines clean-up described in [Deleting a WordPress user](#deleting-a-wordpress-user) runs when WordPress deletes a user from a site. Removing a user from a site with the **Remove** action on the site's Users screen doesn't run it, so the user's author term, bylines and linked guest author stay in place.
+The bylines clean-up described in [Deleting a WordPress user](#deleting-a-wordpress-user) runs when WordPress deletes a user from a site. It also runs for a site when a user is removed from it and their content there is attributed to another user, as **Network Admin > Users** offers when you delete a user: the named user is added to the bylines on that site, and the user's linked guest author on that site is deleted. When a user is removed without attributing their content, for example with the **Remove** action on the site's Users screen, WordPress leaves the posts attributed to the user, and their author term, bylines and linked guest author on that site stay in place.

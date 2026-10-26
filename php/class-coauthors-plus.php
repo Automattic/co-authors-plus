@@ -93,7 +93,8 @@ class CoAuthors_Plus {
 		add_filter( 'wp_insert_post_data', array( $this, 'coauthors_set_post_author_field' ), 10, 2 );
 
 		// Action to reassign posts when a guest author is deleted
-		add_action( 'delete_user', array( $this, 'delete_user_action' ) );
+		add_action( 'delete_user', array( $this, 'delete_user_action' ), 10, 2 );
+		add_action( 'remove_user_from_blog', array( $this, 'remove_user_from_blog_action' ), 10, 3 );
 
 		// Keep an existing co-author's search term (and its cache) in step when the user's profile changes.
 		add_action( 'profile_update', array( $this, 'update_author_term_on_profile_update' ) );
@@ -1688,7 +1689,10 @@ class CoAuthors_Plus {
 		} else {
 			// If a co-author isn't currently set, we need to explicitly set one.
 			// This covers both classic and REST-created posts (e.g. auto-drafts).
-			if ( ! $this->has_author_terms( $post_id ) ) {
+			// Trashed posts are skipped: deleting a user without reassignment
+			// trashes their posts after their term is deleted, and this would
+			// recreate it. Restoring a post saves it again, which backfills then.
+			if ( 'trash' !== $post->post_status && ! $this->has_author_terms( $post_id ) ) {
 				$user = get_userdata( $post->post_author );
 				if ( $user ) {
 					$this->add_coauthors( $post_id, array( $user->user_nicename ) );
@@ -1822,12 +1826,14 @@ class CoAuthors_Plus {
 	 * - Co-Author term is removed from all associated posts
 	 * - Option to specify alternate co-author in place for each post
 	 *
-	 * @param delete_id
+	 * @param int      $delete_id ID of the user being deleted.
+	 * @param int|null $reassign  ID of the user to reassign posts to, as passed to the
+	 *                            delete_user hook. Null when the content is deleted.
 	 */
-	public function delete_user_action( $delete_id ): void {
+	public function delete_user_action( $delete_id, $reassign = null ): void {
 		global $wpdb;
 
-		$reassign_id = isset( $_POST['reassign_user'] ) ? absint( $_POST['reassign_user'] ) : false; // phpcs:ignore
+		$reassign_id = absint( $reassign );
 
 		// If reassign posts, do that -- use coauthors_update_post
 		if ( $reassign_id ) {
@@ -1864,6 +1870,28 @@ class CoAuthors_Plus {
 					$this->guest_authors->delete( $associated_user->ID );
 				}
 			}
+		}
+	}
+
+	/**
+	 * Action taken when a user is removed from a site on multisite.
+	 *
+	 * When the user's posts are reassigned, the user's bylines on that site are
+	 * moved and cleaned up as they are when a user is deleted. Without a
+	 * reassignment, WordPress leaves the posts attributed to the user, so their
+	 * bylines are left alone too.
+	 *
+	 * Core has already switched to the site the user is being removed from.
+	 *
+	 * @since 4.2.1
+	 *
+	 * @param int $user_id  ID of the user being removed.
+	 * @param int $blog_id  ID of the site the user is being removed from.
+	 * @param int $reassign ID of the user to reassign posts to, or 0.
+	 */
+	public function remove_user_from_blog_action( $user_id, $blog_id, $reassign = 0 ): void {
+		if ( $reassign ) {
+			$this->delete_user_action( $user_id, $reassign );
 		}
 	}
 
