@@ -84,7 +84,7 @@ coauthors_posts_links( ', ', ' and ', 'By ', '.' );
 A few details:
 
 - If a co-author's value is empty (for example, no first name), the tag outputs their `user_login` instead.
-- `coauthors_posts_links()` and `coauthors_links()` escape their output. The other tags output the stored values as they are.
+- Every tag escapes the co-author values it outputs. The `$between`, `$betweenLast`, `$before` and `$after` separators are output as given, so they can contain markup.
 - `coauthors_posts_links()` adds `rel="author"`, `class="author url fn"` and a "Posts by …" title to each link. Change these with the [`coauthors_posts_link`](./filters.md#coauthors_posts_link) filter.
 - `coauthors_links()` uses a guest author's Website field, or a user's `user_url`. Each link has `rel="author external"`.
 - `coauthors_posts_links_single( $author )` and `coauthors_links_single( $author )` return the markup for one co-author object.
@@ -162,7 +162,7 @@ coauthors_wp_list_authors( $args = array() );
 | `feed_image` | `''` | If set, use this image URL for the feed link. |
 | `feed_type` | `''` | Feed type passed to `get_author_feed_link()`. |
 | `echo` | `true` | Echo the output. If `false`, return it. |
-| `style` | `'list'` | `'list'` wraps each co-author in `<li>`, so add your own `<ul>` around it. Any other value separates co-authors with commas, but currently only produces output when `hide_empty` is `false`. |
+| `style` | `'list'` | `'list'` wraps each co-author in `<li>`, so add your own `<ul>` around it. Any other value separates co-authors with commas. |
 | `html` | `true` | If `false`, output plain names separated by commas, with no links. |
 | `number` | `20` | Maximum number of co-authors to fetch. |
 | `guest_authors_only` | `false` | Only list guest authors. |

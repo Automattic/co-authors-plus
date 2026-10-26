@@ -60,6 +60,9 @@ class CoAuthors_Guest_Authors {
 		add_action( 'wp_insert_post_data', array( $this, 'manage_guest_author_filter_post_data' ), 10, 2 );
 		add_action( 'save_post', array( $this, 'manage_guest_author_save_meta_fields' ), 10, 2 );
 
+		// Keep the slug that bylines resolve by when a guest author is trashed.
+		add_filter( 'wp_insert_post_data', array( $this, 'filter_keep_post_name_when_trashed' ), 10, 2 );
+
 		// Empty associated caches when the guest author profile is updated
 		add_filter( 'update_post_metadata', array( $this, 'filter_update_post_metadata' ), 10, 5 );
 
@@ -261,6 +264,11 @@ class CoAuthors_Guest_Authors {
 			wp_die( esc_html__( "Guest author can't be deleted because it doesn't exist.", 'co-authors-plus' ) );
 		}
 
+		// The manage cap can be lowered by filter; deleting still needs rights to this profile.
+		if ( ! current_user_can( 'delete_post', $guest_author->ID ) ) {
+			wp_die( esc_html__( "You don't have permission to delete this guest author.", 'co-authors-plus' ) );
+		}
+
 		// Perform the reassignment if needed
 		$guest_author_term = $coauthors_plus->get_author_term( $guest_author );
 		switch ( wp_unslash( $_POST['reassign'] ) ) {
@@ -325,7 +333,7 @@ class CoAuthors_Guest_Authors {
 		}
 
 		if ( ! empty( $_GET['guest_author'] ) ) {
-			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_login );
+			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_nicename );
 		} else {
 			$ignore = array();
 		}
@@ -607,6 +615,10 @@ class CoAuthors_Guest_Authors {
 			$guest_author = $this->get_guest_author_by( 'ID', (int) $_GET['id'] );
 			if ( ! $guest_author ) {
 				wp_die( esc_html__( "Guest author can't be deleted because it doesn't exist.", 'co-authors-plus' ) );
+			}
+
+			if ( ! current_user_can( 'delete_post', $guest_author->ID ) ) {
+				wp_die( esc_html__( "You don't have permission to delete this guest author.", 'co-authors-plus' ) );
 			}
 
 			// get post count
@@ -960,6 +972,32 @@ class CoAuthors_Guest_Authors {
 		}
 
 		return $post_data;
+	}
+
+	/**
+	 * Stop core renaming a guest author's post_name when it is trashed.
+	 *
+	 * Core appends `__trashed` to free the slug for reuse, but bylines look
+	 * guest authors up by post_name, so every post credited to a trashed guest
+	 * author would silently lose them. Core has already stored the original
+	 * slug in `_wp_desired_post_slug` by the time this runs, and puts it back
+	 * (and deletes the meta) on untrash.
+	 *
+	 * @param array $data    Slashed, sanitized post data about to be saved.
+	 * @param array $postarr Sanitized post data passed to wp_insert_post().
+	 * @return array Post data.
+	 */
+	public function filter_keep_post_name_when_trashed( $data, $postarr ) {
+		if ( $this->post_type !== $data['post_type'] || 'trash' !== $data['post_status'] || empty( $postarr['ID'] ) ) {
+			return $data;
+		}
+
+		$desired_post_slug = get_post_meta( $postarr['ID'], '_wp_desired_post_slug', true );
+		if ( $desired_post_slug ) {
+			$data['post_name'] = $desired_post_slug;
+		}
+
+		return $data;
 	}
 
 	/**
@@ -1532,7 +1570,7 @@ class CoAuthors_Guest_Authors {
 
 			$reassign_to_term = $coauthors_plus->get_author_term( $reassign_to_author );
 			// In the case where the guest author and its linked account shared the same term, we don't want to reassign
-			if ( $guest_author_term->term_id != $reassign_to_term->term_id ) {
+			if ( $guest_author_term && $reassign_to_term && $guest_author_term->term_id != $reassign_to_term->term_id ) {
 				wp_delete_term(
 					$guest_author_term->term_id,
 					$coauthors_plus->coauthor_taxonomy,
@@ -1542,7 +1580,9 @@ class CoAuthors_Guest_Authors {
 					)
 				);
 			}
-		} else {
+		} elseif ( $guest_author_term ) {
+			// A guest author linked to a user shares the user's term, which is gone
+			// already when this runs as part of deleting or removing that user.
 			wp_delete_term( $guest_author_term->term_id, $coauthors_plus->coauthor_taxonomy );
 		}
 
@@ -1757,19 +1797,13 @@ class CoAuthors_Guest_Authors {
 			);
 		}
 
-		$author_data = array(
-			'ID'           => __( 'ID', 'co-authors-plus' ),
-			'user_login'   => __( 'Login Name', 'co-authors-plus' ),
-			'display_name' => __( 'Display Name', 'co-authors-plus' ),
-			'user_email'   => __( 'Email', 'co-authors-plus' ),
-			'first_name'   => __( 'First Name', 'co-authors-plus' ),
-			'last_name'    => __( 'Last Name', 'co-authors-plus' ),
-			'website'      => __( 'Website', 'co-authors-plus' ),
-			'aim'          => __( 'AIM', 'co-authors-plus' ),
-			'yahooim'      => __( 'Yahoo IM', 'co-authors-plus' ),
-			'jabber'       => __( 'Jabber / Google Talk', 'co-authors-plus' ),
-			'description'  => __( 'Biographical Info', 'co-authors-plus' ),
-		);
+		// Export whatever the profile stores, under the labels the edit screen
+		// shows, so fields added through coauthors_guest_author_fields are
+		// covered too.
+		$author_data = array( 'ID' => __( 'ID', 'co-authors-plus' ) );
+		foreach ( $this->get_guest_author_fields() as $field ) {
+			$author_data[ $field['key'] ] = $field['label'] ?? $field['key'];
+		}
 
 		$author_data_to_export = array();
 

@@ -9,9 +9,9 @@ The defaults below are for a single site with the standard roles. Multisite diff
 Changing the co-authors of a post goes through `CoAuthors_Plus::current_user_can_set_authors()`. It returns:
 
 - `true` for super admins, without applying the filter. On a single site, WordPress counts every user with the `delete_users` capability as a super admin, so this includes Administrators. On multisite, site Administrators aren't super admins, so the filter applies to them.
-- otherwise, whether the user's role has `edit_others_posts`, passed through the [`coauthors_plus_edit_authors`](./filters.md#coauthors_plus_edit_authors) filter.
+- otherwise, whether the user's role has the post type's `edit_others_posts` capability (for example `edit_others_pages` for pages, or `edit_others_posts` when the post type isn't known), passed through the [`coauthors_plus_edit_authors`](./filters.md#coauthors_plus_edit_authors) filter.
 
-The check reads the user's stored capabilities (from their role and any added to the user directly), so a plugin that grants `edit_others_posts` through the `user_has_cap` filter doesn't change the result; use the filter instead. It always checks `edit_others_posts`, whatever the post type, so a role with `edit_others_pages` but not `edit_others_posts` can't set authors on pages.
+The check reads the user's stored capabilities (from their role and any added to the user directly), so a plugin that grants `edit_others_posts` through the `user_has_cap` filter doesn't change the result; use the filter instead.
 
 These places use it:
 
@@ -71,7 +71,7 @@ Guest authors are managed from the **Users > Guest Authors** screen. These check
 | Action | Capability checked | Default roles | Filter |
 | --- | --- | --- | --- |
 | Open **Users > Guest Authors**, and its search | `list_users` | Administrator | [`coauthors_guest_author_manage_cap`](./filters.md#coauthors_guest_author_manage_cap) |
-| Delete a guest author from that screen | The **Delete** link needs `delete_post` on the profile; the confirmation needs `list_users` | Administrator | `coauthors_guest_author_manage_cap`, for the confirmation |
+| Delete a guest author from that screen | `delete_post` on the profile, for the **Delete** link, the confirmation screen and the deletion; the confirmation screen and the deletion also need `list_users` | Administrator | `coauthors_guest_author_manage_cap`, for `list_users` |
 | **Create Profile** and **Edit Profile** on the Users list | `list_users` | Administrator. **Create Profile** is hidden unless [`coauthors_show_create_profile_user_link`](./filters.md#coauthors_show_create_profile_user_link) returns `true` | `coauthors_guest_author_manage_cap` |
 | Link a guest author to a user | Anyone who can edit the profile | As above | [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap) limits who can be linked |
 

@@ -23,7 +23,7 @@ The slug is made from the display name when you first save the profile. After th
 A profile can't be saved when:
 
 - its slug matches a WordPress user on the same site, unless the profile is linked to that user.
-- another guest author already has the same slug.
+- another guest author already has the same slug, including one in the trash.
 
 ### Other ways to create guest authors
 
@@ -93,7 +93,7 @@ add_filter( 'coauthors_guest_author_fields', function ( $fields, $groups ) {
 A field can have these keys:
 
 - `key`: the field name. Stored as `cap-<key>`.
-- `label`: the label on the edit screen.
+- `label`: the label on the edit screen and in the [personal data export](#privacy).
 - `group`: one of the groups above.
 - `input`: the input type for the Name and Contact Info boxes. Defaults to `text`. Use `checkbox` for a checkbox. The [`coauthors_name_field_type_{$field}`](./filters.md#coauthors_name_field_type_field) filter can change it per field.
 - `sanitize_function`: a callable that cleans the value on save. Defaults to `sanitize_text_field()`.
@@ -118,7 +118,7 @@ The `guest-author` post type is registered with `public`, `publicly_queryable`, 
 Things to know:
 
 - The `coauthors/v1/coauthors` endpoints return a co-author's display name, description, slug, archive link, featured image and avatars, but not their email address. See the [REST API](./rest-api.md).
-- Guest authors are included in **Tools > Export Personal Data**, matched by email address. The [`coauthors_guest_author_personal_export_extra_data`](./filters.md#coauthors_guest_author_personal_export_extra_data) filter adds your own fields. The plugin doesn't register a personal data eraser. To remove a guest author's data, delete the profile.
+- Guest authors are included in **Tools > Export Personal Data**, matched by email address. The export has the guest author's ID and every profile field that has a value, under the labels the edit screen shows. That includes the linked account and any field added with [`coauthors_guest_author_fields`](./filters.md#coauthors_guest_author_fields). The [`coauthors_guest_author_personal_export_extra_data`](./filters.md#coauthors_guest_author_personal_export_extra_data) filter adds other data. The plugin doesn't register a personal data eraser. To remove a guest author's data, delete the profile.
 
 ## Deleting a guest author
 
@@ -130,7 +130,7 @@ On **Users > Guest Authors**, select **Delete** under the guest author. If the g
 
 Deleting a guest author never deletes posts, and never deletes the linked user. To delete the posts as well, delete them first, then the guest author.
 
-Delete guest authors from this screen, not by trashing the `guest-author` post elsewhere (for example at `edit.php?post_type=guest-author`). Trashing skips the steps above: the profile stops resolving, but its author term is left on the posts.
+Delete guest authors from this screen, not by trashing the `guest-author` post elsewhere (for example at `edit.php?post_type=guest-author`). Trashing skips the steps above. The guest author keeps its slug, so it stays on the bylines of its posts while it's in the trash, and restoring it brings the profile back as it was. Only deleting from this screen reassigns the guest author's posts or takes it off their bylines, and removes its author term.
 
 ## Deleting a WordPress user
 
@@ -141,8 +141,6 @@ When you delete a user, Co-Authors Plus deletes the user's author term, which re
 - If the user was linked to a guest author, that guest author is deleted too, and removed from the byline of every post it was on. This happens whether or not you attribute the content to someone else.
 
 To keep a linked guest author, remove the link before you delete the user. See [Migrating users to guest authors](#migrating-users-to-guest-authors).
-
-The step that adds the replacement user to bylines reads the reassignment field from the admin **Delete Users** form. `wp user delete --reassign=<id>` changes `post_author` on the posts, as WordPress does, but doesn't add the replacement user to bylines.
 
 ## Migrating users to guest authors
 
@@ -174,7 +172,7 @@ If you also want to delete the user accounts, move the bylines from each user to
 
     The guest author is added at the end of the byline, and the user is removed in the next step.
 
-5. Delete the user, attributing their content to another user so WordPress doesn't trash it. The posts keep the guest author byline, and `post_author` becomes the user you name:
+5. Delete the user, attributing their content to another user so WordPress doesn't trash it. The posts keep the guest author byline, and `post_author` becomes the user you name. The user you name is also added to the end of each of those bylines, as described in [Deleting a WordPress user](#deleting-a-wordpress-user):
 
     ```sh
     wp user delete <user-login> --reassign=<user-id>
@@ -194,4 +192,4 @@ Guest authors, author terms and the links between guest authors and users all be
 
 [`create-guest-authors`](./wp-cli.md#create-guest-authors) covers the users who are members of the current site. Run it, and the other commands, once per site with `--url`. See [WP-CLI on multisite](./wp-cli.md#multisite).
 
-The bylines clean-up described in [Deleting a WordPress user](#deleting-a-wordpress-user) runs when WordPress deletes a user from a site. Removing a user from a site with the **Remove** action on the site's Users screen doesn't run it, so the user's author term, bylines and linked guest author stay in place.
+The bylines clean-up described in [Deleting a WordPress user](#deleting-a-wordpress-user) runs when WordPress deletes a user from a site. It also runs for a site when a user is removed from it and their content there is attributed to another user, as **Network Admin > Users** offers when you delete a user: the named user is added to the bylines on that site, and the user's linked guest author on that site is deleted. When a user is removed without attributing their content, for example with the **Remove** action on the site's Users screen, WordPress leaves the posts attributed to the user, and their author term, bylines and linked guest author on that site stay in place.

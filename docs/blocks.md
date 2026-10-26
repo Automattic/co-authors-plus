@@ -81,7 +81,7 @@ Like the Avatar block in core, this shows a small square image of the co-author.
 | `align` | | Alignment, in the layouts other than inline. |
 | `verticalAlign` | | Vertical alignment, in the inline layout. |
 
-The available sizes come from `rest_get_avatar_sizes()` (24, 48 and 96 by default). To change them, use the [`rest_avatar_sizes`](https://developer.wordpress.org/reference/hooks/rest_avatar_sizes/) filter. The block outputs nothing when **Show Avatars** is turned off in the Discussion settings. It supports border, margin and padding.
+The available sizes come from `rest_get_avatar_sizes()` (24, 48 and 96 by default). To change them, use the [`rest_avatar_sizes`](https://developer.wordpress.org/reference/hooks/rest_avatar_sizes/) filter. If the block's saved size is no longer available, it uses the next larger size, or the largest, shown at the saved width and height. The image's alt text is the co-author's name followed by "Avatar". The block outputs nothing when **Show Avatars** is turned off in the Discussion settings. It supports border, margin and padding.
 
 ## Co-Author Biography
 
@@ -108,14 +108,14 @@ It supports border, margin and padding.
 
 ### Posts, pages and Query Loops
 
-Blocks receive the post context. The Co-Authors block uses the post ID to find the co-authors, then gives each copy of its inner blocks two context values:
+Blocks receive the post context. The Co-Authors block uses the post ID to find the co-authors, then renders each copy of its inner blocks with its own context, including `postId` and `postType`, plus two more values:
 
 - `co-authors-plus/author`: the co-author, shaped like a response from the `coauthors/v1/coauthors` endpoint.
 - `co-authors-plus/layout`: the Co-Authors block's layout type, such as `default`.
 
 ### Author archives
 
-To show an author's details on their own archive, use the co-author blocks directly, without a Co-Authors block around them. On an author archive, Co-Authors Plus gives `co-authors-plus/author` context to any block that uses it and doesn't already have it. The author is the archive's queried author, which the plugin resolves from the `author_name` query var.
+To show an author's details on their own archive, use the co-author blocks directly, without a Co-Authors block around them. On an author archive, Co-Authors Plus gives `co-authors-plus/author` context to any block that uses it and doesn't already have it. The author is the archive's queried author, which the plugin resolves from the `author_name` query var. It is added to the block's existing context, so a block in a Query Loop's post template still receives `postId` and `postType`.
 
 ### Using the author context in your own block
 
