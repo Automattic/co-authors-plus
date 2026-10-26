@@ -1795,39 +1795,35 @@ class CoAuthors_Plus {
 		 */
 		wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
 
-		// If the original post_author is no longer assigned,
-		// update to the first WP_User $coauthor
-		$post_author_user = get_user_by( 'id', get_post( $post_id )->post_author );
-		if ( empty( $post_author_user )
-			|| ! in_array( $post_author_user->user_login, $coauthors ) ) {
-			foreach ( $coauthor_objects as $coauthor_object ) {
-				if ( $coauthor_object instanceof WP_User ) {
-					$new_author = $coauthor_object;
-					break;
-				} elseif ( isset( $coauthor_object->wp_user ) && $coauthor_object->wp_user instanceof WP_User ) {
-					$new_author = $coauthor_object->wp_user;
-					break;
-				}
+		// post_author is the first co-author with a WordPress account, the same
+		// rule the editors follow, so reordering the byline moves it.
+		foreach ( $coauthor_objects as $coauthor_object ) {
+			if ( $coauthor_object instanceof WP_User ) {
+				$new_author = $coauthor_object;
+				break;
+			} elseif ( isset( $coauthor_object->wp_user ) && $coauthor_object->wp_user instanceof WP_User ) {
+				$new_author = $coauthor_object->wp_user;
+				break;
 			}
+		}
 
-			/*
-			 * If setting a fresh group of authors for a post, (i.e. $append === false),
-			 * then perhaps one of those authors should be a WP_USER. However,
-			 * if $append === true, and we are perhaps unable to find a
-			 * WP_USER (perhaps none was given), we don't really
-			 * care whether post_author should be updated.
-			 * */
-			if ( false === $append && empty( $new_author ) ) {
-				return false;
-			}
+		/*
+		 * If setting a fresh group of authors for a post, (i.e. $append === false),
+		 * then perhaps one of those authors should be a WP_USER. However,
+		 * if $append === true, and we are perhaps unable to find a
+		 * WP_USER (perhaps none was given), we don't really
+		 * care whether post_author should be updated.
+		 * */
+		if ( false === $append && empty( $new_author ) ) {
+			return false;
+		}
 
-			if ( ! empty( $new_author ) ) {
-				$update = $wpdb->update( $wpdb->posts, array( 'post_author' => $new_author->ID ), array( 'ID' => $post_id ) );
-				clean_post_cache( $post_id );
+		if ( ! empty( $new_author ) ) {
+			$update = $wpdb->update( $wpdb->posts, array( 'post_author' => $new_author->ID ), array( 'ID' => $post_id ) );
+			clean_post_cache( $post_id );
 
-				if ( is_bool( $update ) ) {
-					return $update;
-				}
+			if ( is_bool( $update ) ) {
+				return $update;
 			}
 		}
 		return true;
