@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-**This release changes three behaviors that extensions may rely on.** The `coauthors/v1` REST endpoints now return raw, unescaped values, so code that prints them into HTML must escape them itself. Co-author permissions now go through `map_meta_cap`, so a co-author gets the rights the post's author would have under the co-author's own role: a Subscriber can no longer edit a post just because they are credited on it, and `current_user_can( 'edit_others_posts' )` is no longer true for co-authors. The `CoAuthorsPlus_Command` class is gone; every WP-CLI command keeps its name but is now a class of its own.
+**This release changes two behaviors that extensions may rely on.** The `coauthors/v1` REST endpoints now return raw, unescaped values, so code that prints them into HTML must escape them itself. The `CoAuthorsPlus_Command` class is gone; every WP-CLI command keeps its name but is now a class of its own.
 
 ### Added
 
@@ -19,7 +19,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-* Co-author permissions now use `map_meta_cap` instead of granting `edit_others_posts` through `user_has_cap`. Co-authors can now trash and delete posts they are credited on, within what their own role allows for their own posts by @faisalahammad and @miyanialkesh7 in https://github.com/Automattic/Co-Authors-Plus/pull/1484
 * The `coauthors/v1` endpoints return raw values instead of HTML-escaped ones, because a REST response can't know where it will be output by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1465
 * Multi-author queries (`author__in`, or a comma-separated `author`) use a single indexable `IN (...)` clause, making them faster on large sites by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1326
 * The guest author website field is now sanitized as a URL, so a value without a scheme gets one on save, and percent-encoded characters survive a second save. Stored values are unchanged until they are next saved by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1428
@@ -31,7 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 * The `--dry` flag on `swap-coauthors`, and `--old_term` and `--new_term` on `reassign-terms`, still work but show a deprecation notice by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1372 and https://github.com/Automattic/Co-Authors-Plus/pull/1382
-* `CoAuthors_Plus::filter_user_has_cap()` is now a no-op, and `CoAuthors_Plus::get_to_be_filtered_caps()` is deprecated by @faisalahammad and @miyanialkesh7 in https://github.com/Automattic/Co-Authors-Plus/pull/1484
 
 ### Removed
 
@@ -77,6 +75,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * Upgrade `@wordpress/scripts` to 36, move JavaScript tests to Vitest, absorb formatting and coding standards drift, and remove the unused version bump scripts by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1361, https://github.com/Automattic/Co-Authors-Plus/pull/1364, https://github.com/Automattic/Co-Authors-Plus/pull/1464, and https://github.com/Automattic/Co-Authors-Plus/pull/1472
 * Add a guide to querying posts by author or co-author, document the `create()` sanitization contract, correct the documented default for `coauthors_supported_post_types`, add a security policy, and note that commits must be signed by @faisalahammad and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1345, https://github.com/Automattic/Co-Authors-Plus/pull/1442, https://github.com/Automattic/Co-Authors-Plus/pull/1374, https://github.com/Automattic/Co-Authors-Plus/pull/1458, and https://github.com/Automattic/Co-Authors-Plus/pull/1459
 * Update development dependencies and GitHub Actions by @dependabot
+
+## [4.1.3] - 2026-10-26
+
+**This release changes who can do some things with co-authors.** Co-author permissions now go through `map_meta_cap`, so a co-author gets the rights the post's author would have under the co-author's own role: a Subscriber can no longer edit a post just because they are credited on it, co-authors can trash and delete posts they are credited on within what their own role allows for their own posts, and `current_user_can( 'edit_others_posts' )` is no longer true for co-authors. Only users who can manage guest authors, Administrators by default, can link a guest author to a WordPress account. Author term descriptions in core's `/wp/v2/coauthors` responses are only shown to users who can list users, also Administrators by default.
+
+### Security
+
+* Check that the user can set authors when a post's co-authors are changed through core's REST API, the classic editor, Quick Edit or XML-RPC by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1532
+* Apply co-author permissions only to the post being checked, by moving them to `map_meta_cap` by @faisalahammad, @miyanialkesh7 and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1484, https://github.com/Automattic/Co-Authors-Plus/pull/1519 and https://github.com/Automattic/Co-Authors-Plus/pull/1532
+* Only let users who can manage guest authors link a guest author to a WordPress account by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1532
+* Only show author term descriptions in `/wp/v2/coauthors` to users who can list users. Change this with the `coauthors_rest_view_description_cap` filter by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1532
+
+### Deprecated
+
+* `CoAuthors_Plus::filter_user_has_cap()` is now a no-op, and `CoAuthors_Plus::get_to_be_filtered_caps()` is deprecated by @faisalahammad and @miyanialkesh7 in https://github.com/Automattic/Co-Authors-Plus/pull/1484
 
 ## [4.1.2] - 2026-10-21
 
@@ -812,7 +825,8 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
-[Unreleased]: https://github.com/automattic/co-authors-plus/compare/4.1.2...develop
+[Unreleased]: https://github.com/automattic/co-authors-plus/compare/4.1.3...develop
+[4.1.3]: https://github.com/automattic/co-authors-plus/compare/4.1.2...4.1.3
 [4.1.2]: https://github.com/automattic/co-authors-plus/compare/4.1.1...4.1.2
 [4.1.1]: https://github.com/automattic/co-authors-plus/compare/4.1.0...4.1.1
 [4.1.0]: https://github.com/automattic/co-authors-plus/compare/4.0.2...4.1.0

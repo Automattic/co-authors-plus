@@ -761,8 +761,9 @@ class CoAuthors_Guest_Authors {
 			$linked_account_id = -1;
 		}
 
-		// If user_login is the same as linked account, don't let the association be removed
-		if ( $linked_account == $existing_slug ) {
+		// If user_login is the same as linked account, don't let the association be removed.
+		// Only users who can manage guest authors can change the linked account at all.
+		if ( $linked_account == $existing_slug || ! current_user_can( $this->list_guest_authors_cap ) ) {
 			add_filter( 'wp_dropdown_users', array( $this, 'filter_wp_dropdown_users_to_disable' ) );
 		}
 
@@ -960,7 +961,7 @@ class CoAuthors_Guest_Authors {
 			&& is_user_member_of_blog( $user->ID, get_current_blog_id() )
 			&& $user->user_login != get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'linked_account' ), true ) ) {
 			// if user has selected to link account to matching user we don't have to bail
-			if ( isset( $_POST['cap-linked_account'] ) && (int) $_POST['cap-linked_account'] === $user->ID ) {
+			if ( isset( $_POST['cap-linked_account'] ) && (int) $_POST['cap-linked_account'] === $user->ID && current_user_can( $this->list_guest_authors_cap ) ) {
 				return $post_data;
 			}
 			wp_die( esc_html__( 'There is a WordPress user with the same username as this guest author, please go back and link them in order to update.', 'co-authors-plus' ) );
@@ -1035,7 +1036,9 @@ class CoAuthors_Guest_Authors {
 			}
 			if ( 'linked_account' == $author_field['key'] ) {
 				$linked_account_key = $this->get_post_meta_key( 'linked_account' );
-				if ( ! empty( $_POST[ $linked_account_key ] ) ) {
+				// A linked guest author takes the user's place on every byline, so only users
+				// who can manage guest authors can change the link.
+				if ( ! empty( $_POST[ $linked_account_key ] ) && current_user_can( $this->list_guest_authors_cap ) ) {
 					$user_id = (int) wp_unslash( $_POST[ $linked_account_key ] );
 				} else {
 					continue;

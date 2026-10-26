@@ -292,6 +292,10 @@ class CoAuthors_Plus {
 			'rest_controller_class' => \CoAuthors\API\Endpoints\Author_Terms_Controller::class,
 		);
 
+		// Core checks this cap before writing terms from REST `coauthors` or `tax_input`.
+		// filter_assign_author_terms_cap() grants it only to users who can set authors.
+		$args['capabilities'] = array( 'assign_terms' => 'coauthors_assign_author_terms' );
+
 		// If we use the nasty SQL query, we need our custom callback. Otherwise, we still need to flush cache.
 		if ( apply_filters( 'coauthors_plus_should_query_post_author', true ) ) {
 			$args['update_count_callback'] = array( $this, '_update_users_posts_count' );
@@ -300,6 +304,7 @@ class CoAuthors_Plus {
 		}
 
 		register_taxonomy( $this->coauthor_taxonomy, $this->supported_post_types(), $args );
+		add_filter( 'map_meta_cap', array( $this, 'filter_assign_author_terms_cap' ), 10, 3 );
 
 		// Bridge REST API saves to add_coauthors() for post_author sync and legacy filter compatibility.
 		foreach ( $this->supported_post_types() as $post_type ) {
@@ -1478,11 +1483,23 @@ class CoAuthors_Plus {
 	 *
 	 * @see https://github.com/Automattic/co-authors-plus/issues/1269
 	 *
+	 * A request that sends `coauthors` from a user who can't set authors is
+	 * rejected. Core's own term check skips an empty list and IDs that aren't
+	 * terms, which would otherwise let that user clear the byline.
+	 *
 	 * @param stdClass        $prepared_post Post object derived from the REST request.
 	 * @param WP_REST_Request $request       The REST request.
-	 * @return stdClass The (possibly modified) prepared post object.
+	 * @return stdClass|WP_Error The (possibly modified) prepared post object, or an error.
 	 */
 	public function set_post_author_for_rest_save( $prepared_post, $request ) {
+		if ( null !== $request->get_param( 'coauthors' ) && ! $this->current_user_can_set_authors() ) {
+			return new WP_Error(
+				'rest_cannot_assign_term',
+				__( 'Sorry, you are not allowed to change the authors of this post.', 'co-authors-plus' ),
+				array( 'status' => rest_authorization_required_code() )
+			);
+		}
+
 		// Flag the REST save so coauthors_set_post_author_field() does not later
 		// re-derive post_author from author terms that have not yet been reordered.
 		// Reset in sync_coauthors_on_rest_save() (rest_after_insert_{post_type}).
@@ -2075,6 +2092,28 @@ class CoAuthors_Plus {
 		 * @param string|null $post_type       Post type the co-authors are set on, or null when not known.
 		 */
 		return apply_filters( 'coauthors_plus_edit_authors', $can_set_authors, $post_type );
+	}
+
+	/**
+	 * Map the author taxonomy's assign_terms cap to whether the user can set authors.
+	 *
+	 * @param string[] $caps    Primitive caps the user needs.
+	 * @param string   $cap     Cap being checked.
+	 * @param int      $user_id User being checked.
+	 * @return string[] Primitive caps the user needs.
+	 */
+	public function filter_assign_author_terms_cap( $caps, $cap, $user_id ) {
+		if ( 'coauthors_assign_author_terms' !== $cap ) {
+			return $caps;
+		}
+
+		// current_user_can_set_authors() only answers for the current user, so check
+		// anyone else against its unfiltered default.
+		if ( get_current_user_id() !== (int) $user_id ) {
+			return array( 'edit_others_posts' );
+		}
+
+		return $this->current_user_can_set_authors() ? array( 'exist' ) : array( 'do_not_allow' );
 	}
 
 	/**
@@ -3033,9 +3072,11 @@ class CoAuthors_Plus {
 	 * @return WP_REST_Response $response Same response, possibly mutated to eliminate value of description.
 	 */
 	public function conditionally_hide_author_term_description( WP_REST_Response $response ): \WP_REST_Response {
+		// The description holds every co-author's email address, which core only
+		// shows to users who can list users.
 		$capability = apply_filters(
 			'coauthors_rest_view_description_cap',
-			'edit_posts'
+			'list_users'
 		);
 
 		if ( current_user_can( $capability ) ) {
