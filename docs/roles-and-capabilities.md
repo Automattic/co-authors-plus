@@ -71,7 +71,7 @@ Guest authors are managed from the **Users > Guest Authors** screen. These check
 | Action | Capability checked | Default roles | Filter |
 | --- | --- | --- | --- |
 | Open **Users > Guest Authors**, and its search | `list_users` | Administrator | [`coauthors_guest_author_manage_cap`](./filters.md#coauthors_guest_author_manage_cap) |
-| Delete a guest author from that screen | The **Delete** link needs `delete_post` on the profile; the confirmation needs `list_users` | Administrator | `coauthors_guest_author_manage_cap`, for the confirmation |
+| Delete a guest author from that screen | `delete_post` on the profile, for the **Delete** link, the confirmation screen and the deletion; the confirmation screen and the deletion also need `list_users` | Administrator | `coauthors_guest_author_manage_cap`, for `list_users` |
 | **Create Profile** and **Edit Profile** on the Users list | `list_users` | Administrator. **Create Profile** is hidden unless [`coauthors_show_create_profile_user_link`](./filters.md#coauthors_show_create_profile_user_link) returns `true` | `coauthors_guest_author_manage_cap` |
 | Link a guest author to a user | Anyone who can edit the profile | As above | [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap) limits who can be linked |
 
