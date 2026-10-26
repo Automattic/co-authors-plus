@@ -138,7 +138,7 @@ Array of `user_nicename` values hidden from the co-author search results. Defaul
 
 ### `coauthors_rest_view_description_cap`
 
-Capability required to see the `description` of an author term in core's `/wp/v2/coauthors` responses. Defaults to `edit_posts`. For users without it, the `description` key is removed from the response. The term description holds the plugin's search index for the author, which can include the email address. This filter does not affect the `coauthors/v1` endpoints.
+Capability required to see the `description` of an author term in core's `/wp/v2/coauthors` responses. Defaults to `edit_posts`. For users without it, the `description` key is removed from the response. Since 4.2.0 the endpoints themselves need `edit_posts`, so only a capability above that changes anything. The term description holds the plugin's search index for the author, which can include the email address. This filter does not affect the `coauthors/v1` endpoints.
 
 - **Parameters:** `string $capability`
 - **File:** `php/class-coauthors-plus.php`

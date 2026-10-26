@@ -45,6 +45,7 @@ require_once __DIR__ . '/php/blocks/class-blocks.php';
 
 // REST APIs for Blocks
 require_once __DIR__ . '/php/api/endpoints/class-coauthors-controller.php';
+require_once __DIR__ . '/php/api/endpoints/class-author-terms-controller.php';
 
 global $coauthors_plus;
 $coauthors_plus     = new CoAuthors_Plus();

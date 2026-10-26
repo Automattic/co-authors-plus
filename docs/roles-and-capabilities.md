@@ -115,9 +115,9 @@ get_role( 'editor' )->add_cap( 'manage_guest_authors' );
 
 ## Co-author biographies in REST responses
 
-Core's `/wp/v2/coauthors` endpoints return the `author` taxonomy terms. For users without the capability from [`coauthors_rest_view_description_cap`](./filters.md#coauthors_rest_view_description_cap), `edit_posts` by default, the `description` key is removed from each term.
+Core's `/wp/v2/coauthors` endpoints return the `author` taxonomy terms, and only to users with `edit_posts`. For users without the capability from [`coauthors_rest_view_description_cap`](./filters.md#coauthors_rest_view_description_cap), `edit_posts` by default, the `description` key is removed from each term.
 
-The term description isn't a biography. It's the plugin's search index for the co-author: display name, first and last name, login, ID and email address. Lowering the capability exposes that data, including email addresses. A low capability such as `read` still hides it from visitors who aren't logged in, because they have no capabilities.
+The term description isn't a biography. It's the plugin's search index for the co-author: display name, first and last name, login, ID and email address. Raising the capability hides it from more users. Lowering it below `edit_posts` has no effect, because users without `edit_posts` can't read the terms at all.
 
 This filter doesn't affect the `coauthors/v1` endpoints. For those, see the [REST API](./rest-api.md).
 

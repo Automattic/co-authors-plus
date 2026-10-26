@@ -10,13 +10,13 @@ Since the block editor integration landed in 4.0, the preferred way to read and 
 
 Lists the `author` taxonomy terms — one per co-author. Each response item is a standard WP taxonomy term: `id`, `name`, `slug`, `description`, `taxonomy`, etc.
 
-This is the endpoint to use when you want to enumerate all co-authors on a site.
+Since 4.2.0, this endpoint and `GET /wp/v2/coauthors/{id}` need the `edit_posts` capability. A term's `name` is the co-author's user login, which core keeps out of public responses. Other requests get a `401` or `403`, and so do the `wp:term` links embedded in post responses. To show co-authors on the front end, use the `coauthors/v1` endpoints below.
 
 The term `description` holds the plugin's search index for the author (names, login, ID and email). It is removed from the response for users without the `edit_posts` capability. Change that capability with [`coauthors_rest_view_description_cap`](./filters.md#coauthors_rest_view_description_cap).
 
 ### `GET /wp/v2/coauthors/{id}`
 
-Returns a single taxonomy term.
+Returns a single taxonomy term. It needs `edit_posts`, like the list.
 
 ### `GET /wp/v2/posts/{id}`
 

@@ -284,11 +284,12 @@ class CoAuthors_Plus {
 			 * to read back in that order. Without the pair, bylines come back in an
 			 * arbitrary order. See AddCoauthorsTest for the round-trip coverage.
 			 */
-			'sort'         => true,
-			'args'         => array( 'orderby' => 'term_order' ),
-			'show_ui'      => false,
-			'show_in_rest' => true,
-			'rest_base'    => 'coauthors',
+			'sort'                  => true,
+			'args'                  => array( 'orderby' => 'term_order' ),
+			'show_ui'               => false,
+			'show_in_rest'          => true,
+			'rest_base'             => 'coauthors',
+			'rest_controller_class' => \CoAuthors\API\Endpoints\Author_Terms_Controller::class,
 		);
 
 		// If we use the nasty SQL query, we need our custom callback. Otherwise, we still need to flush cache.

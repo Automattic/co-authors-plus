@@ -113,7 +113,7 @@ foreach ( get_coauthors() as $coauthor ) {
 
 ## Privacy
 
-The `guest-author` post type is registered with `public`, `publicly_queryable`, `rewrite` and `query_var` all off, and `exclude_from_search` on. The admin screens still work (`show_ui` is on), but there are no guest author pages on the front end. Guest authors are shown through bylines, author archives, the [template tags](./template-tags.md), the [blocks](./blocks.md) and the [REST API](./rest-api.md). This changed in 4.0; see [Upgrading to 4.0](./upgrading-to-4.0.md#guest-author-custom-post-type-is-now-private).
+The `guest-author` post type is registered with `public`, `publicly_queryable`, `rewrite` and `query_var` all off, and `exclude_from_search` on. The admin screens still work (`show_ui` is on), but there are no guest author pages on the front end. Since 4.2.0 the post type also has no core REST route (`/wp/v2/guest-author`); read guest authors through the `coauthors/v1` endpoints. Guest authors are shown through bylines, author archives, the [template tags](./template-tags.md), the [blocks](./blocks.md) and the [REST API](./rest-api.md). This changed in 4.0; see [Upgrading to 4.0](./upgrading-to-4.0.md#guest-author-custom-post-type-is-now-private).
 
 Things to know:
 
