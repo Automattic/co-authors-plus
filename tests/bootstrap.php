@@ -29,6 +29,9 @@ if ( false !== $testsuite_key && isset( $argv_local[ $testsuite_key + 1 ] ) && '
 }
 
 if ( ! $is_integration ) {
+	// Load Patchwork before any test file pulls in plugin functions, so Brain Monkey can redefine them.
+	require_once dirname( __DIR__ ) . '/vendor/antecedent/patchwork/Patchwork.php';
+
 	/*
 	 * Unit suite: no WordPress. Define ABSPATH so plugin files guarded by
 	 * `if ( ! defined( 'ABSPATH' ) ) { exit; }` can be loaded under test.
