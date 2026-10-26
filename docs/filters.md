@@ -4,6 +4,8 @@ This page is a reference for the hooks that Co-Authors Plus provides. It is gene
 
 File paths are relative to the plugin root.
 
+For task-based examples of the most common filters, see [Customizing Co-Authors Plus](./customizing.md).
+
 ## Display and formatting
 
 ### `coauthors_default_before`
@@ -56,6 +58,13 @@ The Open Graph tags after Co-Authors Plus has adjusted Jetpack's tags. The plugi
 - **Parameters:** `array $og_tags`
 - **File:** `php/class-coauthors-plus.php`
 
+### `coauthors_auto_apply_template_tags`
+
+Return `true` to make the core `the_author()` and `the_author_posts_link()` output all co-authors, and to list every co-author as a `dc:creator` in RSS2 feeds. Defaults to `false`. Useful when you can't edit the theme. Read once on `init`, so add the filter before `init`.
+
+- **Parameters:** `bool $apply` (defaults to `false`)
+- **Files:** `php/class-coauthors-plus.php`, `php/class-coauthors-template-filters.php`
+
 ## Post type and taxonomy configuration
 
 ### `coauthors_supported_post_types`
@@ -89,14 +98,19 @@ The user ID to save in the `post_author` column when a post of a supported type 
 
 ### `coauthors_plus_is_author_query`
 
-Whether Co-Authors Plus should rewrite an author query to include co-author taxonomy terms. Returning `false` leaves the query as a standard WordPress `post_author` query.
+Whether Co-Authors Plus should rewrite an author query to include co-author taxonomy terms. By default this is `true` for author archives and for queries that set `author`, `author_name` or a non-empty `author__in`. Returning `false` leaves the query as a standard WordPress `post_author` query, for example for a report of who created each post.
 
 - **Parameters:** `bool $is_author`, `WP_Query $query`
 - **File:** `php/class-coauthors-plus.php`
 
 ### `coauthors_plus_should_query_post_author`
 
-Whether to combine the `post_author` column query with the taxonomy query. Returning `false` keeps the Co-Authors Plus rewrite but switches to taxonomy-only matching on sites where `post_author` isn't reliable.
+Whether author queries match on the `post_author` column as well as the `author` taxonomy. Defaults to `true`. Returning `false` switches to a simpler taxonomy-only query on sites where `post_author` isn't reliable. Posts with no co-author terms then drop out of author archives, so give them co-authors first. Find them with `wp co-authors-plus list-posts-without-terms`, fix the bylines where `post_author` is wrong, and only then run `wp co-authors-plus create-author-terms-for-posts` for the rest. That backfill takes the co-author from `post_author` and skips posts that already have author terms, so running it on posts with a wrong `post_author` writes the wrong byline and a later run won't correct it. Unlike the older `create-terms-for-posts`, which covers every supported post type, it only covers published posts of the `post` post type unless you pass `--post-types` and `--post-statuses`. See [How do I stop author archives from matching on `post_author`?](./customizing.md#how-do-i-stop-author-archives-from-matching-on-post_author) for the steps.
+
+The value is also read when the taxonomy is registered (on `init` at priority 100) to choose how term counts are kept, so add the filter before `init` and don't change it per request. Author queries treat it as `false` while `coauthors_guest_authors_force` is on.
+
+- **Parameters:** `bool $should_query` (defaults to `true`)
+- **File:** `php/class-coauthors-plus.php`
 
 ## Permissions
 
@@ -137,7 +151,20 @@ Whether the guest authors feature is active. Return `false` to disable entirely.
 
 ### `coauthors_guest_authors_force`
 
-Whether to force guest authors even when the feature would otherwise be skipped.
+Whether bylines come from co-author terms only, with no fallback to the post's `post_author` user. Defaults to `false`. Useful when every byline is a guest author and WordPress accounts are used only to log in.
+
+When `true`:
+
+- `get_coauthors()` returns an empty array for a post with no co-authors, instead of the `post_author` user.
+- Author archive queries ignore the `post_author` column, as if `coauthors_plus_should_query_post_author` returned `false`.
+- In the classic editor, the Authors box on a new post is not filled with the current user. It still shows the guest author linked to the current user, if there is one.
+
+It does not stop `save_post` from adding the post's `post_author` as a co-author when a post is saved with none, so it mostly affects older posts that have no co-author terms.
+
+The value is read once on `init` at the default priority, and only when guest authors are enabled, so add the filter before `init`.
+
+- **Parameters:** `bool $force` (defaults to `false`)
+- **File:** `php/class-coauthors-plus.php`
 
 ### `coauthors_guest_author_manage_cap`
 
@@ -230,32 +257,7 @@ Arguments for the `get_terms()` call that finds co-authors when searching. Defau
 
 ### `coauthors_ajax_suggest_author_data`
 
-One author result in the classic editor search-as-you-type list. Each result has `id`, `login`, `label`, `value`, `email`, `nicename` and `avatar`. The `nicename` key can't be changed, because it is the value saved with the post. A non-array return is ignored.
-
-The list shows the avatar and `label`. The classic editor has no JS label filter, so use this filter to change what the list shows. The `label` can be output as HTML, so keep it plain text:
-
-```php
-add_filter( 'coauthors_ajax_suggest_author_data', function ( $result, $author ) {
-	// Guest authors are posts, and their fields use the `cap-` prefix.
-	$job_title = $author instanceof WP_User
-		? get_user_meta( $author->ID, 'job_title', true )
-		: get_post_meta( $author->ID, 'cap-job_title', true );
-	$job_title = sanitize_text_field( $job_title );
-	if ( $job_title ) {
-		$result['label'] .= ' (' . $job_title . ')';
-	}
-	return $result;
-}, 10, 2 );
-```
-
-The whole result is sent to the browser, so you can also remove values, like the email address. This only changes this response. It is not a privacy or access-control setting: editors can still see co-author emails in other places, like the classic editor meta box and the posts list, and the search still matches on email addresses.
-
-```php
-add_filter( 'coauthors_ajax_suggest_author_data', function ( $result ) {
-	unset( $result['email'] );
-	return $result;
-} );
-```
+One author result in the classic editor search-as-you-type list. Each result has `id`, `login`, `label`, `value`, `email`, `nicename` and `avatar`. The list shows the avatar and `label`, but the whole result is sent to the browser. The classic editor has no JS label filter, so this is the way to change what the list shows, or to remove values like the email address. The `label` can be output as HTML, so keep it plain text. The `nicename` key can't be changed, because it is the value saved with the post. A non-array return is ignored. See [Can I show more about each author in the co-author search?](./customizing.md#can-i-show-more-about-each-author-in-the-co-author-search) and [Can I hide email addresses in the co-author search?](./customizing.md#can-i-hide-email-addresses-in-the-co-author-search) for examples.
 
 - **Parameters:** `array $result`, `WP_User|object $author`
 - **File:** `php/class-coauthors-plus.php`
@@ -312,33 +314,7 @@ Returning a non-array from the callback yields an empty response. Entries that a
 
 ### `coauthors_rest_author_data`
 
-Author data the block editor gets for search results and the post's selected co-authors. Each entry has `id`, `termId`, `userNicename`, `login`, `email`, `displayName`, `avatar` and `userType`. The `id`, `termId` and `userNicename` keys can't be changed, because the editor needs them to save the co-authors. A non-array return is ignored.
-
-Use it to add data to each author. The whole entry is passed to the [`coAuthors.formatAuthorData.label`](#coauthorsformatauthordatalabel) JS filter, so a key added here can be shown in the author option. This helps to tell apart authors with the same name, for example guest authors who have no email address:
-
-```php
-add_filter( 'coauthors_rest_author_data', function ( $data, $author ) {
-	// Guest authors are posts, and their fields use the `cap-` prefix.
-	$data['jobTitle'] = $author instanceof WP_User
-		? get_user_meta( $author->ID, 'job_title', true )
-		: get_post_meta( $author->ID, 'cap-job_title', true );
-	return $data;
-}, 10, 2 );
-```
-
-```js
-addFilter( 'coAuthors.formatAuthorData.label', 'site/label', ( label, author ) =>
-	author.jobTitle ? `${ author.displayName } (${ author.jobTitle })` : label );
-```
-
-You can also remove values, like the email address. When `email` is removed, the sidebar shows only the display name. The email tells apart two authors with the same name, so you may want to add something else in its place. Removing it only changes this response. It is not a privacy or access-control setting: editors can still see co-author emails in other places, like the classic editor meta box and the posts list, and the search still matches on email addresses.
-
-```php
-add_filter( 'coauthors_rest_author_data', function ( $data ) {
-	unset( $data['email'] );
-	return $data;
-} );
-```
+Author data the block editor gets for search results and the post's selected co-authors. Each entry has `id`, `termId`, `userNicename`, `login`, `email`, `displayName`, `avatar` and `userType`. The whole entry is passed to the [`coAuthors.formatAuthorData.label`](#coauthorsformatauthordatalabel) JS filter, so a key added here can be shown in the author option. Values can also be removed, like the email address; the sidebar then shows only the display name. The `id`, `termId` and `userNicename` keys can't be changed, because the editor needs them to save the co-authors. A non-array return is ignored. See [Can I show more about each author in the co-author search?](./customizing.md#can-i-show-more-about-each-author-in-the-co-author-search) and [Can I hide email addresses in the co-author search?](./customizing.md#can-i-hide-email-addresses-in-the-co-author-search) for examples.
 
 - **Parameters:** `array $data`, `WP_User|object $author`
 - **File:** `php/class-coauthors-endpoint.php`

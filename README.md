@@ -26,6 +26,7 @@ Guides for site owners, themers and developers live in the [`docs/` directory on
 - [Guest authors](https://github.com/Automattic/co-authors-plus/blob/main/docs/guest-authors.md) and [roles and capabilities](https://github.com/Automattic/co-authors-plus/blob/main/docs/roles-and-capabilities.md)
 - [Template tags](https://github.com/Automattic/co-authors-plus/blob/main/docs/template-tags.md) and [blocks](https://github.com/Automattic/co-authors-plus/blob/main/docs/blocks.md)
 - [Querying posts by author or co-author](https://github.com/Automattic/co-authors-plus/blob/main/docs/querying-posts.md)
+- [Customizing Co-Authors Plus](https://github.com/Automattic/co-authors-plus/blob/main/docs/customizing.md): recipes for the most common filters
 - [Filters and actions](https://github.com/Automattic/co-authors-plus/blob/main/docs/filters.md) and the [REST API](https://github.com/Automattic/co-authors-plus/blob/main/docs/rest-api.md)
 - [WP-CLI commands](https://github.com/Automattic/co-authors-plus/blob/main/docs/wp-cli.md)
 - [Upgrading to 4.0](https://github.com/Automattic/co-authors-plus/blob/main/docs/upgrading-to-4.0.md)
@@ -71,8 +72,12 @@ Yes! You can [create a list of all co-authors with a template tag](https://githu
 
 ### Can I disable Guest Authors?
 
-Yes! You can disable guest authors entirely through a filter. Having the following line load on `init` will do the trick:
+Yes! You can disable guest authors entirely through a filter. Having the following line load before `init` (for example in your theme's `functions.php` or in a plugin) will do the trick:
 `add_filter( 'coauthors_guest_authors_enabled', '__return_false' )`
+
+### Can I change how bylines and author archives work?
+
+Yes. Many parts of Co-Authors Plus can be changed with a filter, for example making every byline come from guest authors, or stopping author archives from matching on the post's WordPress author. See [Customizing Co-Authors Plus](https://github.com/Automattic/co-authors-plus/blob/main/docs/customizing.md) for recipes, and the [filters and actions reference](https://github.com/Automattic/co-authors-plus/blob/main/docs/filters.md) for the full list.
 
 ## Changelog
 
