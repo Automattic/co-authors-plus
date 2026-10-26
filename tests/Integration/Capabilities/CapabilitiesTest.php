@@ -108,6 +108,117 @@ class CapabilitiesTest extends TestCase {
 	}
 
 	/**
+	 * Pages are checked against edit_others_pages, not edit_others_posts.
+	 *
+	 * @covers ::current_user_can_set_authors
+	 */
+	public function test_current_user_can_set_authors_on_pages_uses_edit_others_pages(): void {
+		$current_user = get_current_user_id();
+
+		$pages_only = $this->create_editor( 'pages_only' );
+		$pages_only->add_cap( 'edit_others_posts', false );
+		wp_set_current_user( $pages_only->ID );
+
+		$this->assertTrue( $this->_cap->current_user_can_set_authors( 'page' ) );
+		$this->assertFalse( $this->_cap->current_user_can_set_authors( 'post' ) );
+		$this->assertFalse( $this->_cap->current_user_can_set_authors(), 'Without a post type, edit_others_posts is checked.' );
+
+		$posts_only = $this->create_editor( 'posts_only' );
+		$posts_only->add_cap( 'edit_others_pages', false );
+		wp_set_current_user( $posts_only->ID );
+
+		$this->assertFalse( $this->_cap->current_user_can_set_authors( 'page' ) );
+		$this->assertTrue( $this->_cap->current_user_can_set_authors( 'post' ) );
+		$this->assertTrue( $this->_cap->current_user_can_set_authors() );
+
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * A post type with its own capability type is checked against its own
+	 * edit_others cap, and super admins can still set authors on it.
+	 *
+	 * @covers ::current_user_can_set_authors
+	 */
+	public function test_current_user_can_set_authors_on_custom_post_type_uses_its_capability(): void {
+		$current_user = get_current_user_id();
+		register_post_type(
+			'cap_book',
+			array(
+				'capability_type' => array( 'cap_book', 'cap_books' ),
+				'map_meta_cap'    => true,
+				'supports'        => array( 'title', 'author' ),
+			)
+		);
+
+		$book_editor = $this->create_subscriber( 'book_editor' );
+		$book_editor->add_cap( 'edit_others_cap_books' );
+		wp_set_current_user( $book_editor->ID );
+		$book_editor_can_set_book = $this->_cap->current_user_can_set_authors( 'cap_book' );
+		$book_editor_can_set_post = $this->_cap->current_user_can_set_authors( 'post' );
+
+		wp_set_current_user( $this->editor1->ID );
+		$editor_can_set_book = $this->_cap->current_user_can_set_authors( 'cap_book' );
+
+		// An Administrator has no cap_book caps, so only the super admin check lets them through.
+		$admin = $this->factory()->user->create_and_get( array( 'role' => 'administrator' ) );
+		if ( is_multisite() ) {
+			grant_super_admin( $admin->ID );
+		}
+		wp_set_current_user( $admin->ID );
+		$admin_can_set_book = $this->_cap->current_user_can_set_authors( 'cap_book' );
+
+		if ( is_multisite() ) {
+			revoke_super_admin( $admin->ID );
+		}
+		unregister_post_type( 'cap_book' );
+		wp_set_current_user( $current_user );
+
+		$this->assertTrue( $book_editor_can_set_book );
+		$this->assertFalse( $book_editor_can_set_post );
+		$this->assertFalse( $editor_can_set_book );
+		$this->assertTrue( $admin_can_set_book );
+	}
+
+	/**
+	 * An unknown post type falls back to edit_others_posts.
+	 *
+	 * @covers ::current_user_can_set_authors
+	 */
+	public function test_current_user_can_set_authors_falls_back_for_unknown_post_type(): void {
+		$current_user = get_current_user_id();
+
+		wp_set_current_user( $this->editor1->ID );
+		$this->assertTrue( $this->_cap->current_user_can_set_authors( 'not_a_post_type' ) );
+
+		wp_set_current_user( $this->author1->ID );
+		$this->assertFalse( $this->_cap->current_user_can_set_authors( 'not_a_post_type' ) );
+
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * The coauthors_plus_edit_authors filter is told which post type is checked.
+	 *
+	 * @covers ::current_user_can_set_authors
+	 */
+	public function test_coauthors_plus_edit_authors_filter_receives_post_type(): void {
+		$seen   = array();
+		$filter = static function ( $can_set_authors, $post_type = 'not passed' ) use ( &$seen ) {
+			$seen[] = $post_type;
+			return $can_set_authors;
+		};
+		add_filter( 'coauthors_plus_edit_authors', $filter, 10, 2 );
+
+		$this->_cap->current_user_can_set_authors( 'page' );
+		$this->_cap->current_user_can_set_authors();
+
+		remove_filter( 'coauthors_plus_edit_authors', $filter, 10 );
+
+		$this->assertSame( array( 'page', null ), $seen );
+	}
+
+	/**
 	 * Checks if the current user can edit a post they are set as a coauthor for.
 	 *
 	 * @covers ::filter_map_meta_cap

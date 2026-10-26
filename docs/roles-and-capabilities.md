@@ -9,9 +9,9 @@ The defaults below are for a single site with the standard roles. Multisite diff
 Changing the co-authors of a post goes through `CoAuthors_Plus::current_user_can_set_authors()`. It returns:
 
 - `true` for super admins, without applying the filter. On a single site, WordPress counts every user with the `delete_users` capability as a super admin, so this includes Administrators. On multisite, site Administrators aren't super admins, so the filter applies to them.
-- otherwise, whether the user's role has `edit_others_posts`, passed through the [`coauthors_plus_edit_authors`](./filters.md#coauthors_plus_edit_authors) filter.
+- otherwise, whether the user's role has the post type's `edit_others_posts` capability (for example `edit_others_pages` for pages, or `edit_others_posts` when the post type isn't known), passed through the [`coauthors_plus_edit_authors`](./filters.md#coauthors_plus_edit_authors) filter.
 
-The check reads the user's stored capabilities (from their role and any added to the user directly), so a plugin that grants `edit_others_posts` through the `user_has_cap` filter doesn't change the result; use the filter instead. It always checks `edit_others_posts`, whatever the post type, so a role with `edit_others_pages` but not `edit_others_posts` can't set authors on pages.
+The check reads the user's stored capabilities (from their role and any added to the user directly), so a plugin that grants `edit_others_posts` through the `user_has_cap` filter doesn't change the result; use the filter instead.
 
 These places use it:
 

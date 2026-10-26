@@ -255,25 +255,35 @@ class Endpoints {
 	}
 
 	/**
-	 * Permissions for updating co-authors.
+	 * Permissions for the routes that are not about a specific post.
+	 *
+	 * The user must be able to set authors on at least one supported post type.
 	 *
 	 * @return bool
 	 */
 	public function can_edit_coauthors(): bool {
-		return $this->coauthors->current_user_can_set_authors();
+		foreach ( $this->coauthors->supported_post_types() as $post_type ) {
+			if ( $this->coauthors->current_user_can_set_authors( $post_type ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
 	 * Permissions for reading or updating the co-authors of a specific post.
 	 *
-	 * The user must be able to set authors and edit the post in the request.
+	 * The user must be able to set authors on the post's type and edit the post in the request.
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @return bool
 	 */
 	public function can_edit_post_coauthors( WP_REST_Request $request ): bool {
-		return current_user_can( 'edit_post', (int) $request->get_param( 'post_id' ) )
-			&& $this->can_edit_coauthors();
+		$post_id = (int) $request->get_param( 'post_id' );
+
+		return current_user_can( 'edit_post', $post_id )
+			&& $this->coauthors->current_user_can_set_authors( get_post_type( $post_id ) );
 	}
 
 	/**
