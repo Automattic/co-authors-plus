@@ -38,7 +38,7 @@ Guest authors can be found in the search whatever their status, including pendin
 
 ## Linking a guest author to a WordPress user
 
-A guest author can be linked to one WordPress user, using the **WordPress User Mapping** dropdown on the edit screen. The dropdown lists users with the [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap) capability (`edit_posts` by default) who aren't linked to another guest author. The [`coauthors_guest_author_linked_account_args`](./filters.md#coauthors_guest_author_linked_account_args) filter changes the dropdown's arguments. If the profile's slug is the same as the user's login, the dropdown is disabled and the link can't be removed.
+A guest author can be linked to one WordPress user, using the **WordPress User Mapping** dropdown on the edit screen. The dropdown lists users with the [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap) capability (`edit_posts` by default) who aren't linked to another guest author. The [`coauthors_guest_author_linked_account_args`](./filters.md#coauthors_guest_author_linked_account_args) filter changes the dropdown's arguments. Only users with the [`coauthors_guest_author_manage_cap`](./filters.md#coauthors_guest_author_manage_cap) capability (`list_users` by default) can change the link, because a linked guest author takes the user's place on every byline; for anyone else the dropdown is disabled. If the profile's slug is the same as the user's login, the dropdown is disabled and the link can't be removed.
 
 When a guest author is linked to a user:
 
