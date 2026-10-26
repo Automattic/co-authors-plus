@@ -22,6 +22,8 @@ use Automattic\CoAuthorsPlus\Tests\Integration\TestCase;
  * null" and pushing null entries into the caps list. It must skip such types.
  *
  * @covers \CoAuthors_Plus::get_to_be_filtered_caps
+ *
+ * @expectedDeprecated CoAuthors_Plus::get_to_be_filtered_caps
  */
 class ToBeFilteredCapsTest extends TestCase {
 
