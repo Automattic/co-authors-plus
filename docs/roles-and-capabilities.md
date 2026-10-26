@@ -72,6 +72,17 @@ This applies to post types Co-Authors Plus is enabled for. A user linked to a gu
 
 Being a co-author doesn't let a user change the byline. That still needs [Assigning co-authors](#assigning-co-authors). In the classic editor and Quick Edit, a co-author who isn't the `post_author` can save the post as long as they don't change its `post_author`.
 
+Publishing is a separate check. WordPress checks the post type's `publish_posts` capability against the user's capabilities, not the post, so being a co-author doesn't change it. Authors already have it, so an Author co-author can publish. A Contributor co-author can edit a draft, but the editor offers **Submit for Review** instead of **Publish**, and the post goes to pending review, the same as their own posts.
+
+To let Contributors publish posts, give the role `publish_posts`. A post type with its own capabilities needs its own publish capability instead, such as `publish_books`.
+
+```php
+// Run once, for example on plugin activation.
+get_role( 'contributor' )->add_cap( 'publish_posts' );
+```
+
+Contributors can then publish any post they can edit, including their own, not only posts they co-author. They still can't edit a post once it's published, because that needs `edit_published_posts`. If you've used the [`coauthors_plus_edit_authors`](./filters.md#coauthors_plus_edit_authors) filter to let anyone who can publish assign co-authors, Contributors can then change bylines too.
+
 ## Guest author profiles
 
 Guest authors are managed from the **Users > Guest Authors** screen. These checks apply:
@@ -117,6 +128,7 @@ This filter doesn't affect the `coauthors/v1` endpoints. For those, see the [RES
 | Assign co-authors in the editor | Yes | Yes | No | No | No |
 | Can be picked as a co-author | Yes | Yes | Yes | Yes | No |
 | Edit and delete posts they co-author | Yes | Yes | Yes | Drafts and pending only | No |
+| Publish posts they co-author | Yes | Yes | Yes | No, submit for review | No |
 | Open the Guest Authors screen | Yes | No | No | No | No |
 | See author term descriptions in REST | Yes | Yes | Yes | Yes | No |
 
