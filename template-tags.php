@@ -110,6 +110,10 @@ function is_coauthor_for_post( $user, $post_id = 0 ) {
  * - `field`: read property `$tag` directly from the co-author object.
  * - `callback`: call `$tag` with the current co-author object.
  *
+ * `tag` and `field` values, and the `user_login` fallback, are escaped with
+ * `esc_html()`. `callback` output and the separators are used as given, so
+ * they may contain markup.
+ *
  * Separators default to the `COAUTHORS_DEFAULT_*` constants when defined, and
  * each is filterable via `coauthors_default_before`, `coauthors_default_between`,
  * `coauthors_default_between_last`, and `coauthors_default_after`.
@@ -163,17 +167,19 @@ function coauthors__echo( $tag, $type = 'tag', $separators = array(), $tag_args 
 
 		$author_text = '';
 
+		// Tag and field values are plain text, so escape them. Callbacks return
+		// markup (such as links) and are responsible for their own escaping.
 		if ( 'tag' === $type ) {
-			$author_text = $tag( $tag_args );
+			$author_text = esc_html( $tag( $tag_args ) );
 		} elseif ( 'field' === $type && isset( $i->current_author->$tag ) ) {
-			$author_text = $i->current_author->$tag;
+			$author_text = esc_html( $i->current_author->$tag );
 		} elseif ( 'callback' === $type && is_callable( $tag ) ) {
 			$author_text = $tag( $i->current_author );
 		}
 
 		// Fallback to user_login if we get something empty
 		if ( empty( $author_text ) && ! empty( $i->current_author->user_login ) ) {
-			$author_text = $i->current_author->user_login;
+			$author_text = esc_html( $i->current_author->user_login );
 		}
 
 		// Append separators
