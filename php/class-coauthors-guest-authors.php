@@ -788,6 +788,10 @@ class CoAuthors_Guest_Authors {
 					// that already overrides who can be a co-author keeps its
 					// linked-account dropdown consistent.
 					'capability'       => array( apply_filters( 'coauthors_edit_author_cap', 'edit_posts' ) ),
+					// Keep a linked user the capability or site membership
+					// would leave out, such as one linked with WP-CLI. Without
+					// their option, saving the profile would unlink them.
+					'include_selected' => true,
 				)
 			)
 		);
