@@ -58,6 +58,17 @@ class BlockCoAuthorsRenderTest extends TestCase {
 
 		$registry = WP_Block_Type_Registry::get_instance();
 
+		// A local build left over from another branch registers outdated
+		// metadata, which only shows up later as a confusing context failure.
+		$built_metadata = dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks/block-coauthors/block.json';
+		if ( file_exists( $built_metadata ) ) {
+			$this->assertSame(
+				wp_json_file_decode( dirname( COAUTHORS_PLUS_FILE ) . '/src/blocks/block-coauthors/block.json', array( 'associative' => true ) ),
+				wp_json_file_decode( $built_metadata, array( 'associative' => true ) ),
+				'build/ is out of date with src/. Run `npm run build`.'
+			);
+		}
+
 		// The plugin registers this block from its JS build directory, which
 		// CI does not produce. Copy the source block.json there for the
 		// registration only, so the plugin's own register_block() runs and
