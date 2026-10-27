@@ -113,3 +113,25 @@ Feature: Posts can be assigned from a user to a co-author
 		"""
 		admin
 		"""
+
+	Scenario: Give the byline to a co-author whose login differs from their nicename
+		# A co-author with no author term yet is only found by nicename, so the
+		# login alone used to leave a stray "slee" term and no byline.
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp user create slee slee@example.com --role=author --porcelain`
+		And save STDOUT as {SLEE_ID}
+		And I run `wp user update {SLEE_ID} --user_nicename=sam-lee`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="A post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp co-authors-plus assign-user-to-coauthor --user_login=author1 --coauthor=slee --append_coauthors`
+		Then STDOUT should contain:
+		"""
+		Success: All done! 1 post was affected.
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		cap-sam-lee
+		"""

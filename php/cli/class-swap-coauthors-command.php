@@ -130,7 +130,8 @@ class Swap_Coauthors_Command {
 		$from_userlogin = $orig_coauthor->user_login;
 		$to_userlogin   = $to_coauthor->user_login;
 
-		$from_userlogin_prefixed = Prefix::prefix_slug( $from_userlogin );
+		// Author terms are named after the nicename, which can differ from the login.
+		$from_term_slug = Prefix::prefix_slug( $orig_coauthor->user_nicename );
 
 		// Swapping a co-author with themselves would remove the term and add it.
 		// straight back, so the loop below would never drain.
@@ -150,7 +151,7 @@ class Swap_Coauthors_Command {
 				array(
 					'taxonomy' => $coauthors_plus->coauthor_taxonomy,
 					'field'    => 'slug',
-					'terms'    => array( $from_userlogin_prefixed ),
+					'terms'    => array( $from_term_slug ),
 				),
 			),
 		);
@@ -206,7 +207,7 @@ class Swap_Coauthors_Command {
 						array(
 							'taxonomy' => $coauthors_plus->coauthor_taxonomy,
 							'field'    => 'slug',
-							'terms'    => array( $from_userlogin_prefixed ),
+							'terms'    => array( $from_term_slug ),
 							'operator' => 'NOT IN',
 						),
 					),
@@ -225,7 +226,7 @@ class Swap_Coauthors_Command {
 						),
 						number_format_i18n( $post_author_only->found_posts ),
 						$from_userlogin,
-						$from_userlogin_prefixed
+						$from_term_slug
 					)
 				);
 			}
@@ -245,7 +246,7 @@ class Swap_Coauthors_Command {
 					sprintf(
 						'Post #%d still has the "%s" term after being processed, so the swap cannot make progress. Aborting.',
 						$first_post_id,
-						$from_userlogin_prefixed
+						$from_term_slug
 					)
 				);
 			}
@@ -259,14 +260,15 @@ class Swap_Coauthors_Command {
 					continue;
 				}
 
-				$coauthors = wp_list_pluck( $coauthors, 'user_login' );
+				// add_coauthors() looks co-authors up by nicename.
+				$coauthors = wp_list_pluck( $coauthors, 'user_nicename' );
 
 				$posts_total++;
 
 				if ( ! $dry ) {
-					// Remove the $from_userlogin from $coauthors.
-					foreach ( $coauthors as $index => $user_login ) {
-						if ( $from_userlogin === $user_login ) {
+					// Remove the --from co-author from $coauthors.
+					foreach ( $coauthors as $index => $user_nicename ) {
+						if ( $orig_coauthor->user_nicename === $user_nicename ) {
 							unset( $coauthors[ $index ] );
 
 							break;
@@ -274,7 +276,7 @@ class Swap_Coauthors_Command {
 					}
 
 					// Add the 'to' author on.
-					$coauthors[] = $to_userlogin;
+					$coauthors[] = $to_coauthor->user_nicename;
 
 					// By not passing $append = false as the 3rd param, we replace all existing co-authors.
 					// The byline is written either way; a false return means only that post_author
