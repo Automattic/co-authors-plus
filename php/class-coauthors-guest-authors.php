@@ -889,26 +889,28 @@ class CoAuthors_Guest_Authors {
 	public function metabox_manage_guest_author_bio(): void {
 		global $post;
 
-		$fields = $this->get_guest_author_fields( 'about' );
+		$fields      = $this->get_guest_author_fields( 'about' );
+		$editor_args = array(
+			'media_buttons' => false,
+			'teeny'         => true,
+		);
 		echo '<table class="form-table"><tbody>';
 		foreach ( $fields as $field ) {
 			$pm_key = $this->get_post_meta_key( $field['key'] );
 			$value  = get_post_meta( $post->ID, $pm_key, true );
-			printf(
-				'
-				<tr>
-					<th>
-						<label for="%1$s">%2$s</label>
-					</th>
-					<td>
-						<textarea style="width:300px;margin-bottom:6px;" id="%1$s" name="%1$s">%3$s</textarea>
-					</td>
-				</tr>
-				',
-				esc_attr( $pm_key ),
-				esc_html( $field['label'] ),
-				esc_textarea( $value )
-			);
+			$input  = apply_filters( 'coauthors_name_field_type_' . $pm_key, $field['input'] ?? 'textarea' );
+
+			echo '<tr><th><label for="' . esc_attr( $pm_key ) . '">' . esc_html( $field['label'] ) . '</label></th><td>';
+			if ( 'editor' === $input ) {
+				wp_editor( $value, $pm_key, $editor_args );
+			} else {
+				printf(
+					'<textarea style="width:300px;margin-bottom:6px;" id="%1$s" name="%1$s">%2$s</textarea>',
+					esc_attr( $pm_key ),
+					esc_textarea( $value )
+				);
+			}
+			echo '</td></tr>';
 		}
 		echo '</tbody></table>';
 
