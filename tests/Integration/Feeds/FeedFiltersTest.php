@@ -462,4 +462,30 @@ class FeedFiltersTest extends TestCase {
 		);
 	}
 
+	/**
+	 * A CDATA section cannot contain its own terminator, so a name containing
+	 * `]]>` has to be split across two sections rather than entity-encoded,
+	 * which would be shown literally.
+	 */
+	public function test_cdata_terminator_in_a_co_author_name_survives_the_feed(): void {
+		$post   = $this->create_post( $this->publisher );
+		$first  = $this->create_guest_author_with_name( 'first-byline', 'First Byline' );
+		$second = $this->create_guest_author_with_name( 'odd-name', 'Odd ]]> Name' );
+
+		$this->_cap->add_coauthors( $post->ID, array( $first->user_login, $second->user_login ) );
+
+		$this->assertSame( 'Odd ]]> Name', $second->display_name );
+
+		$this->go_to( home_url( '/?feed=rss2' ) );
+
+		$xml = simplexml_load_string( $this->render_rss2() );
+		$this->assertNotFalse( $xml );
+
+		$creators = array();
+		foreach ( $xml->channel->item->children( 'http://purl.org/dc/elements/1.1/' )->creator as $creator ) {
+			$creators[] = (string) $creator;
+		}
+
+		$this->assertSame( array( 'First Byline', 'Odd ]]> Name' ), $creators );
+	}
 }

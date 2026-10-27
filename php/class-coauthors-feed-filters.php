@@ -126,9 +126,10 @@ class CoAuthors_Feed_Filters {
 			 * Everything between `<![CDATA[` and `]]>` is literal, so escaping here would
 			 * make a display name like "Smith & Jones" render as "Smith &amp; Jones" in
 			 * feed readers. Core's feed-rss2.php does not escape inside CDATA either. The
-			 * only sequence that needs guarding is the CDATA terminator itself.
+			 * only sequence that needs guarding is the CDATA terminator itself, which is
+			 * split across two sections because an entity would be shown literally.
 			 */
-			$display_name = str_replace( ']]>', ']]&gt;', $coauthor->display_name );
+			$display_name = str_replace( ']]>', ']]]]><![CDATA[>', $coauthor->display_name );
 
 			echo "\t\t<dc:creator><![CDATA[" . $display_name . "]]></dc:creator>\n"; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- CDATA content is literal; see above.
 		}
