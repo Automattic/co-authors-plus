@@ -23,6 +23,7 @@ class CoAuthors_Feed_Filters {
 	public function register_hooks(): void {
 		// Priority 15 so this wins over CoAuthors_Template_Filters::filter_the_author.
 		add_filter( 'the_author', array( $this, 'filter_the_author_rss' ), 15 );
+		add_filter( 'get_the_author_user_url', array( $this, 'filter_the_author_url_rss' ), 10, 3 );
 		add_action( 'rss2_item', array( $this, 'action_add_rss_guest_authors' ) );
 	}
 
@@ -65,6 +66,36 @@ class CoAuthors_Feed_Filters {
 		 * pass through that normalization.
 		 */
 		return ent2ncr( $display_name );
+	}
+
+	/**
+	 * Point the feed author URL at the first co-author's website.
+	 *
+	 * Core's feed-atom.php follows the <name> element with a <uri> from
+	 * `get_the_author_meta( 'url' )`, which reads `post_author`. Without this, an
+	 * entry credited to a guest author would link to the publishing user's site.
+	 * Lookups for an explicit user ID are left alone, as is the fallback case where
+	 * self::filter_the_author_rss() kept core's byline.
+	 *
+	 * @param string    $url              The author URL core resolved.
+	 * @param int       $user_id          The user ID core resolved.
+	 * @param int|false $original_user_id The user ID passed to get_the_author_meta(), if any.
+	 * @return string The first co-author's website, or the original value.
+	 */
+	public function filter_the_author_url_rss( $url, $user_id, $original_user_id ) {
+		if ( $original_user_id || ! is_feed() ) {
+			return $url;
+		}
+
+		$coauthors = (array) get_coauthors();
+		if ( empty( $coauthors[0]->display_name ) ) {
+			return $url;
+		}
+
+		// Guest authors keep their URL in `website`; WordPress users in `user_url`.
+		$field = isset( $coauthors[0]->type ) && 'guest-author' === $coauthors[0]->type ? 'website' : 'user_url';
+
+		return isset( $coauthors[0]->$field ) ? (string) $coauthors[0]->$field : '';
 	}
 
 	/**

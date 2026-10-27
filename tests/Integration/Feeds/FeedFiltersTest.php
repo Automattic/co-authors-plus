@@ -39,6 +39,7 @@ class FeedFiltersTest extends TestCase {
 				'role'         => 'editor',
 				'user_login'   => 'publishing-editor',
 				'display_name' => 'Publishing Editor',
+				'user_url'     => 'https://publisher.example',
 			)
 		);
 	}
@@ -148,6 +149,7 @@ class FeedFiltersTest extends TestCase {
 
 		if ( $coauthors_plus_feed_filters instanceof CoAuthors_Feed_Filters ) {
 			remove_filter( 'the_author', array( $coauthors_plus_feed_filters, 'filter_the_author_rss' ), 15 );
+			remove_filter( 'get_the_author_user_url', array( $coauthors_plus_feed_filters, 'filter_the_author_url_rss' ) );
 			remove_action( 'rss2_item', array( $coauthors_plus_feed_filters, 'action_add_rss_guest_authors' ) );
 		}
 
@@ -244,6 +246,10 @@ class FeedFiltersTest extends TestCase {
 		);
 		$this->assertSame(
 			10,
+			has_filter( 'get_the_author_user_url', array( $coauthors_plus_feed_filters, 'filter_the_author_url_rss' ) )
+		);
+		$this->assertSame(
+			10,
 			has_action( 'rss2_item', array( $coauthors_plus_feed_filters, 'action_add_rss_guest_authors' ) )
 		);
 	}
@@ -268,6 +274,7 @@ class FeedFiltersTest extends TestCase {
 		the_post();
 
 		$this->assertSame( 'Publishing Editor', get_the_author() );
+		$this->assertSame( 'https://publisher.example', get_the_author_meta( 'url' ) );
 	}
 
 	/**
@@ -392,6 +399,66 @@ class FeedFiltersTest extends TestCase {
 		$this->assertEqualsCanonicalizing(
 			array( 'Smith & Jones', 'Fish & Chips' ),
 			array_keys( $this->atom_authors( $this->render_feed( 'atom' ) ) )
+		);
+	}
+
+	/**
+	 * The Atom <uri> must belong to the co-author named beside it, never to the
+	 * user who published the post.
+	 */
+	public function test_atom_author_uri_links_to_the_co_author(): void {
+		$with_website = $this->_cap->get_coauthor_by(
+			'id',
+			$this->_cap->guest_authors->create(
+				array(
+					'user_login'   => 'freelancer',
+					'display_name' => 'Freelance Contributor',
+					'website'      => 'https://freelancer.example',
+				)
+			)
+		);
+		$without_website = $this->create_guest_author_with_name( 'no-website', 'No Website' );
+		$user            = $this->factory()->user->create_and_get(
+			array(
+				'role'         => 'author',
+				'user_login'   => 'staff-writer',
+				'display_name' => 'Staff Writer',
+				'user_url'     => 'https://staff.example',
+			)
+		);
+
+		foreach ( array( $with_website, $without_website, $user ) as $coauthor ) {
+			$post = $this->create_post( $this->publisher );
+			$this->_cap->add_coauthors( $post->ID, array( $coauthor->user_login ) );
+		}
+
+		/*
+		 * Saving syncs post_author to a WordPress user co-author, which would let core
+		 * resolve the right URI without help. Put it back to the publisher, as on a
+		 * post saved before that rule existed, so the user branch is exercised too.
+		 */
+		global $wpdb;
+		$wpdb->update( $wpdb->posts, array( 'post_author' => $this->publisher->ID ), array( 'ID' => $post->ID ) );
+		clean_post_cache( $post->ID );
+
+		$this->go_to( home_url( '/?feed=atom' ) );
+
+		$authors = $this->atom_authors( $this->render_feed( 'atom' ) );
+		ksort( $authors );
+
+		$this->assertSame(
+			array(
+				'Freelance Contributor' => 'https://freelancer.example',
+				'No Website'            => null,
+				'Staff Writer'          => 'https://staff.example',
+			),
+			$authors
+		);
+
+		$this->assertSame(
+			'https://publisher.example',
+			get_the_author_meta( 'url', $this->publisher->ID ),
+			'An explicit user ID must still resolve to that user, even in a feed.'
 		);
 	}
 
