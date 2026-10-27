@@ -1779,6 +1779,11 @@ class CoAuthors_Plus {
 		$post_id = (int) $post_id;
 		$insert  = false;
 
+		// A stale or deleted ID would get orphaned author terms.
+		if ( ! get_post( $post_id ) ) {
+			return false;
+		}
+
 		// Best way to persist order
 		if ( $append ) {
 			if ( $this->is_rest_save && has_filter( 'coauthors_post_list_pluck_field' ) ) {
