@@ -37,6 +37,12 @@ class Blocks {
 			return;
 		}
 
+		// Without build/, register_block_type() gets paths that don't exist and logs
+		// a misleading notice for each block. The missing build notice explains it.
+		if ( ! is_dir( dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks' ) ) {
+			return;
+		}
+
 		add_filter( 'render_block_context', array( __CLASS__, 'provide_author_archive_context' ), 10, 2 );
 		add_action( 'enqueue_block_editor_assets', array( __CLASS__, 'enqueue_store' ) );
 
