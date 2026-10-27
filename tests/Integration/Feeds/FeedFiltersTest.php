@@ -44,24 +44,62 @@ class FeedFiltersTest extends TestCase {
 	}
 
 	/**
-	 * Render the RSS2 feed template for the current query and return its markup.
+	 * Render a core feed template for the current query and return its markup.
 	 *
 	 * `do_feed()` cannot be used here because it calls `die()`. Including the core
 	 * template directly is the same approach core's own feed tests take, including
 	 * the silencing: the template calls `header()` after PHPUnit has already
 	 * produced output, which would otherwise raise "headers already sent".
+	 *
+	 * @param string $type Feed type, matching a `wp-includes/feed-{$type}.php` template.
 	 */
-	private function render_rss2(): string {
+	private function render_feed( string $type ): string {
 		ob_start();
 
 		try {
-			@require ABSPATH . WPINC . '/feed-rss2.php'; // phpcs:ignore Generic.PHP.NoSilencedErrors.Discouraged -- Suppresses the unavoidable header() warning; see above.
+			@require ABSPATH . WPINC . "/feed-{$type}.php"; // phpcs:ignore Generic.PHP.NoSilencedErrors.Discouraged -- Suppresses the unavoidable header() warning; see above.
 		} catch ( \Throwable $e ) {
 			ob_end_clean();
 			throw $e;
 		}
 
 		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Render the RSS2 feed template for the current query and return its markup.
+	 */
+	private function render_rss2(): string {
+		return $this->render_feed( 'rss2' );
+	}
+
+	/**
+	 * Parse an Atom feed and return each entry's author name and URI.
+	 *
+	 * Fails the test if the feed is not well-formed XML, which is the failure a
+	 * feed reader would hit.
+	 *
+	 * @param string $feed Rendered Atom markup.
+	 * @return array<string, string|null> Author URI (or null if absent), keyed by author name.
+	 */
+	private function atom_authors( string $feed ): array {
+		$previous = libxml_use_internal_errors( true );
+		$xml      = simplexml_load_string( $feed );
+		$errors   = libxml_get_errors();
+		libxml_clear_errors();
+		libxml_use_internal_errors( $previous );
+
+		$this->assertNotFalse(
+			$xml,
+			'The Atom feed is not well-formed XML: ' . implode( '; ', array_map( 'trim', wp_list_pluck( $errors, 'message' ) ) )
+		);
+
+		$authors = array();
+		foreach ( $xml->entry as $entry ) {
+			$authors[ (string) $entry->author->name ] = isset( $entry->author->uri ) ? (string) $entry->author->uri : null;
+		}
+
+		return $authors;
 	}
 
 	/**
@@ -323,4 +361,38 @@ class FeedFiltersTest extends TestCase {
 			$this->dc_creators( $this->render_rss2() )
 		);
 	}
+
+	/**
+	 * Atom renders the byline inside a bare <name> element, not CDATA.
+	 *
+	 * Guest author names are stored unencoded, so an ampersand must be escaped
+	 * or the whole feed is malformed. WordPress user display names are already
+	 * encoded on save, so they must not be encoded a second time.
+	 */
+	public function test_atom_feed_stays_well_formed_with_an_ampersand_in_the_byline(): void {
+		$guest_post   = $this->create_post( $this->publisher );
+		$guest_author = $this->create_guest_author_with_name( 'smith-jones', 'Smith & Jones' );
+		$this->_cap->add_coauthors( $guest_post->ID, array( $guest_author->user_login ) );
+
+		$user_post = $this->create_post( $this->publisher );
+		$user      = $this->factory()->user->create_and_get(
+			array(
+				'role'         => 'author',
+				'user_login'   => 'fish-chips',
+				'display_name' => 'Fish & Chips',
+			)
+		);
+		$this->_cap->add_coauthors( $user_post->ID, array( $user->user_login ) );
+
+		$this->assertSame( 'Smith & Jones', $guest_author->display_name, 'Guest author names are expected to be stored unencoded.' );
+		$this->assertSame( 'Fish &amp; Chips', $user->display_name, 'User display names are expected to be encoded on save.' );
+
+		$this->go_to( home_url( '/?feed=atom' ) );
+
+		$this->assertEqualsCanonicalizing(
+			array( 'Smith & Jones', 'Fish & Chips' ),
+			array_keys( $this->atom_authors( $this->render_feed( 'atom' ) ) )
+		);
+	}
+
 }

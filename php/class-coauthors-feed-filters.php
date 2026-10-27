@@ -43,17 +43,28 @@ class CoAuthors_Feed_Filters {
 		}
 
 		$coauthors = (array) get_coauthors();
-		if ( ! empty( $coauthors[0]->display_name ) ) {
-			/*
-			 * Core registers `add_filter( 'the_author', 'ent2ncr', 8 )`. This filter runs at
-			 * 15 and replaces the string wholesale, so the replacement would otherwise never
-			 * pass through that normalization. Invisible in RSS2, where the value sits inside
-			 * CDATA, but feed-atom.php renders the_author() inside a bare <name> element.
-			 */
-			return ent2ncr( $coauthors[0]->display_name );
+		if ( empty( $coauthors[0]->display_name ) ) {
+			return $the_author;
 		}
 
-		return $the_author;
+		$display_name = $coauthors[0]->display_name;
+
+		/*
+		 * feed-atom.php renders the_author() inside a bare <name> element rather than
+		 * CDATA. Core encodes user display names on save, but guest author names are
+		 * stored as entered, so a bare "&" would make the whole feed malformed.
+		 * esc_xml() leaves existing entities alone, so user names are not encoded twice.
+		 */
+		if ( is_feed( 'atom' ) ) {
+			$display_name = esc_xml( $display_name );
+		}
+
+		/*
+		 * Core registers `add_filter( 'the_author', 'ent2ncr', 8 )`. This filter runs at
+		 * 15 and replaces the string wholesale, so the replacement would otherwise never
+		 * pass through that normalization.
+		 */
+		return ent2ncr( $display_name );
 	}
 
 	/**
