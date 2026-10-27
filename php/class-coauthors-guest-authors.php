@@ -750,7 +750,8 @@ class CoAuthors_Guest_Authors {
 		$pm_key        = $this->get_post_meta_key( 'user_login' );
 		$existing_slug = get_post_meta( $post->ID, $pm_key, true );
 
-		echo '<input type="text" disabled="disabled" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( urldecode( $existing_slug ) ) . '" />';
+		echo '<label for="' . esc_attr( $pm_key ) . '" class="screen-reader-text">' . esc_html__( 'Unique Slug', 'co-authors-plus' ) . '</label>';
+		echo '<input type="text" disabled="disabled" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( urldecode( $existing_slug ) ) . '" />';
 
 		// Taken from grist_authors.
 		$linked_account_key = $this->get_post_meta_key( 'linked_account' );
@@ -772,31 +773,33 @@ class CoAuthors_Guest_Authors {
 			unset( $linked_account_user_ids[ $key ] );
 		}
 
-		echo '<p><label>' . esc_html__( 'WordPress User Mapping', 'co-authors-plus' ) . '</label> ';
-		wp_dropdown_users(
-			apply_filters(
-				'coauthors_guest_author_linked_account_args',
-				array(
-					'show_option_none' => __( '-- Not mapped --', 'co-authors-plus' ),
-					'name'             => esc_attr( $this->get_post_meta_key( 'linked_account' ) ),
-					// If we're adding an author or if there is no post author (0), then use -1 (which is show_option_none).
-					// We then take -1 on save and convert it back to 0. (#blamenacin)
-					'selected'         => $linked_account_id,
-					// Don't let user accounts to be linked to more than one guest author
-					'exclude'          => $linked_account_user_ids,
-					// Restrict candidates to users who can write posts. The
-					// coauthors_edit_author_cap filter mirrors the same check used
-					// by the AJAX co-author search and validation paths, so a site
-					// that already overrides who can be a co-author keeps its
-					// linked-account dropdown consistent.
-					'capability'       => array( apply_filters( 'coauthors_edit_author_cap', 'edit_posts' ) ),
-					// Keep a linked user the capability or site membership
-					// would leave out, such as one linked with WP-CLI. Without
-					// their option, saving the profile would unlink them.
-					'include_selected' => true,
-				)
+		$dropdown_args = apply_filters(
+			'coauthors_guest_author_linked_account_args',
+			array(
+				'show_option_none' => __( '-- Not mapped --', 'co-authors-plus' ),
+				'name'             => esc_attr( $this->get_post_meta_key( 'linked_account' ) ),
+				// If we're adding an author or if there is no post author (0), then use -1 (which is show_option_none).
+				// We then take -1 on save and convert it back to 0. (#blamenacin)
+				'selected'         => $linked_account_id,
+				// Don't let user accounts to be linked to more than one guest author
+				'exclude'          => $linked_account_user_ids,
+				// Restrict candidates to users who can write posts. The
+				// coauthors_edit_author_cap filter mirrors the same check used
+				// by the AJAX co-author search and validation paths, so a site
+				// that already overrides who can be a co-author keeps its
+				// linked-account dropdown consistent.
+				'capability'       => array( apply_filters( 'coauthors_edit_author_cap', 'edit_posts' ) ),
+				// Keep a linked user the capability or site membership
+				// would leave out, such as one linked with WP-CLI. Without
+				// their option, saving the profile would unlink them.
+				'include_selected' => true,
 			)
 		);
+		// wp_dropdown_users() falls back to the name for the select's id.
+		$dropdown_id = ! empty( $dropdown_args['id'] ) ? $dropdown_args['id'] : ( $dropdown_args['name'] ?? 'user' );
+
+		echo '<p><label for="' . esc_attr( $dropdown_id ) . '">' . esc_html__( 'WordPress User Mapping', 'co-authors-plus' ) . '</label> ';
+		wp_dropdown_users( $dropdown_args );
 		echo '</p>';
 
 		remove_filter( 'wp_dropdown_users', array( $this, 'filter_wp_dropdown_users_to_disable' ) );
@@ -834,9 +837,9 @@ class CoAuthors_Guest_Authors {
 			}
 			$field['input'] = apply_filters( 'coauthors_name_field_type_' . $pm_key, $field['input'] );
 			if ( $field['input'] === 'checkbox' ) {
-				echo '<input type="checkbox" name="' . esc_attr( $pm_key ) . '"' . checked( '1', $value, false ) . ' value="1"/>';
+				echo '<input type="checkbox" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '"' . checked( '1', $value, false ) . ' value="1"/>';
 			} else {
-				echo '<input type="' . esc_attr( $field['input'] ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( $value ) . '" class="regular-text" />';
+				echo '<input type="' . esc_attr( $field['input'] ) . '" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( $value ) . '" class="regular-text" />';
 			}
 			echo '</td></tr>';
 		}
@@ -867,9 +870,9 @@ class CoAuthors_Guest_Authors {
 			}
 			$field['input'] = apply_filters( 'coauthors_name_field_type_' . $pm_key, $field['input'] );
 			if ( $field['input'] === 'checkbox' ) {
-				echo '<input type="checkbox" name="' . esc_attr( $pm_key ) . '"' . checked( '1', $value, false ) . ' value="1"/>';
+				echo '<input type="checkbox" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '"' . checked( '1', $value, false ) . ' value="1"/>';
 			} else {
-				echo '<input type="' . esc_attr( $field['input'] ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( $value ) . '" class="regular-text" />';
+				echo '<input type="' . esc_attr( $field['input'] ) . '" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( $value ) . '" class="regular-text" />';
 			}
 
 			echo '</td></tr>';
@@ -895,16 +898,15 @@ class CoAuthors_Guest_Authors {
 				'
 				<tr>
 					<th>
-						<label for="%s">%s</label>
+						<label for="%1$s">%2$s</label>
 					</th>
 					<td>
-						<textarea style="width:300px;margin-bottom:6px;" name="%s">%s</textarea>
+						<textarea style="width:300px;margin-bottom:6px;" id="%1$s" name="%1$s">%3$s</textarea>
 					</td>
 				</tr>
 				',
 				esc_attr( $pm_key ),
 				esc_html( $field['label'] ),
-				esc_attr( $pm_key ),
 				esc_textarea( $value )
 			);
 		}
