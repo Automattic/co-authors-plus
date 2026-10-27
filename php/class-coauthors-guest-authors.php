@@ -933,8 +933,9 @@ class CoAuthors_Guest_Authors {
 		// $post_data is slashed: core unslashes it after this filter.
 		$post_data['post_title'] = wp_slash( sanitize_text_field( wp_unslash( $_POST['cap-display_name'] ) ) );
 
-		$slug = sanitize_title( get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true ) );
-		if ( ! $slug ) {
+		$slug     = sanitize_title( get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true ) );
+		$new_slug = ! $slug;
+		if ( $new_slug ) {
 			$slug = sanitize_title( wp_unslash( $_POST['cap-display_name'] ) );
 		}
 
@@ -952,8 +953,14 @@ class CoAuthors_Guest_Authors {
 		 */
 		$post_data['post_name'] = $this->get_post_meta_key( $slug );
 
-		// Guest authors can't be created with the same user_login as a user
-		$user = $this->get_user_matching_slug( $slug );
+		/*
+		 * Guest authors can't be created with the same user_login as a user.
+		 * Only checked when the slug is chosen, as create() does: the slug
+		 * can't be changed here afterwards, so refusing a later save can't
+		 * undo a collision caused by a user created since, and would only
+		 * lock the profile.
+		 */
+		$user = $new_slug ? $this->get_user_matching_slug( $slug ) : false;
 		if ( $user
 			&& $user->user_login != get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'linked_account' ), true ) ) {
 			// if user has selected to link account to matching user we don't have to bail

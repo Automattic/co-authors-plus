@@ -46,13 +46,12 @@ class GuestAuthorSlugUserCollisionTest extends TestCase {
 	 * @group ms-required
 	 */
 	public function test_edit_screen_refuses_slug_of_network_user_not_on_this_site(): void {
-		$guest_author_id = $this->make_guest_author( 'net-jane' );
 		$this->create_non_member( array( 'user_login' => 'net-jane' ) );
 
 		$this->expectException( WPDieException::class );
 		$this->expectExceptionMessage( self::SAME_USER_MESSAGE );
 
-		$this->save_from_edit_screen( $guest_author_id );
+		$this->save_from_edit_screen( $this->make_unsaved_profile(), 'net-jane' );
 	}
 
 	/**
@@ -70,23 +69,35 @@ class GuestAuthorSlugUserCollisionTest extends TestCase {
 	 * The edit screen refuses a slug matching a user of this site.
 	 */
 	public function test_edit_screen_refuses_slug_of_site_user(): void {
-		$guest_author_id = $this->make_guest_author( 'site-jane' );
 		$this->factory()->user->create( array( 'user_login' => 'site-jane' ) );
 
 		$this->expectException( WPDieException::class );
 		$this->expectExceptionMessage( self::SAME_USER_MESSAGE );
 
-		$this->save_from_edit_screen( $guest_author_id );
+		$this->save_from_edit_screen( $this->make_unsaved_profile(), 'site-jane' );
 	}
 
 	/**
 	 * Linking the guest author to the matching user is still allowed.
 	 */
 	public function test_edit_screen_allows_slug_when_linking_to_that_user(): void {
-		$guest_author_id = $this->make_guest_author( 'site-jane' );
-		$user_id         = $this->factory()->user->create( array( 'user_login' => 'site-jane' ) );
+		$user_id = $this->factory()->user->create( array( 'user_login' => 'site-jane' ) );
 
-		$post_data = $this->save_from_edit_screen( $guest_author_id, $user_id );
+		$post_data = $this->save_from_edit_screen( $this->make_unsaved_profile(), 'site-jane', $user_id );
+
+		$this->assertSame( 'cap-site-jane', $post_data['post_name'] );
+	}
+
+	/**
+	 * A profile whose slug is already set still saves when a matching user is
+	 * created afterwards. The slug can't be changed on the edit screen, so
+	 * refusing the save wouldn't undo the collision, only lock the profile.
+	 */
+	public function test_edit_screen_saves_existing_profile_after_matching_user_appears(): void {
+		$guest_author_id = $this->make_guest_author( 'site-jane' );
+		$this->factory()->user->create( array( 'user_login' => 'site-jane' ) );
+
+		$post_data = $this->save_from_edit_screen( $guest_author_id, 'Jane' );
 
 		$this->assertSame( 'cap-site-jane', $post_data['post_name'] );
 	}
@@ -112,7 +123,6 @@ class GuestAuthorSlugUserCollisionTest extends TestCase {
 	 * resolve that login to the guest author.
 	 */
 	public function test_edit_screen_refuses_slug_matching_user_login(): void {
-		$guest_author_id = $this->make_guest_author( 'jane-doe' );
 		$this->factory()->user->create(
 			array(
 				'user_login'    => 'jane-doe',
@@ -123,7 +133,22 @@ class GuestAuthorSlugUserCollisionTest extends TestCase {
 		$this->expectException( WPDieException::class );
 		$this->expectExceptionMessage( self::SAME_USER_MESSAGE );
 
-		$this->save_from_edit_screen( $guest_author_id );
+		$this->save_from_edit_screen( $this->make_unsaved_profile(), 'Jane Doe' );
+	}
+
+	/**
+	 * Creates the draft a new profile starts as on the edit screen, before its
+	 * first save sets the slug.
+	 *
+	 * @return int Guest author ID.
+	 */
+	private function make_unsaved_profile(): int {
+		return $this->factory()->post->create(
+			array(
+				'post_type'   => $this->_cap->guest_authors->post_type,
+				'post_status' => 'auto-draft',
+			)
+		);
 	}
 
 	/**
@@ -153,14 +178,15 @@ class GuestAuthorSlugUserCollisionTest extends TestCase {
 	 * Runs the edit screen's save filter as an administrator.
 	 *
 	 * @param int      $guest_author_id Guest author being saved.
+	 * @param string   $display_name    Display name, from which a new profile's slug is made.
 	 * @param int|null $linked_user_id  User picked in the linked account dropdown.
 	 * @return array Filtered post data.
 	 */
-	private function save_from_edit_screen( int $guest_author_id, ?int $linked_user_id = null ): array {
+	private function save_from_edit_screen( int $guest_author_id, string $display_name, ?int $linked_user_id = null ): array {
 		wp_set_current_user( $this->factory()->user->create( array( 'role' => 'administrator' ) ) );
 
 		$_POST['guest-author-nonce'] = wp_create_nonce( 'guest-author-nonce' );
-		$_POST['cap-display_name']   = 'Jane';
+		$_POST['cap-display_name']   = $display_name;
 		if ( null !== $linked_user_id ) {
 			$_POST['cap-linked_account'] = (string) $linked_user_id;
 		}
