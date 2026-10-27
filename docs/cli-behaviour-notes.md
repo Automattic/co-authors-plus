@@ -612,6 +612,15 @@ PHP 8.4) rather than inferred from reading the source.
   over-tightened guard), and `linked_account` not bypassing the guest-author
   duplicate check. The refusal scenario asserts the user's term survives with its
   description unrewritten. Historical detail preserved below.
+  - Widened 2026-10-24: `create()` and the edit screen now share one collision
+    rule, `get_user_matching_slug()`. A user whose login OR nicename matches the
+    slug (with or without a leading `cap-`) collides, so `create-author
+    --user_login=jane-doe` is now also refused when a user `jdoe` has the nicename
+    `jane-doe`, which shares the `cap-jane-doe` term. Any network user counts on
+    multisite, as `create()` already did; the edit screen used to skip users who
+    aren't members of the current site. Like `create()`, the edit screen only
+    checks when the slug is first set, so a user created later can't lock an
+    existing profile out of saving.
 - The original finding, for the record: the guest author was created sharing that
   user's author term. `create_guest_author()` only dedupes
   against guest-author posts (:1136-1141) and `Guest_Authors::create()` only rejects a

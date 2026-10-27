@@ -22,8 +22,48 @@ The slug is made from the display name when you first save the profile. After th
 
 A profile can't be saved when:
 
-- its slug matches a WordPress user on the same site, unless the profile is linked to that user.
+- it's new and its slug matches the login or nicename of a WordPress user, unless the profile is linked to that user. On multisite, this includes users who aren't members of the site. Profiles created in code or with WP-CLI follow the same rule.
 - another guest author already has the same slug, including one in the trash.
+
+The user check runs only when the slug is set. A user created later with a matching login or nicename doesn't stop an existing profile from being saved, but the two still clash. See [When a slug matches a user](#when-a-slug-matches-a-user).
+
+### When a slug matches a user
+
+A guest author and a user whose login or nicename equals the guest author's slug are looked up as one co-author, and the guest author wins. If it's the nicename that matches, they also share an author term, so the user's posts show the guest author's byline. This can happen when the user is created, or joins the site, after the guest author.
+
+For a new profile, choose a display name that gives a different slug for the first save. You can change the display name afterwards and the slug stays.
+
+For an existing profile, use WP-CLI. First find the two. The guest author's `post_name` is its slug with `cap-` in front. Leave out `--network` on a single site.
+
+```sh
+wp post list --post_type=guest-author --post_status=any --post_name__in=cap-<slug> --fields=ID,post_title
+wp user list --network --login=<slug> --fields=ID,user_login,user_nicename
+wp user list --network --nicename=<slug> --fields=ID,user_login,user_nicename
+```
+
+If they're the same person, link the profile to the user:
+
+```sh
+wp post meta update <guest-author-id> cap-linked_account <user-login>
+wp eval 'global $coauthors_plus; $coauthors_plus->guest_authors->delete_guest_author_cache( <guest-author-id> );'
+```
+
+The second command clears the plugin's cached lookups, which only matters on a site with a persistent object cache. This works for users the **WordPress User Mapping** dropdown doesn't list, such as Subscribers or, on multisite, users who aren't members of the site. The dropdown still shows the linked user, so saving the profile afterwards keeps the link.
+
+If they're different people, give the guest author a slug that no user has as a login or nicename. Check with the `wp user list` commands above, then:
+
+```sh
+wp co-authors-plus rename-coauthor --from=<slug> --to=<new-slug>
+```
+
+The guest author's archive moves to the new slug. If it was the nicename that matched, the author term moves with the guest author too, so the user's own posts on the site still show the guest author. Nothing records which posts were the user's, because both used the same term, so check each of the user's posts. Where the byline should be the user's, set it again with `add_coauthors()`. It takes the post ID and the `user_nicename` of every co-author the post should have, in order, and replaces the byline:
+
+```sh
+wp post list --author=<user-id> --post_type=any --post_status=any --fields=ID,post_title
+wp eval 'global $coauthors_plus; $coauthors_plus->add_coauthors( <post-id>, array( "<user-nicename>" ) );'
+```
+
+You can also set the byline in the post editor.
 
 ### Other ways to create guest authors
 

@@ -790,6 +790,10 @@ class CoAuthors_Guest_Authors {
 					// that already overrides who can be a co-author keeps its
 					// linked-account dropdown consistent.
 					'capability'       => array( apply_filters( 'coauthors_edit_author_cap', 'edit_posts' ) ),
+					// Keep a linked user the capability or site membership
+					// would leave out, such as one linked with WP-CLI. Without
+					// their option, saving the profile would unlink them.
+					'include_selected' => true,
 				)
 			)
 		);
@@ -935,8 +939,9 @@ class CoAuthors_Guest_Authors {
 		// $post_data is slashed: core unslashes it after this filter.
 		$post_data['post_title'] = wp_slash( sanitize_text_field( wp_unslash( $_POST['cap-display_name'] ) ) );
 
-		$slug = sanitize_title( get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true ) );
-		if ( ! $slug ) {
+		$slug     = sanitize_title( get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true ) );
+		$new_slug = ! $slug;
+		if ( $new_slug ) {
 			$slug = sanitize_title( wp_unslash( $_POST['cap-display_name'] ) );
 		}
 
@@ -954,11 +959,15 @@ class CoAuthors_Guest_Authors {
 		 */
 		$post_data['post_name'] = $this->get_post_meta_key( $slug );
 
-		// Guest authors can't be created with the same user_login as a user
-		$user_nicename = Prefix::strip_slug_prefix( $slug );
-		$user          = get_user_by( 'slug', $user_nicename );
+		/*
+		 * Guest authors can't be created with the same user_login as a user.
+		 * Only checked when the slug is chosen, as create() does: the slug
+		 * can't be changed here afterwards, so refusing a later save can't
+		 * undo a collision caused by a user created since, and would only
+		 * lock the profile.
+		 */
+		$user = $new_slug ? $this->get_user_matching_slug( $slug ) : false;
 		if ( $user
-			&& is_user_member_of_blog( $user->ID, get_current_blog_id() )
 			&& $user->user_login != get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'linked_account' ), true ) ) {
 			// if user has selected to link account to matching user we don't have to bail
 			if ( isset( $_POST['cap-linked_account'] ) && (int) $_POST['cap-linked_account'] === $user->ID && current_user_can( $this->list_guest_authors_cap ) ) {
@@ -1435,6 +1444,34 @@ class CoAuthors_Guest_Authors {
 
 	}
 
+	/**
+	 * Find the WordPress user a guest author slug would collide with.
+	 *
+	 * A user whose login or nicename matches the slug, with or without a
+	 * leading 'cap-', shares the guest author's lookups and, by nicename, its
+	 * author term, and the guest author wins both. Shared by the edit screen
+	 * and create() so the two refuse the same slugs.
+	 *
+	 * Any user on the network counts, not only members of this site: core and
+	 * get_coauthor_by() resolve the slug without a membership check, and a
+	 * non-member can still have posts here (a super admin, or a user removed
+	 * from the site or added to it later).
+	 *
+	 * @param string $slug Guest author user_login.
+	 * @return WP_User|false
+	 */
+	private function get_user_matching_slug( string $slug ) {
+		foreach ( array_unique( array( $slug, Prefix::strip_slug_prefix( $slug ) ) ) as $candidate ) {
+			$user = get_user_by( 'login', $candidate );
+			if ( ! $user ) {
+				$user = get_user_by( 'slug', sanitize_title( $candidate ) );
+			}
+			if ( $user ) {
+				return $user;
+			}
+		}
+		return false;
+	}
 
 	/**
 	 * Create a guest author.
@@ -1473,15 +1510,17 @@ class CoAuthors_Guest_Authors {
 			}
 
 			// The user login field shouldn't collide with any existing users
-			if ( 'user_login' == $field['key'] && $existing_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $args['user_login'], true ) ) {
+			if ( 'user_login' == $field['key'] ) {
 				// A matching WordPress user is only allowed when this profile is being
 				// created as that user's linked account, mirroring the allowance
 				// manage_guest_author_filter_post_data() makes on the edit screen.
 				// Anything else silently adopted the user's author term and rewrote
 				// its description, so the user's own posts resolved to the new
 				// guest author.
-				$linked_account = isset( $args['linked_account'] ) ? $args['linked_account'] : '';
-				if ( 'guest-author' === $existing_coauthor->type || $existing_coauthor->user_login !== $linked_account ) {
+				$existing_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $args['user_login'], true );
+				$user              = $this->get_user_matching_slug( $args['user_login'] );
+				$linked_account    = isset( $args['linked_account'] ) ? $args['linked_account'] : '';
+				if ( ( $existing_coauthor && 'guest-author' === $existing_coauthor->type ) || ( $user && $user->user_login !== $linked_account ) ) {
 					return new WP_Error( 'duplicate-field', __( 'user_login cannot duplicate existing guest author or mapped user', 'co-authors-plus' ) );
 				}//end if
 			}

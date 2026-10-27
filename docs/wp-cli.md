@@ -259,7 +259,7 @@ wp co-authors-plus create-author \
 
 WP-CLI treats every option as optional, but the profile isn't created without `--display_name` and `--user_login`. The values are sanitized as the guest author edit screen would sanitize them.
 
-If a guest author with the same email address, or failing that the same login, already exists, the command reports it and creates nothing. That is treated as success, so the command is safe to run again. A login that belongs to an existing WordPress user is refused. When creation fails, the command exits with 1.
+If a guest author with the same email address, or failing that the same login, already exists, the command reports it and creates nothing. That is treated as success, so the command is safe to run again. A login that matches an existing WordPress user's login or nicename is refused, as on the [edit screen](./guest-authors.md#creating-a-guest-author). When creation fails, the command exits with 1.
 
 ### `create-guest-authors`
 

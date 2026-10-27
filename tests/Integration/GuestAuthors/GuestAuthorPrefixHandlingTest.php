@@ -42,6 +42,22 @@ class GuestAuthorPrefixHandlingTest extends TestCase {
 	}
 
 	/**
+	 * Create the draft a new profile starts as on the edit screen. The user
+	 * check only runs on its first save, when the slug is made from the
+	 * display name.
+	 *
+	 * @return int Guest author post ID.
+	 */
+	private function make_unsaved_profile(): int {
+		return $this->factory()->post->create(
+			array(
+				'post_type'   => $this->guest_authors->post_type,
+				'post_status' => 'auto-draft',
+			)
+		);
+	}
+
+	/**
 	 * Run the post-data filter for a guest author as the edit screen would.
 	 *
 	 * @param int    $guest_author_id Guest author post ID.
@@ -91,16 +107,7 @@ class GuestAuthorPrefixHandlingTest extends TestCase {
 			)
 		);
 
-		$guest_author_id = $this->guest_authors->create(
-			array(
-				'display_name' => 'Recap Caption',
-				'user_login'   => 'recap-caption',
-			)
-		);
-
-		$this->assertIsInt( $guest_author_id );
-
-		$post_data = $this->filter_post_data( $guest_author_id, 'Recap Caption' );
+		$post_data = $this->filter_post_data( $this->make_unsaved_profile(), 'Recap Caption' );
 
 		$this->assertSame(
 			'cap-recap-caption',
@@ -116,17 +123,6 @@ class GuestAuthorPrefixHandlingTest extends TestCase {
 	 * stripped nicename genuinely belongs to a WordPress user.
 	 */
 	public function test_a_genuinely_colliding_nicename_is_still_refused(): void {
-		// The guest author first: create() refuses a user_login that already
-		// belongs to a WordPress user, so the collision has to arrive after.
-		$guest_author_id = $this->guest_authors->create(
-			array(
-				'display_name' => 'Ada Lovelace',
-				'user_login'   => 'ada-lovelace',
-			)
-		);
-
-		$this->assertIsInt( $guest_author_id );
-
 		$this->factory()->user->create(
 			array(
 				'user_login'    => 'ada-lovelace',
@@ -137,7 +133,7 @@ class GuestAuthorPrefixHandlingTest extends TestCase {
 
 		$this->expectException( \WPDieException::class );
 
-		$this->filter_post_data( $guest_author_id, 'Ada Lovelace' );
+		$this->filter_post_data( $this->make_unsaved_profile(), 'Ada Lovelace' );
 	}
 
 	/**
