@@ -128,7 +128,8 @@ class Assign_User_To_Coauthor_Command {
 				continue;
 			}
 
-			$coauthors_plus->add_coauthors( $post_id, array( $coauthor->user_login ), $assoc_args['append_coauthors'] );
+			// add_coauthors() looks co-authors up by nicename, which can differ from the login.
+			$coauthors_plus->add_coauthors( $post_id, array( $coauthor->user_nicename ), $assoc_args['append_coauthors'] );
 			/* translators: 1: Co-author login, 2: Post ID */
 			WP_CLI::log( sprintf( __( "Updating - Adding %1\$s's byline to post #%2\$d", 'co-authors-plus' ), $coauthor->user_login, $post_id ) );
 			$affected++;

@@ -157,8 +157,8 @@ PHP 8.4) rather than inferred from reading the source.
 - The `--to param must not be empty` guard (php/class-wp-cli.php:704-706) runs only
   AFTER the `--from` lookup, so an invalid `--from` combined with an empty `--to`
   reports `No co-author found` first.
-- The tax_query only matches the prefixed `cap-<user_login>` slug
-  (php/class-wp-cli.php:695, 722-728), so posts carrying a legacy unprefixed author
+- The tax_query only matches the prefixed `cap-<user_nicename>` slug (it was
+  `cap-<user_login>` until VIPPLUG-354, below), so posts carrying a legacy unprefixed author
   term for the `--from` co-author are not swapped (not pinned in a scenario; noted
   from source).
 
@@ -240,6 +240,19 @@ PHP 8.4) rather than inferred from reading the source.
   `--from` with an empty `--to` reported the missing co-author instead of the
   missing parameter.~~ **FIXED** — the usage error is validated before any lookup.
   The scenario that pinned the old order is inverted and renamed.
+
+- ~~Logins were used where nicenames belong. The tax_query looked for
+  `cap-<user_login>`, but author terms are `cap-<user_nicename>`, so a `--from`
+  user whose nicename differs from their login (set by a plugin, or a `-2`
+  collision suffix) had none of their posts found. The co-authors handed to
+  `add_coauthors()`, including `--to`, were logins too, and it looks them up by
+  nicename: a `--to` co-author with no author term yet matched no one and got a
+  stray unprefixed term instead of the byline.~~ **FIXED** (VIPPLUG-354). Pinned
+  in "Swap between co-authors whose logins differ from their nicenames".
+  `assign-user-to-coauthor` passed the `--coauthor` login the same way and is
+  fixed with it. Existing co-authors on a post were rescued by luck: WordPress
+  falls back to matching a term by name, and author terms are named after the
+  login.
 
 ## CoAuthors_Plus::add_coauthors() return value
 
