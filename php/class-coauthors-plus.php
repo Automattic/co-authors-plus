@@ -2247,12 +2247,13 @@ class CoAuthors_Plus {
 		} else {
 			$wp_query->queried_object = $wp_query->queried_object_id = null;
 			$wp_query->is_author      = $wp_query->is_archive = false;
-			$wp_query->is_404         = false;
 
 			// Core queries an unknown author_name as post_author = 0, which matches
 			// posts bylined only by guest authors. Without a 404, every slug renders
-			// those posts as a paginated archive.
-			add_filter( 'pre_handle_404', array( $this, 'handle_unknown_author_404' ) );
+			// those posts as a paginated archive. Like core, never 404 in wp-admin.
+			if ( ! is_admin() ) {
+				add_filter( 'pre_handle_404', array( $this, 'handle_unknown_author_404' ) );
+			}
 		}
 	}
 
@@ -2260,7 +2261,8 @@ class CoAuthors_Plus {
 	 * Send a 404 for an author archive whose slug matches no user or guest author.
 	 *
 	 * Hooked to `pre_handle_404` by fix_author_page(), so it runs once, in place
-	 * of WP::handle_404(), and does what core does when it decides on a 404.
+	 * of WP::handle_404(), and does what core does when it decides on a 404. A
+	 * callback that already handled the request keeps its decision.
 	 *
 	 * @param bool $preempt Whether to short-circuit default header status handling.
 	 * @return bool
@@ -2269,6 +2271,10 @@ class CoAuthors_Plus {
 		global $wp_query;
 
 		remove_filter( 'pre_handle_404', array( $this, 'handle_unknown_author_404' ) );
+
+		if ( false !== $preempt ) {
+			return (bool) $preempt;
+		}
 
 		$wp_query->set_404();
 		status_header( 404 );
