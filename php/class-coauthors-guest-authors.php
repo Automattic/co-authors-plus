@@ -14,7 +14,15 @@ class CoAuthors_Guest_Authors {
 	public $post_type              = 'guest-author';
 	public $parent_page            = 'users.php';
 	public $list_guest_authors_cap = 'list_users';
-	public $add_guest_author_cap   = 'edit_posts';
+
+	/**
+	 * No longer used: creating a guest author needs the post type's
+	 * `create_posts` capability, which is the manage capability.
+	 *
+	 * @deprecated 4.2.0
+	 * @var string
+	 */
+	public $add_guest_author_cap = 'edit_posts';
 
 	public static $cache_group = 'coauthors-plus-guest-authors';
 
@@ -140,6 +148,24 @@ class CoAuthors_Guest_Authors {
 			'show_in_menu'        => false,
 			// Nothing reads guest authors through core REST; coauthors/v1 is the supported route.
 			'show_in_rest'        => false,
+			// Creating, listing and editing all need the manage capability, so
+			// core's post screens (post-new.php, post.php, edit.php) and anything
+			// else that checks these follow the same rule as the Guest Authors
+			// screen. Deleting keeps the usual post rights and also needs the
+			// manage capability; see require_manage_cap_to_delete().
+			'map_meta_cap'        => true,
+			'capabilities'        => array_fill_keys(
+				array(
+					'create_posts',
+					'edit_posts',
+					'edit_others_posts',
+					'edit_private_posts',
+					'edit_published_posts',
+					'publish_posts',
+					'read_private_posts',
+				),
+				$this->list_guest_authors_cap
+			),
 			'supports'            => array(
 				'thumbnail',
 			),
@@ -155,6 +181,28 @@ class CoAuthors_Guest_Authors {
 		remove_post_type_support( $this->post_type, 'title' );
 		remove_post_type_support( $this->post_type, 'editor' );
 
+		add_filter( 'map_meta_cap', array( $this, 'require_manage_cap_to_delete' ), 10, 4 );
+	}
+
+	/**
+	 * Require the manage capability, as well as the usual post rights, to delete a guest author.
+	 *
+	 * The manage capability can be lowered with the coauthors_guest_author_manage_cap
+	 * filter, so deleting a profile still needs the rights to delete it as a post,
+	 * wherever the deletion comes from: the Guest Authors screen, core's trash or XML-RPC.
+	 *
+	 * @param string[] $caps    Primitive capabilities required.
+	 * @param string   $cap     Capability being checked.
+	 * @param int      $user_id User ID.
+	 * @param array    $args    Arguments; the post ID first.
+	 * @return string[]
+	 */
+	public function require_manage_cap_to_delete( $caps, $cap, $user_id, $args ) {
+		if ( 'delete_post' === $cap && ! empty( $args[0] ) && get_post_type( $args[0] ) === $this->post_type ) {
+			$caps[] = $this->list_guest_authors_cap;
+		}
+
+		return $caps;
 	}
 
 	/**
@@ -699,7 +747,7 @@ class CoAuthors_Guest_Authors {
 			<div class="wrap">
 				<h1 class="wp-heading-inline"><?php echo esc_html( get_admin_page_title() ); ?></h1>
 				<?php
-				if ( current_user_can( $this->add_guest_author_cap ) ) {
+				if ( current_user_can( get_post_type_object( $this->post_type )->cap->create_posts ) ) {
 					$add_new_url = admin_url( "post-new.php?post_type={$this->post_type}" );
 					?><a href="<?php echo esc_url( $add_new_url ); ?>" class="page-title-action"><?php esc_html_e( 'Add New', 'co-authors-plus' ); ?></a><?php
 				}
