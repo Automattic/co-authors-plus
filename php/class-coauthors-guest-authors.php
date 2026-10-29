@@ -199,7 +199,8 @@ class CoAuthors_Guest_Authors {
 	 */
 	public function require_manage_cap_to_delete( $caps, $cap, $user_id, $args ) {
 		if ( 'delete_post' === $cap && ! empty( $args[0] ) && get_post_type( $args[0] ) === $this->post_type ) {
-			$caps[] = $this->list_guest_authors_cap;
+			// The manage capability as registered, like the post type's other capabilities.
+			$caps[] = get_post_type_object( $this->post_type )->cap->create_posts;
 		}
 
 		return $caps;

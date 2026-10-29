@@ -41,6 +41,8 @@ class DeleteConfirmationScreenTest extends TestCase {
 		global $coauthors_plus;
 		$coauthors_plus->guest_authors->list_guest_authors_cap = $this->manage_cap_backup;
 		$_GET = $this->get_backup;
+		remove_all_filters( 'coauthors_guest_author_manage_cap' );
+		( new \CoAuthors_Guest_Authors() )->register_hooks();
 
 		parent::tear_down();
 	}
@@ -56,6 +58,14 @@ class DeleteConfirmationScreenTest extends TestCase {
 	private function render_confirmation_as( \WP_User $user ): string {
 		global $coauthors_plus;
 
+		// As if a site filtered coauthors_guest_author_manage_cap down to edit_posts.
+		add_filter(
+			'coauthors_guest_author_manage_cap',
+			static function () {
+				return 'edit_posts';
+			}
+		);
+		( new \CoAuthors_Guest_Authors() )->register_hooks();
 		$coauthors_plus->guest_authors->list_guest_authors_cap = 'edit_posts';
 
 		wp_set_current_user( self::factory()->user->create( array( 'role' => 'administrator' ) ) );

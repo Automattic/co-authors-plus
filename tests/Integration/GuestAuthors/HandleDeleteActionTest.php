@@ -67,6 +67,8 @@ class HandleDeleteActionTest extends TestCase {
 	public function tear_down() {
 		global $coauthors_plus;
 		$coauthors_plus->guest_authors->list_guest_authors_cap = $this->manage_cap_backup;
+		remove_all_filters( 'coauthors_guest_author_manage_cap' );
+		( new \CoAuthors_Guest_Authors() )->register_hooks();
 
 		parent::tear_down();
 	}
@@ -302,6 +304,13 @@ class HandleDeleteActionTest extends TestCase {
 		$guest_author_obj = $coauthors_plus->guest_authors;
 
 		// As if a site filtered coauthors_guest_author_manage_cap down to edit_posts.
+		add_filter(
+			'coauthors_guest_author_manage_cap',
+			static function () {
+				return 'edit_posts';
+			}
+		);
+		( new \CoAuthors_Guest_Authors() )->register_hooks();
 		$guest_author_obj->list_guest_authors_cap = 'edit_posts';
 
 		$expected = __( "You don't have permission to delete this guest author.", 'co-authors-plus' );
