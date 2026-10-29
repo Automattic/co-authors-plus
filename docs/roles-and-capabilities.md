@@ -85,12 +85,13 @@ Contributors can then publish any post they can edit, including their own, not o
 
 ## Guest author profiles
 
-Guest authors are managed from the **Users > Guest Authors** screen. These checks apply:
+Guest authors are managed from the **Users > Guest Authors** screen. The `guest-author` post type's capabilities are set from the same capability, so WordPress's own post screens for it (`post-new.php`, `post.php` and `edit.php`) and XML-RPC follow the same rules. These checks apply:
 
 | Action | Capability checked | Default roles | Filter |
 | --- | --- | --- | --- |
 | Open **Users > Guest Authors**, and its search | `list_users` | Administrator | [`coauthors_guest_author_manage_cap`](./filters.md#coauthors_guest_author_manage_cap) |
-| Delete a guest author from that screen | `delete_post` on the profile, for the **Delete** link, the confirmation screen and the deletion; the confirmation screen and the deletion also need `list_users` | Administrator | `coauthors_guest_author_manage_cap`, for `list_users` |
+| Create, list or edit guest authors, on that screen or WordPress's post screens | `list_users` | Administrator | `coauthors_guest_author_manage_cap` |
+| Delete or trash a guest author | `delete_post` on the profile, which needs `list_users` as well as the usual rights to delete it as a post | Administrator | `coauthors_guest_author_manage_cap`, for `list_users` |
 | **Create Profile** and **Edit Profile** on the Users list | `list_users` | Administrator. **Create Profile** is hidden unless [`coauthors_show_create_profile_user_link`](./filters.md#coauthors_show_create_profile_user_link) returns `true` | `coauthors_guest_author_manage_cap` |
 | Link a guest author to a user | `list_users`, as well as being able to edit the profile | Administrator | `coauthors_guest_author_manage_cap`. [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap) limits who can be linked |
 

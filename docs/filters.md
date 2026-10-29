@@ -168,7 +168,7 @@ The value is read once on `init` at the default priority, and only when guest au
 
 ### `coauthors_guest_author_manage_cap`
 
-Capability required to manage guest authors, and to change which user a guest author is linked to. Defaults to `list_users`. Deleting a guest author also needs `delete_post` on the profile, on the confirmation screen and when the deletion runs, whatever this filter returns. See [Roles and capabilities](./roles-and-capabilities.md).
+Capability required to manage guest authors, and to change which user a guest author is linked to. Defaults to `list_users`. It applies wherever guest authors can be created, listed or edited, including WordPress's own post screens for the `guest-author` post type, because the post type's capabilities are set from it when the post type is registered. Deleting a guest author also needs `delete_post` on the profile, whatever this filter returns. See [Roles and capabilities](./roles-and-capabilities.md).
 
 ### `coauthors_guest_author_parent_page`
 
