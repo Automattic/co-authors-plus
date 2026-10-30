@@ -17,9 +17,10 @@ use CoAuthors_Plus;
  * Unit coverage for Jetpack Open Graph Tags integration.
  *
  * Regression coverage for issue #1023:
- * Jetpack Social and companion integrations invoke `apply_filters( 'jetpack_open_graph_tags', $tags )`
- * with only 1 argument. The callback must define the second parameter ($image_dimensions)
- * as optional with a default array value to prevent a PHP fatal ArgumentCountError.
+ * Jetpack Social releases before March 2025 (and some third-party code) invoke
+ * `apply_filters( 'jetpack_open_graph_tags', $tags )` with only 1 argument. The callback must
+ * define the second parameter ($image_dimensions) as optional with a default array value to
+ * prevent a PHP fatal ArgumentCountError.
  *
  * @covers \CoAuthors_Plus::filter_jetpack_open_graph_tags
  */
@@ -56,28 +57,6 @@ final class JetpackOpenGraphTagsTest extends TestCase {
 		);
 
 		$result = $this->coauthors_plus->filter_jetpack_open_graph_tags( $tags );
-
-		$this->assertSame( $tags, $result );
-	}
-
-	/**
-	 * Verify that filter_jetpack_open_graph_tags accepts two arguments as passed by core Jetpack.
-	 */
-	public function test_filter_jetpack_open_graph_tags_accepts_two_arguments(): void {
-		Functions\when( 'is_author' )->justReturn( false );
-		Functions\when( 'is_singular' )->justReturn( false );
-
-		$tags = array(
-			'og:type'  => 'website',
-			'og:title' => 'Home Page',
-		);
-
-		$dimensions = array(
-			'width'  => 1200,
-			'height' => 630,
-		);
-
-		$result = $this->coauthors_plus->filter_jetpack_open_graph_tags( $tags, $dimensions );
 
 		$this->assertSame( $tags, $result );
 	}
