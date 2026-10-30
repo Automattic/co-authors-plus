@@ -240,6 +240,211 @@ class EndpointsTest extends TestCase {
 		$this->assertCount( 2, $update_response->data );
 	}
 
+	/**
+	 * Formatting an author with an existing term must not write to it: term
+	 * description refreshes belong to the profile-update hook, not to GET
+	 * routes.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_does_not_refresh_existing_term(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author();
+		$term   = $coauthors_plus->update_author_term( $author );
+
+		wp_update_term(
+			$term->term_id,
+			$coauthors_plus->coauthor_taxonomy,
+			array( 'description' => 'stale description' )
+		);
+		wp_cache_delete( 'author-term-' . $author->user_nicename, 'co-authors-plus' );
+
+		$formatted = $this->_api->_format_author_data( $author );
+
+		$this->assertSame( $term->term_id, $formatted['termId'] );
+		$this->assertSame(
+			'stale description',
+			get_term( $term->term_id, $coauthors_plus->coauthor_taxonomy )->description,
+			'Failed to assert that formatting an author for a GET response leaves the term description untouched.'
+		);
+	}
+
+	/**
+	 * Sites can hide values like the email address from the editor with the
+	 * coauthors_rest_author_data filter.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_filter_can_remove_email(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author();
+		$coauthors_plus->update_author_term( $author );
+
+		$callback = static function ( $data ) {
+			unset( $data['email'] );
+			return $data;
+		};
+		add_filter( 'coauthors_rest_author_data', $callback );
+		$formatted = $this->_api->_format_author_data( $author );
+		remove_filter( 'coauthors_rest_author_data', $callback );
+
+		$this->assertArrayNotHasKey( 'email', $formatted );
+		$this->assertSame( $author->display_name, $formatted['displayName'] );
+	}
+
+	/**
+	 * The editor needs id, termId and userNicename to save co-authors, so a
+	 * callback can't change or remove them, and a non-array return is ignored.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_filter_keeps_keys_needed_to_save(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author();
+		$term   = $coauthors_plus->update_author_term( $author );
+
+		$expected = array(
+			'id'           => (string) $author->ID,
+			'termId'       => $term->term_id,
+			'userNicename' => $author->user_nicename,
+		);
+
+		$callback = static function () {
+			return array( 'termId' => 0 );
+		};
+		add_filter( 'coauthors_rest_author_data', $callback );
+		$formatted = $this->_api->_format_author_data( $author );
+		remove_filter( 'coauthors_rest_author_data', $callback );
+
+		foreach ( $expected as $key => $value ) {
+			$this->assertSame( $value, $formatted[ $key ] );
+		}
+		$this->assertArrayNotHasKey( 'email', $formatted );
+
+		add_filter( 'coauthors_rest_author_data', '__return_false' );
+		$formatted = $this->_api->_format_author_data( $author );
+		remove_filter( 'coauthors_rest_author_data', '__return_false' );
+
+		$this->assertSame( $author->user_email, $formatted['email'] );
+	}
+
+	/**
+	 * The formatter is a pure read: an author with no term is returned as
+	 * null, and no term is created as a side effect of formatting.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_is_a_pure_read(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author();
+
+		$this->assertFalse( $coauthors_plus->get_author_term( $author ) );
+
+		$this->assertNull( $this->_api->_format_author_data( $author ) );
+
+		$this->assertFalse(
+			$coauthors_plus->get_author_term( $author ),
+			'Failed to assert that formatting an author does not create a term.'
+		);
+	}
+
+	/**
+	 * The authors route must backfill a term for the post_author fallback on a
+	 * pre-CAP post (no author terms, term-less author), or the author would be
+	 * omitted from the response and silently dropped on the next editor save.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_build_authors_response
+	 */
+	public function test_get_coauthors_backfills_term_for_legacy_post_author(): void {
+		global $coauthors_plus;
+
+		$author  = $this->create_author();
+		$post_id = self::factory()->post->create( array( 'post_author' => $author->ID ) );
+
+		// Recreate the legacy state: no author terms on the post, no term for the author.
+		wp_delete_object_term_relationships( $post_id, $coauthors_plus->coauthor_taxonomy );
+		$term = $coauthors_plus->get_author_term( $author );
+		if ( $term ) {
+			wp_delete_term( $term->term_id, $coauthors_plus->coauthor_taxonomy );
+			wp_cache_delete( 'author-term-' . $author->user_nicename, 'co-authors-plus' );
+		}
+		$this->assertFalse( $coauthors_plus->get_author_term( $author ) );
+
+		$get_request = new \WP_REST_Request( 'GET' );
+		$get_request->set_url_params( array( 'post_id' => $post_id ) );
+
+		$get_response = $this->_api->get_coauthors( $get_request );
+
+		$term = $coauthors_plus->get_author_term( $author );
+		$this->assertNotEmpty( $term, 'Failed to assert that the authors route backfills a missing author term.' );
+		$this->assertSame( $author->user_nicename, $get_response->data[0]['userNicename'] );
+		$this->assertSame( $term->term_id, $get_response->data[0]['termId'] );
+	}
+
+	/**
+	 * Pins the remaining write-on-GET: the search route still creates a term
+	 * for any matching user who lacks one (see #1434 for the plan to move this
+	 * to selection time). If this fails because no term was created, search
+	 * has gone read-only and the remaining-scope notes on #1434 need updating.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::get_coauthors_search_results
+	 */
+	public function test_search_still_backfills_term_for_term_less_user(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author( 'termless_searchable' );
+		$this->assertFalse( $coauthors_plus->get_author_term( $author ) );
+
+		$get_request = new \WP_REST_Request( 'GET' );
+		$get_request->set_url_params( array( 'q' => 'termless' ) );
+
+		$get_response = $this->_api->get_coauthors_search_results( $get_request );
+
+		$term = $coauthors_plus->get_author_term( $author );
+		$this->assertNotEmpty( $term, 'Failed to assert that the search route backfills a missing author term.' );
+		$this->assertSame( $author->user_nicename, $get_response->data[0]['userNicename'] );
+		$this->assertSame( $term->term_id, $get_response->data[0]['termId'] );
+	}
+
+	/**
+	 * Values are returned raw, not HTML-escaped, so apostrophes reach the
+	 * editor intact (#937).
+	 *
+	 * @covers \CoAuthors\API\Endpoints::_format_author_data
+	 */
+	public function test_format_author_data_does_not_html_escape_values(): void {
+		global $coauthors_plus;
+
+		$user = $this->factory()->user->create_and_get(
+			array(
+				'user_login'   => 'oreily',
+				'user_email'   => 'oreily@example.com',
+				'display_name' => "Jonathan O'Reily",
+			)
+		);
+		$guest_id = $this->create_guest_author( "Siobhan O'Neill" );
+		$guest    = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $guest_id );
+
+		// The formatter is a pure read, so both authors need a term first.
+		$coauthors_plus->update_author_term( $user );
+		$coauthors_plus->update_author_term( $guest );
+
+		$user_data  = $this->_api->_format_author_data( $user );
+		$guest_data = $this->_api->_format_author_data( $guest );
+
+		$this->assertSame( "Jonathan O'Reily", $user_data['displayName'] );
+		$this->assertSame( "Siobhan O'Neill", $guest_data['displayName'] );
+		$this->assertSame( (string) $user->ID, $user_data['id'] );
+
+		// Gravatar URLs carry several query args; they must not become &#038;.
+		$this->assertStringContainsString( '&', $user_data['avatar'] );
+		$this->assertStringNotContainsString( '&#038;', $user_data['avatar'] );
+	}
+
 	public function data_only_editor_role_can_edit_coauthors(): array {
 		return array(
 			'Subscriber' => array(
@@ -400,7 +605,7 @@ class EndpointsTest extends TestCase {
 	}
 
 	/**
-	 * The routes without a post keep the global check.
+	 * An Editor can use the routes without a post.
 	 *
 	 * @covers \CoAuthors\API\Endpoints::can_edit_coauthors
 	 */
@@ -417,6 +622,69 @@ class EndpointsTest extends TestCase {
 
 		$this->assertSame( 200, rest_do_request( $search )->get_status() );
 		$this->assertSame( 200, rest_do_request( $by_terms )->get_status() );
+	}
+
+	/**
+	 * A user who can edit others' pages but not others' posts.
+	 */
+	private function create_pages_only_editor(): \WP_User {
+		$user = $this->create_editor( 'pages_only' );
+		$user->add_cap( 'edit_others_posts', false );
+
+		return $user;
+	}
+
+	/**
+	 * Setting co-authors on a post checks that post's type.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::can_edit_post_coauthors
+	 */
+	public function test_pages_only_editor_can_update_coauthors_on_a_page_but_not_a_post(): void {
+		$author = $this->create_author();
+		$page   = self::factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_type'   => 'page',
+			)
+		);
+		$post   = $this->create_post( $author );
+		$this->_cap->add_coauthors( $page, array( $author->user_nicename ) );
+		wp_set_current_user( $this->create_pages_only_editor()->ID );
+
+		$page_request = new \WP_REST_Request( 'POST', '/coauthors/v1/authors/' . $page );
+		$page_request->set_param( 'new_authors', 'author,pages_only' );
+		$post_request = new \WP_REST_Request( 'POST', '/coauthors/v1/authors/' . $post->ID );
+		$post_request->set_param( 'new_authors', 'author,pages_only' );
+
+		$this->assertSame( 200, rest_do_request( $page_request )->get_status() );
+		$this->assertSame( 403, rest_do_request( $post_request )->get_status() );
+		$this->assertPostHasCoAuthors( $post->ID, array( $author ) );
+	}
+
+	/**
+	 * The routes without a post let in anyone who can set authors on a
+	 * supported post type, so the block editor can search on pages.
+	 *
+	 * @covers \CoAuthors\API\Endpoints::can_edit_coauthors
+	 */
+	public function test_pages_only_editor_can_use_the_routes_without_a_post(): void {
+		wp_set_current_user( $this->create_pages_only_editor()->ID );
+		$this->assertTrue( $this->_api->can_edit_coauthors() );
+
+		$posts_only = static function () {
+			return array( 'post' );
+		};
+		add_filter( 'coauthors_supported_post_types', $posts_only );
+		$this->_cap->supported_post_types = array();
+
+		try {
+			$can_edit_without_pages = $this->_api->can_edit_coauthors();
+		} finally {
+			remove_filter( 'coauthors_supported_post_types', $posts_only );
+			$this->_cap->supported_post_types = array();
+		}
+
+		$this->assertFalse( $can_edit_without_pages, 'Pages are not a supported post type here.' );
 	}
 
 	/**

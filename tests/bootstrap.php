@@ -29,12 +29,38 @@ if ( false !== $testsuite_key && isset( $argv_local[ $testsuite_key + 1 ] ) && '
 }
 
 if ( ! $is_integration ) {
+	// Load Patchwork before any test file pulls in plugin functions, so Brain Monkey can redefine them.
+	require_once dirname( __DIR__ ) . '/vendor/antecedent/patchwork/Patchwork.php';
+
 	/*
 	 * Unit suite: no WordPress. Define ABSPATH so plugin files guarded by
 	 * `if ( ! defined( 'ABSPATH' ) ) { exit; }` can be loaded under test.
 	 */
 	if ( ! defined( 'ABSPATH' ) ) {
 		define( 'ABSPATH', dirname( __DIR__ ) . '/' );
+	}
+
+	/*
+	 * WordPress polyfills the PHP 8 string functions in wp-includes/compat.php,
+	 * and has done since 5.9 — comfortably below the 6.4 this plugin requires,
+	 * so plugin code may use them freely. Without WordPress loaded, the unit
+	 * suite has to stand in for that on the PHP 7.4 leg of the matrix.
+	 */
+	if ( ! function_exists( 'str_starts_with' ) ) {
+		/**
+		 * Polyfill for PHP 8.0's str_starts_with().
+		 *
+		 * @param string $haystack String to search in.
+		 * @param string $needle   String to search for.
+		 * @return bool
+		 */
+		function str_starts_with( string $haystack, string $needle ): bool {
+			if ( '' === $needle ) {
+				return true;
+			}
+
+			return 0 === strncmp( $haystack, $needle, strlen( $needle ) );
+		}
 	}
 
 	return;
@@ -59,7 +85,7 @@ if ( false !== $_phpunit_polyfills_path ) {
 }
 
 if ( ! file_exists( "{$_tests_dir}/includes/functions.php" ) ) {
-	echo "Could not find {$_tests_dir}/includes/functions.php, have you run bin/install-wp-tests.sh ?" . PHP_EOL; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+	echo "Could not find {$_tests_dir}/includes/functions.php. The integration tests run inside wp-env: run `wp-env start`, then `composer test:integration` (see CONTRIBUTING.md)." . PHP_EOL; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 	exit( 1 );
 }
 

@@ -11,7 +11,7 @@ Multiple byline management for WordPress, supporting both WordPress users and gu
 | **Class prefix** | `CoAuthors_` (legacy), `CoAuthors\` / `Automattic\CoAuthorsPlus\` (namespaced) |
 | **Function prefix** | `cap_` (helpers), `coauthors*` (template tags) |
 | **Source directory** | `php/` (PHP classes), `src/` (JS/blocks) |
-| **Version** | 4.1.3 |
+| **Version** | 4.2.0 |
 | **Requires PHP** | 7.4+ |
 | **Requires WP** | 6.4+ |
 
@@ -21,23 +21,26 @@ Multiple byline management for WordPress, supporting both WordPress users and gu
 co-authors-plus/
 ├── co-authors-plus.php                # Main plugin file (includes, globals, bootstrap)
 ├── template-tags.php                  # Template tag functions (coauthors(), get_coauthors(), etc.)
-├── upgrade.php                        # Database upgrade functions
 ├── php/
 │   ├── class-coauthors-plus.php       # Main plugin class (taxonomy, meta boxes, AJAX)
 │   ├── class-coauthors-guest-authors.php  # Guest author CPT management
 │   ├── class-coauthors-template-filters.php # Frontend template filters
+│   ├── class-coauthors-feed-filters.php # Feed byline filters
 │   ├── class-coauthors-wp-list-table.php   # Admin list table
 │   ├── class-coauthors-iterator.php   # Iterator for looping through coauthors
-│   ├── class-wp-cli.php              # WP-CLI commands
+│   ├── cli/                           # WP-CLI commands, one class each
 │   ├── api/endpoints/                 # REST API controller (CoAuthors\API\Endpoints)
 │   ├── blocks/                        # Gutenberg blocks (CoAuthors\Blocks)
 │   └── integrations/                  # AMP, Yoast, WordPress Importer, Jetpack
 ├── src/                               # JavaScript/React source (blocks, store)
 ├── build/                             # Compiled JavaScript output
 ├── tests/
-│   └── Integration/                   # Integration tests (requires wp-env)
+│   ├── Unit/                          # PHP unit tests (no WordPress; Brain Monkey)
+│   ├── Integration/                   # Integration tests (requires wp-env)
+│   ├── Behat/                         # Behat context (FeatureContext)
+│   └── e2e/                           # Playwright E2E specs (requires wp-env)
 ├── features/                          # Behat acceptance tests
-├── .github/workflows/                 # CI: cs-lint, integration, lint, build, behat, deploy
+├── .github/workflows/                 # CI: cs-lint, unit, integration, behat, lint, js-test, build, e2e, deploy
 └── .phpcs.xml.dist                    # PHPCS configuration
 ```
 
@@ -47,10 +50,12 @@ co-authors-plus/
 - `php/class-coauthors-guest-authors.php` — `CoAuthors_Guest_Authors`: guest author CPT (`guest-author`), admin UI, avatar handling, privacy export
 - `template-tags.php` — Template functions: `coauthors()`, `get_coauthors()`, `is_coauthor_for_post()`, `coauthors_posts_links()`, etc.
 - `php/class-coauthors-iterator.php` — Enables looping through coauthors; modifies global `$authordata`
-- `php/class-coauthors-template-filters.php` — Frontend filters for `the_author`, `the_author_posts_link`, RSS feeds
+- `php/class-coauthors-template-filters.php` — Frontend filters for `the_author`, `the_author_posts_link`; opt-in via `coauthors_auto_apply_template_tags`
+- `php/class-coauthors-feed-filters.php` — `CoAuthors_Feed_Filters`: co-author bylines in feeds (`the_author` and `get_the_author_user_url` under `is_feed()`, extra `dc:creator` elements on `rss2_item`); on by default, opt out via `coauthors_filter_feed_authors`
 - `php/api/endpoints/class-coauthors-controller.php` — REST API controller (`coauthors/v1`)
 - `php/blocks/` — Five Gutenberg blocks for displaying coauthor information
-- `php/class-wp-cli.php` — WP-CLI commands: `wp co-authors-plus create-guest-authors`, `create-terms-for-posts`
+- `php/cli/` — WP-CLI commands, one class per subcommand, registered in `register-commands.php`
+- `php/services/` — Domain services the commands and other entry points can share
 - `php/integrations/` — Integrations with AMP, Yoast SEO, WordPress Importer, Jetpack
 
 ### Dependencies
@@ -63,6 +68,7 @@ co-authors-plus/
 composer cs                # Check code standards (PHPCS)
 composer cs-fix            # Auto-fix code standard violations
 composer lint              # PHP syntax lint
+composer test:unit         # Run PHP unit tests (no WordPress or wp-env needed)
 composer test:integration  # Run integration tests (requires wp-env)
 composer test:integration-ms  # Run multisite integration tests
 composer coverage          # Run tests with HTML coverage report
@@ -70,18 +76,22 @@ composer behat             # Run Behat acceptance tests
 npm run build              # Build JavaScript/block assets
 npm run lint:js            # Lint JavaScript (ESLint)
 npm run lint:css           # Lint CSS (Stylelint)
+npm run test:unit          # Run JS unit tests (Vitest, src/**/*.test.js)
+npm run test:e2e           # Run Playwright E2E tests (requires wp-env and npm run build)
 ```
 
-**Note:** This plugin has integration tests and Behat acceptance tests — no separate unit test suite.
+**Note:** The test suites are PHP unit (`tests/Unit`), PHP integration (`tests/Integration`), Behat (`features/`), JS unit (Vitest) and E2E (Playwright, `tests/e2e`). Only the PHP and JS unit suites run without wp-env.
+
+**Note:** `composer test:integration` (`--env-cwd=wp-content/plugins/co-authors-plus`) and Behat's `FeatureContext::get_plugin_slug()` assume the checkout directory is named `co-authors-plus`, because wp-env mounts the plugin under the directory's name.
 
 ## Conventions
 
 Follow the standards documented in `~/code/plugin-standards/` for full details. Key points:
 
 - **Commits**: Use the `/commit` skill. Favour explaining "why" over "what".
-- **PRs**: Use the `/pr` skill. Squash and merge by default.
+- **PRs**: Use the `/pr` skill. Merge with a merge commit; squash and rebase merging are disabled on this repo.
 - **Branch naming**: `feature/description`, `fix/description` from `develop`.
-- **Testing**: Integration tests for WordPress-dependent behaviour. Use the existing `TestCase` base class in `tests/Integration/`. Behat for acceptance testing.
+- **Testing**: Unit tests for logic that doesn't need WordPress, using the `TestCase` base class in `tests/Unit/`. Integration tests for WordPress-dependent behaviour, using the `TestCase` base class in `tests/Integration/`. Behat for WP-CLI acceptance testing.
 - **Code style**: WordPress coding standards via PHPCS. Tabs for indentation.
 - **i18n**: All user-facing strings must use the `co-authors-plus` text domain.
 

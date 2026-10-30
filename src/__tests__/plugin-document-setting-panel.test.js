@@ -5,6 +5,8 @@
  * We use a runtime fallback to support both WP 6.4-6.5 (edit-post) and WP 6.6+ (editor).
  */
 
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+
 describe( 'PluginDocumentSettingPanel compatibility', () => {
 	const MockComponent = () => 'MockPluginDocumentSettingPanel';
 

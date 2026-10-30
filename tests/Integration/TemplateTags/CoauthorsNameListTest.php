@@ -172,4 +172,112 @@ class CoauthorsNameListTest extends TestCase {
 		// Restore global post from backup.
 		$post = $post_backup;
 	}
+
+	/**
+	 * Data provider for the escaping checks.
+	 *
+	 * Each case carries the template-tag function name and the escaped form of
+	 * the guest author value it outputs. Guest authors have no nickname, so
+	 * coauthors_nicknames() exercises the user_login fallback.
+	 *
+	 * @return iterable<string, array<string, string>>
+	 */
+	public function data_name_list_tags_escape_values(): iterable {
+		yield 'coauthors escapes display_name' => array(
+			'function' => 'coauthors',
+			'expected' => 'Display &amp; &lt;b&gt;Name&lt;/b&gt;',
+		);
+
+		yield 'coauthors_firstnames escapes first_name' => array(
+			'function' => 'coauthors_firstnames',
+			'expected' => 'First &amp; &lt;b&gt;Name&lt;/b&gt;',
+		);
+
+		yield 'coauthors_lastnames escapes last_name' => array(
+			'function' => 'coauthors_lastnames',
+			'expected' => 'Last &amp; &lt;b&gt;Name&lt;/b&gt;',
+		);
+
+		yield 'coauthors_nicknames escapes the user_login fallback' => array(
+			'function' => 'coauthors_nicknames',
+			'expected' => 'login &amp; &lt;b&gt;name&lt;/b&gt;',
+		);
+
+		yield 'coauthors_emails escapes user_email' => array(
+			'function' => 'coauthors_emails',
+			'expected' => 'email&amp;&lt;b&gt;x&lt;/b&gt;@example.com',
+		);
+	}
+
+	/**
+	 * Checks the name-list template tags escape each co-author's value, on both
+	 * the echo and return paths, while leaving the separators' markup intact.
+	 *
+	 * @dataProvider data_name_list_tags_escape_values
+	 *
+	 * @param string $function Template-tag function under test.
+	 * @param string $expected Escaped value the tag should output.
+	 */
+	public function test_name_list_tags_escape_values( string $function, string $expected ): void {
+		global $post, $coauthors_plus;
+
+		$guest_author_id = $coauthors_plus->guest_authors->create(
+			array(
+				'display_name' => 'Display & <b>Name</b>',
+				'first_name'   => 'First & <b>Name</b>',
+				'last_name'    => 'Last & <b>Name</b>',
+				'user_login'   => 'login & <b>name</b>',
+				'user_email'   => 'email&<b>x</b>@example.com',
+			)
+		);
+		$this->assertIsInt( $guest_author_id, 'Guest author creation failed.' );
+		$guest_author = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $guest_author_id );
+		$coauthors_plus->add_coauthors( $this->post->ID, array( $guest_author->user_nicename ) );
+
+		// Backing up global post.
+		$post_backup = $post;
+
+		$post = $this->post;
+
+		$output = $function( '</span><span>', '</span><span>', '<span>', '</span>', false );
+		$this->assertSame( '<span>' . $expected . '</span>', $output, 'Returned value is not escaped, or the separators were.' );
+
+		ob_start();
+		$returned = $function();
+		$echoed   = ob_get_clean();
+		$this->assertSame( $expected, $echoed, 'Echoed value is not escaped.' );
+		$this->assertSame( $expected, $returned, 'Value returned alongside the echo is not escaped.' );
+
+		// Restore global post from backup.
+		$post = $post_backup;
+	}
+
+	/**
+	 * Checks escaping does not double-encode values that are already stored
+	 * encoded, as core does for WordPress user display names.
+	 */
+	public function test_coauthors_does_not_double_encode_stored_entities(): void {
+		global $post;
+
+		$user = $this->factory()->user->create_and_get(
+			array(
+				'display_name' => 'Smith & Jones',
+			)
+		);
+		$this->assertSame( 'Smith &amp; Jones', $user->display_name, 'Core no longer encodes display names on save.' );
+
+		// Backing up global post.
+		$post_backup = $post;
+
+		$post = $this->factory()->post->create_and_get(
+			array(
+				'post_author' => $user->ID,
+			)
+		);
+
+		$this->assertSame( 'Smith &amp; Jones', coauthors( null, null, null, null, false ) );
+
+		// Restore global post from backup.
+		$post = $post_backup;
+	}
 }

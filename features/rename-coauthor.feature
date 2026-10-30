@@ -8,7 +8,7 @@ Feature: Co-authors can be renamed
 		Then STDERR should be:
           """
 	      Error: Parameter errors:
-           missing --from parameter
+           missing --from parameter (The login the term currently represents.)
           """
 
 	Scenario: Error on a missing required --to parameter
@@ -16,7 +16,7 @@ Feature: Co-authors can be renamed
 		Then STDERR should be:
           """
 	      Error: Parameter errors:
-           missing --to parameter
+           missing --to parameter (The login it should represent instead.)
           """
 
 	Scenario: Error on an invalid co-author

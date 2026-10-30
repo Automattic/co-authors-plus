@@ -255,25 +255,35 @@ class Endpoints {
 	}
 
 	/**
-	 * Permissions for updating co-authors.
+	 * Permissions for the routes that are not about a specific post.
+	 *
+	 * The user must be able to set authors on at least one supported post type.
 	 *
 	 * @return bool
 	 */
 	public function can_edit_coauthors(): bool {
-		return $this->coauthors->current_user_can_set_authors();
+		foreach ( $this->coauthors->supported_post_types() as $post_type ) {
+			if ( $this->coauthors->current_user_can_set_authors( $post_type ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
 	 * Permissions for reading or updating the co-authors of a specific post.
 	 *
-	 * The user must be able to set authors and edit the post in the request.
+	 * The user must be able to set authors on the post's type and edit the post in the request.
 	 *
 	 * @param WP_REST_Request $request Request object.
 	 * @return bool
 	 */
 	public function can_edit_post_coauthors( WP_REST_Request $request ): bool {
-		return current_user_can( 'edit_post', (int) $request->get_param( 'post_id' ) )
-			&& $this->can_edit_coauthors();
+		$post_id = (int) $request->get_param( 'post_id' );
+
+		return current_user_can( 'edit_post', $post_id )
+			&& $this->coauthors->current_user_can_set_authors( get_post_type( $post_id ) );
 	}
 
 	/**
@@ -286,27 +296,65 @@ class Endpoints {
 	 * so we exclude it from the response rather than feed the editor data it
 	 * can't round-trip.
 	 *
+	 * This is a pure read: it never creates or refreshes the term. Description
+	 * freshness is owned by the profile-update hook, so a description changed
+	 * by any other means (a direct wp_update_term(), an import) stays as-is
+	 * until the profile is next saved. The one caller that can legitimately
+	 * see a term-less author backfills before formatting
+	 * (see _build_authors_response()).
+	 *
 	 * @param object $author The result from co-authors methods.
 	 * @return array|null
 	 */
 	public function _format_author_data( $author ): ?array {
-		$term = $this->coauthors->update_author_term( $author );
+		$term = $this->coauthors->get_author_term( $author );
 
-		if ( ! $term || is_wp_error( $term ) ) {
+		if ( ! $term ) {
 			return null;
 		}
 
 		$user_type = isset( $author->type ) && 'guest-author' === $author->type ? 'guest-user' : 'wp-user';
 
-		return array(
-			'id'           => esc_html( $author->ID ),
+		// Raw values: the REST layer can't know the consumer's output context
+		// (HTML, attribute, JS string...), so escaping is the consumer's job.
+		$data = array(
+			'id'           => (string) $author->ID,
 			'termId'       => (int) $term->term_id,
-			'userNicename' => esc_html( rawurldecode( $author->user_nicename ) ),
-			'login'        => esc_html( $author->user_login ),
+			'userNicename' => rawurldecode( $author->user_nicename ),
+			'login'        => (string) $author->user_login,
 			'email'        => sanitize_email( $author->user_email ),
-			'displayName'  => esc_html( str_replace( '∣', '|', $author->display_name ) ),
-			'avatar'       => esc_url( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ),
-			'userType'     => esc_html( $author->type ),
+			'displayName'  => str_replace( '∣', '|', $author->display_name ),
+			'avatar'       => sanitize_url( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ),
+			'userType'     => (string) $author->type,
+		);
+
+		/**
+		 * Filters the author data the block editor gets for search results and selected co-authors.
+		 *
+		 * Use it to add data, like a job title, that the
+		 * `coAuthors.formatAuthorData.label` JS filter can show in the author
+		 * option. You can also remove values, like the email address. The `id`,
+		 * `termId` and `userNicename` keys can't be changed, because the editor
+		 * needs them to save the co-authors.
+		 *
+		 * @since 4.2.0
+		 *
+		 * @param array  $data   Author data sent to the editor.
+		 * @param object $author The author, a WP_User or guest author object.
+		 */
+		$filtered = apply_filters( 'coauthors_rest_author_data', $data, $author );
+
+		if ( ! is_array( $filtered ) ) {
+			return $data;
+		}
+
+		return array_merge(
+			$filtered,
+			array(
+				'id'           => $data['id'],
+				'termId'       => $data['termId'],
+				'userNicename' => $data['userNicename'],
+			)
 		);
 	}
 
@@ -321,6 +369,17 @@ class Endpoints {
 
 		if ( ! empty( $authors ) ) {
 			foreach ( $authors as $author ) {
+				// Self-heal the one term-less case that can reach this response:
+				// the post_author fallback in get_coauthors() on a pre-CAP post.
+				// The editor persists selections by term id, so without a term
+				// the author would be omitted and silently dropped on the next
+				// save. A one-time write per author; the formatter stays pure.
+				// On the POST path terms already exist via add_coauthors(), so
+				// this guard is a cached no-op there.
+				if ( ! $this->coauthors->get_author_term( $author ) ) {
+					$this->coauthors->update_author_term( $author );
+				}
+
 				$formatted = $this->_format_author_data( $author );
 				if ( null !== $formatted ) {
 					$response[] = $formatted;

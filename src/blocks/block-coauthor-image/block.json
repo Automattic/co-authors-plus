@@ -29,10 +29,7 @@
 			}
 		}
 	},
-	"usesContext": [
-		"co-authors-plus/author",
-		"co-authors-plus/layout"
-	],
+	"usesContext": [ "co-authors-plus/author", "co-authors-plus/layout" ],
 	"attributes": {
 		"isLink": {
 			"type": "boolean",

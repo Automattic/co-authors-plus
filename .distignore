@@ -3,6 +3,7 @@
 /.github/
 /.wordpress-org/
 /.claude/
+/.context/
 /.idea/
 /.phpunit.cache/
 /bin/
@@ -26,6 +27,7 @@
 
 # Build tooling
 /behat.yml
+/eslint.config.js
 /webpack.config.js
 
 # Package management
@@ -41,8 +43,12 @@
 /docs/
 
 # Test configuration
+/artifacts/
 /phpunit.xml
 /phpunit.xml.dist
+/playwright.config.js
+/vitest.config.mjs
+/vitest.setup.mjs
 
 # WP.com specific
 /wpcom-helper.php

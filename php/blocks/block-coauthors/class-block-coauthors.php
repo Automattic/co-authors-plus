@@ -29,7 +29,11 @@ class Block_CoAuthors {
 		register_block_type(
 			dirname( COAUTHORS_PLUS_FILE ) . '/build/blocks/block-coauthors',
 			array(
-				'render_callback' => array( __CLASS__, 'render_block' ),
+				'render_callback'   => array( __CLASS__, 'render_block' ),
+				// The callback renders the inner template once per author, so
+				// skip core's default inner pass. That pass has no author
+				// context and its output is thrown away.
+				'skip_inner_blocks' => true,
 			)
 		);
 	}
@@ -105,7 +109,8 @@ class Block_CoAuthors {
 
 		$blocks = self::render_coauthors_blocks_with_template(
 			self::get_block_as_template( $block ),
-			$authors
+			$authors,
+			$block->context
 		);
 
 		$separators = self::get_separators(
@@ -130,26 +135,6 @@ class Block_CoAuthors {
 		}
 
 		return current( $block->parsed_block['innerContent'] ) . implode( $blocks_with_separators ) . end( $block->parsed_block['innerContent'] );
-	}
-
-	/**
-	 * Get Composed Map Function
-	 * Use array reduce so an unknown array of functions can be used as single array_map callback
-	 *
-	 * @since 3.6.0
-	 * @param array $fns
-	 * @return callable
-	 */
-	public static function get_composed_map_function( ...$fns ): callable {
-		return function ( $value ) use ( $fns ) {
-			return array_reduce(
-				$fns,
-				function( $v, callable $f ) {
-					return $f( $v );
-				},
-				$value
-			);
-		};
 	}
 
 	/**
@@ -186,20 +171,24 @@ class Block_CoAuthors {
 	 * @since 3.6.0
 	 * @param array $template
 	 * @param array $authors
+	 * @param array $context Context of the Co-Authors block, passed on to the template.
 	 * @return array
 	 */
-	public static function render_coauthors_blocks_with_template( array $template, array $authors ): array {
+	public static function render_coauthors_blocks_with_template( array $template, array $authors, array $context = array() ): array {
+		$render_template = self::get_template_render_function( $template, $context );
+
 		return array_map(
-			self::get_composed_map_function(
-				self::get_template_render_function( $template ),
-				// To match JSX from editor, remove line-breaks between blocks.
-				function( $content ) {
-					return str_replace( "\n", '', $content );
-				},
-				// To match JSX from editor, trim whitespace around blocks.
-				'trim',
-				Templating::get_render_element_function( 'div', 'class="wp-block-co-authors-plus-coauthor"' )
-			),
+			function( array $author ) use ( $render_template ): string {
+				// To match JSX from the editor, remove line-breaks between
+				// blocks and trim the whitespace around each one.
+				$content = trim( str_replace( "\n", '', $render_template( $author ) ) );
+
+				return Templating::render_element(
+					'div',
+					'class="wp-block-co-authors-plus-coauthor"',
+					$content
+				);
+			},
 			$authors
 		);
 	}
@@ -300,16 +289,20 @@ class Block_CoAuthors {
 	 *
 	 * @since 3.6.0
 	 * @param array $block_template
+	 * @param array $context Context to add each author to.
 	 * @return callable
 	 */
-	private static function get_template_render_function( array $block_template ): callable {
-		return function( array $author ) use ( $block_template ): string {
+	private static function get_template_render_function( array $block_template, array $context ): callable {
+		return function( array $author ) use ( $block_template, $context ): string {
 			return (
 				new WP_Block(
 					$block_template,
-					array(
-						'co-authors-plus/author' => $author,
-						'co-authors-plus/layout' => $block_template['attrs']['layout']['type'] ?? 'default'
+					array_merge(
+						$context,
+						array(
+							'co-authors-plus/author' => $author,
+							'co-authors-plus/layout' => $block_template['attrs']['layout']['type'] ?? 'default'
+						)
 					)
 				)
 			)->render(

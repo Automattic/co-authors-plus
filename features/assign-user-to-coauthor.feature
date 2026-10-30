@@ -4,6 +4,15 @@ Feature: Posts can be assigned from a user to a co-author
 		Given a WP installation with the Co-Authors Plus plugin
 		And I run `wp co-authors-plus create-guest-authors`
 
+	Scenario: Error on a missing required --coauthor parameter
+		When I try `wp co-authors-plus assign-user-to-coauthor --user_id=1`
+		Then STDERR should be:
+		"""
+		Error: Parameter errors:
+		 missing --coauthor parameter (The co-author to give the byline to.)
+		"""
+		And the return code should be 1
+
 	Scenario: Error when neither --user_login nor --user_id is supplied
 		When I try `wp co-authors-plus assign-user-to-coauthor --coauthor=admin`
 		Then STDERR should be:
@@ -103,4 +112,26 @@ Feature: Posts can be assigned from a user to a co-author
 		And STDOUT should contain:
 		"""
 		admin
+		"""
+
+	Scenario: Give the byline to a co-author whose login differs from their nicename
+		# A co-author with no author term yet is only found by nicename, so the
+		# login alone used to leave a stray "slee" term and no byline.
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp user create slee slee@example.com --role=author --porcelain`
+		And save STDOUT as {SLEE_ID}
+		And I run `wp user update {SLEE_ID} --user_nicename=sam-lee`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="A post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp co-authors-plus assign-user-to-coauthor --user_login=author1 --coauthor=slee --append_coauthors`
+		Then STDOUT should contain:
+		"""
+		Success: All done! 1 post was affected.
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-author1
+		cap-sam-lee
 		"""

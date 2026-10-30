@@ -1,4 +1,5 @@
 import { applyFilters } from '@wordpress/hooks';
+import { decodeEntities } from '@wordpress/html-entities';
 
 /**
  * Normalize the raw coauthors value from the core entity store into
@@ -30,34 +31,55 @@ export const extractTermIds = ( coauthors ) => {
 };
 
 /**
+ * Decide whether the post's co-authors must be resolved by post ID rather than
+ * from the entity store's `coauthors` value.
+ *
+ * The sidebar normally reads the author taxonomy's default REST output — an
+ * array of term IDs — from `getEditedPostAttribute( 'coauthors' )`. Some sites
+ * override that REST field (commonly a `register_rest_field( 'post', 'coauthors',
+ * … )` carried over from before Co-Authors Plus exposed the field itself), so it
+ * arrives as full author objects with no `term_id`. `extractTermIds` then yields
+ * nothing and the panel would render empty even though the post has co-authors.
+ *
+ * When that happens we fall back to the plugin's own `/coauthors/v1/authors/{id}`
+ * endpoint, which returns the authors regardless of the REST field's shape.
+ *
+ * @param {Array|undefined} coauthors Raw value from getEditedPostAttribute.
+ * @return {boolean} True when the post has co-authors but no usable term IDs.
+ */
+export const needsPostIdFallback = ( coauthors ) => {
+	return (
+		Array.isArray( coauthors ) &&
+		coauthors.length > 0 &&
+		0 === extractTermIds( coauthors ).length
+	);
+};
+
+/**
  * Move an item up or down in an array.
  *
- * @param {string} targetItem Item to move.
+ * The array is returned unchanged when the move would leave it — moving the
+ * first item up or the last item down — or when the item is not in the list at
+ * all. Without that guard, moving the first item up splices at index -1, which
+ * wraps it to second-from-last instead of doing nothing.
+ *
+ * @param {Object} targetItem Item to move.
  * @param {Array}  itemsArr   Array in which to move the item.
  * @param {string} direction  'up' or 'down'
  * @return {Array} Array with reordered items.
  */
 export const moveItem = ( targetItem, itemsArr, direction ) => {
-	const currIndex = itemsArr
-		.map( ( item ) => item.value )
-		.indexOf( targetItem.value );
-	const indexUpdate = direction === 'up' ? -1 : 1;
-	const newIndex = currIndex + indexUpdate;
+	const currIndex = itemsArr.findIndex(
+		( item ) => item.value === targetItem.value
+	);
+	const newIndex = currIndex + ( 'up' === direction ? -1 : 1 );
 
-	const arrCopy = itemsArr.map( ( item ) => Object.assign( {}, item ) );
-	const targetCopy = arrCopy[ currIndex ];
+	if ( currIndex < 0 || newIndex < 0 || newIndex >= itemsArr.length ) {
+		return itemsArr;
+	}
 
-	const newItems = ( () => {
-		return arrCopy.filter( ( item ) => {
-			if ( item.value ) {
-				return item.value !== targetCopy.value;
-			}
-			return item !== targetCopy;
-		} );
-	} )();
-	const sortedArr = [ ...newItems ];
-
-	sortedArr.splice( newIndex, 0, targetCopy );
+	const sortedArr = [ ...itemsArr ];
+	sortedArr.splice( newIndex, 0, sortedArr.splice( currIndex, 1 )[ 0 ] );
 
 	return sortedArr;
 };
@@ -87,10 +109,10 @@ export const addItemByValue = (
 	currAuthors,
 	dropDownAuthors
 ) => {
-	const newAuthorObj = dropDownAuthors.filter(
+	const newAuthorObj = dropDownAuthors.find(
 		( item ) => item.value === newAuthorValue
 	);
-	return [ ...currAuthors, newAuthorObj[ 0 ] ];
+	return [ ...currAuthors, newAuthorObj ];
 };
 
 /**
@@ -137,20 +159,22 @@ export const buildCoauthorTermIds = (
  * @param {string} author.id           The author ID.
  * @param {string} author.displayName  Name to display in the UI.
  * @param {string} author.userNicename The unique username.
- * @param {string} author.email        The author's email address.
- * @param {string} author.userType     The entity type, either 'wpuser' or 'guest-user'.
+ * @param {string} author.email        The author's email address. Can be empty when filtered out.
+ * @param {string} author.userType     The entity type, either 'wpuser' or 'guest-author'.
  *
  * @return {Object} The object containing data relevant to the Coauthors component.
  */
 export const formatAuthorData = ( author ) => {
-	const { id, displayName, userNicename, email, userType, termId } = author;
+	const { id, userNicename, email, userType, termId } = author;
+	// WordPress stores display names with &, < and > entity-encoded.
+	const displayName = decodeEntities( author.displayName );
 
 	return {
 		id,
 		termId,
 		label: applyFilters(
 			'coAuthors.formatAuthorData.label',
-			`${ displayName } | ${ email }`,
+			email ? `${ displayName } | ${ email }` : displayName,
 			author
 		),
 		display: displayName,
