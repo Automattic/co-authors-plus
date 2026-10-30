@@ -137,9 +137,9 @@ describe( 'Utility - addItemByValue', () => {
 	} );
 
 	it( 'should return the existing array when the dropdown is empty', () => {
-		expect(
-			addItemByValue( newAuthorValue, selectedAuthors, [] )
-		).toBe( selectedAuthors );
+		expect( addItemByValue( newAuthorValue, selectedAuthors, [] ) ).toBe(
+			selectedAuthors
+		);
 	} );
 } );
 
