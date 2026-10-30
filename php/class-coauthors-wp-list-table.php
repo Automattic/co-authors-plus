@@ -73,20 +73,20 @@ class CoAuthors_WP_List_Table extends WP_List_Table {
 
 		$args = apply_filters( 'coauthors_guest_author_query_args', $args );
 
-		if ( isset( $_REQUEST['orderby'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sorting parameter, nonce verified at page level.
-			switch ( $_REQUEST['orderby'] ) {
-				case 'display_name':
-					$args['orderby'] = 'title';
-					break;
-				case 'first_name':
-				case 'last_name':
-					$args['orderby']  = 'meta_value';
-					$args['meta_key'] = $coauthors_plus->guest_authors->get_post_meta_key( $_REQUEST['orderby'] );
-					break;
-			}
+		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_key( wp_unslash( $_REQUEST['orderby'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sorting parameter, nonce verified at page level.
+		switch ( $orderby ) {
+			case 'display_name':
+				$args['orderby'] = 'title';
+				break;
+			case 'first_name':
+			case 'last_name':
+				$args['orderby']  = 'meta_value';
+				$args['meta_key'] = $coauthors_plus->guest_authors->get_post_meta_key( $orderby );
+				break;
 		}
-		if ( isset( $_REQUEST['order'] ) && in_array( strtoupper( $_REQUEST['order'] ), array( 'ASC', 'DESC' ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sort direction, nonce verified at page level.
-			$args['order'] = strtoupper( $_REQUEST['order'] );
+		$order = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( wp_unslash( $_REQUEST['order'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sort direction, nonce verified at page level.
+		if ( in_array( $order, array( 'ASC', 'DESC' ), true ) ) {
+			$args['order'] = $order;
 		}
 
 		$this->filters = array(
@@ -95,8 +95,9 @@ class CoAuthors_WP_List_Table extends WP_List_Table {
 			'without-linked-account' => __( 'Without linked account', 'co-authors-plus' ),
 		);
 
-		if ( isset( $_REQUEST['filter'] ) && array_key_exists( $_REQUEST['filter'], $this->filters ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Filter parameter, nonce verified at page level.
-			$this->active_filter = sanitize_key( $_REQUEST['filter'] );
+		$filter = isset( $_REQUEST['filter'] ) ? sanitize_key( wp_unslash( $_REQUEST['filter'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Filter parameter, nonce verified at page level.
+		if ( array_key_exists( $filter, $this->filters ) ) {
+			$this->active_filter = $filter;
 		} else {
 			$this->active_filter = 'show-all';
 		}

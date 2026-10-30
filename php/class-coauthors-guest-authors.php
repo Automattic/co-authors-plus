@@ -260,7 +260,7 @@ class CoAuthors_Guest_Authors {
 			return;
 		}
 
-		if ( ! wp_verify_nonce( $_GET['nonce'], 'create-guest-author' ) ) {
+		if ( ! wp_verify_nonce( sanitize_key( wp_unslash( $_GET['nonce'] ) ), 'create-guest-author' ) ) {
 			wp_die( esc_html__( "Doin' something fishy, huh?", 'co-authors-plus' ) );
 		}
 
@@ -299,7 +299,7 @@ class CoAuthors_Guest_Authors {
 		}
 
 		// Verify the user is who they say they are
-		if ( ! wp_verify_nonce( $_POST['_wpnonce'], 'delete-guest-author' ) ) {
+		if ( ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'delete-guest-author' ) ) {
 			wp_die( esc_html__( "Doin' something fishy, huh?", 'co-authors-plus' ) );
 		}
 
@@ -309,7 +309,7 @@ class CoAuthors_Guest_Authors {
 		}
 
 		// Make sure the guest author actually exists
-		$guest_author = $this->get_guest_author_by( 'ID', (int) wp_unslash( $_POST['id'] ) );
+		$guest_author = $this->get_guest_author_by( 'ID', (int) $_POST['id'] );
 		if ( ! $guest_author ) {
 			wp_die( esc_html__( "Guest author can't be deleted because it doesn't exist.", 'co-authors-plus' ) );
 		}
@@ -321,7 +321,7 @@ class CoAuthors_Guest_Authors {
 
 		// Perform the reassignment if needed
 		$guest_author_term = $coauthors_plus->get_author_term( $guest_author );
-		switch ( wp_unslash( $_POST['reassign'] ) ) {
+		switch ( sanitize_key( wp_unslash( $_POST['reassign'] ) ) ) {
 			// Leave assigned to the current linked account
 			case 'leave-assigned':
 				$reassign_to = $guest_author->linked_account;
@@ -657,7 +657,7 @@ class CoAuthors_Guest_Authors {
 		// Allow guest authors to be deleted
 		if ( isset( $_GET['action'], $_GET['id'], $_GET['_wpnonce'] ) && 'delete' == $_GET['action'] ) {
 			// Make sure the user is who they say they are
-			if ( ! wp_verify_nonce( $_GET['_wpnonce'], 'guest-author-delete' ) ) {
+			if ( ! wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'guest-author-delete' ) ) {
 				wp_die( esc_html__( "Doin' something fishy, huh?", 'co-authors-plus' ) );
 			}
 
@@ -979,7 +979,7 @@ class CoAuthors_Guest_Authors {
 			return $post_data;
 		}
 
-		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( $_POST['guest-author-nonce'], 'guest-author-nonce' ) ) {
+		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['guest-author-nonce'] ) ), 'guest-author-nonce' ) ) {
 			return $post_data;
 		}
 
@@ -1078,7 +1078,7 @@ class CoAuthors_Guest_Authors {
 			return;
 		}
 
-		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( $_POST['guest-author-nonce'], 'guest-author-nonce' ) ) {
+		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['guest-author-nonce'] ) ), 'guest-author-nonce' ) ) {
 			return;
 		}
 
@@ -1099,7 +1099,7 @@ class CoAuthors_Guest_Authors {
 				// A linked guest author takes the user's place on every byline, so only users
 				// who can manage guest authors can change the link.
 				if ( ! empty( $_POST[ $linked_account_key ] ) && current_user_can( $this->list_guest_authors_cap ) ) {
-					$user_id = (int) wp_unslash( $_POST[ $linked_account_key ] );
+					$user_id = (int) $_POST[ $linked_account_key ];
 				} else {
 					continue;
 				}

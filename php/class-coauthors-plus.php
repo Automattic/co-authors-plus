@@ -1770,8 +1770,7 @@ class CoAuthors_Plus {
 			// if current_user_can_set_authors and nonce valid
 			check_admin_referer( 'coauthors-edit', 'coauthors-nonce' );
 
-			$coauthors = (array) wp_unslash( $_POST['coauthors'] );
-			$coauthors = array_map( 'sanitize_title', $coauthors );
+			$coauthors = array_map( 'sanitize_title', (array) wp_unslash( $_POST['coauthors'] ) );
 			$this->add_coauthors( $post_id, $coauthors );
 		} else {
 			// If a co-author isn't currently set, we need to explicitly set one.
@@ -2282,12 +2281,12 @@ class CoAuthors_Plus {
 	 */
 	public function ajax_suggest(): void {
 
-		if ( ! isset( $_REQUEST['_wpnonce'] ) || ! wp_verify_nonce( $_REQUEST['_wpnonce'], 'coauthors-search' ) ) {
+		if ( ! isset( $_REQUEST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_REQUEST['_wpnonce'] ) ), 'coauthors-search' ) ) {
 			wp_send_json( array() );
 		}
 
 		// jQuery UI autocomplete uses 'term' parameter.
-		$search = isset( $_REQUEST['term'] ) ? sanitize_text_field( strtolower( wp_unslash( $_REQUEST['term'] ) ) ) : '';
+		$search = isset( $_REQUEST['term'] ) ? strtolower( sanitize_text_field( wp_unslash( $_REQUEST['term'] ) ) ) : '';
 		if ( empty( $search ) ) {
 			wp_send_json( array() );
 		}
