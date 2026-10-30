@@ -73,20 +73,20 @@ class CoAuthors_WP_List_Table extends WP_List_Table {
 
 		$args = apply_filters( 'coauthors_guest_author_query_args', $args );
 
-		if ( isset( $_REQUEST['orderby'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sorting parameter, nonce verified at page level.
-			switch ( $_REQUEST['orderby'] ) {
-				case 'display_name':
-					$args['orderby'] = 'title';
-					break;
-				case 'first_name':
-				case 'last_name':
-					$args['orderby']  = 'meta_value';
-					$args['meta_key'] = $coauthors_plus->guest_authors->get_post_meta_key( $_REQUEST['orderby'] );
-					break;
-			}
+		$orderby = isset( $_REQUEST['orderby'] ) ? sanitize_key( wp_unslash( $_REQUEST['orderby'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sorting parameter, nonce verified at page level.
+		switch ( $orderby ) {
+			case 'display_name':
+				$args['orderby'] = 'title';
+				break;
+			case 'first_name':
+			case 'last_name':
+				$args['orderby']  = 'meta_value';
+				$args['meta_key'] = $coauthors_plus->guest_authors->get_post_meta_key( $orderby ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Sorting by a name field.
+				break;
 		}
-		if ( isset( $_REQUEST['order'] ) && in_array( strtoupper( $_REQUEST['order'] ), array( 'ASC', 'DESC' ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sort direction, nonce verified at page level.
-			$args['order'] = strtoupper( $_REQUEST['order'] );
+		$order = isset( $_REQUEST['order'] ) ? strtoupper( sanitize_key( wp_unslash( $_REQUEST['order'] ) ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Sort direction, nonce verified at page level.
+		if ( in_array( $order, array( 'ASC', 'DESC' ), true ) ) {
+			$args['order'] = $order;
 		}
 
 		$this->filters = array(
@@ -95,8 +95,9 @@ class CoAuthors_WP_List_Table extends WP_List_Table {
 			'without-linked-account' => __( 'Without linked account', 'co-authors-plus' ),
 		);
 
-		if ( isset( $_REQUEST['filter'] ) && array_key_exists( $_REQUEST['filter'], $this->filters ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Filter parameter, nonce verified at page level.
-			$this->active_filter = sanitize_key( $_REQUEST['filter'] );
+		$filter = isset( $_REQUEST['filter'] ) ? sanitize_key( wp_unslash( $_REQUEST['filter'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Filter parameter, nonce verified at page level.
+		if ( array_key_exists( $filter, $this->filters ) ) {
+			$this->active_filter = $filter;
 		} else {
 			$this->active_filter = 'show-all';
 		}
@@ -104,7 +105,7 @@ class CoAuthors_WP_List_Table extends WP_List_Table {
 		$key = $coauthors_plus->guest_authors->get_post_meta_key( 'linked_account' );
 		switch ( $this->active_filter ) {
 			case 'with-linked-account':
-				$args['meta_query'] = array(
+				$args['meta_query'] = array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Filtering by linked account.
 					array(
 						'key'     => $key,
 						'compare' => '!=',
@@ -113,7 +114,7 @@ class CoAuthors_WP_List_Table extends WP_List_Table {
 				);
 				break;
 			case 'without-linked-account':
-				$args['meta_query'] = array(
+				$args['meta_query'] = array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Filtering by linked account.
 					'relation' => 'OR',
 					array(
 						'key'     => $key,
@@ -154,8 +155,8 @@ class CoAuthors_WP_List_Table extends WP_List_Table {
 
 	public function filter_query_for_search( $where ) {
 		global $wpdb;
-		if ( isset( $_REQUEST['s'] ) ) {
-			$var    = '%' . sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) . '%';
+		if ( isset( $_REQUEST['s'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list table search.
+			$var    = '%' . sanitize_text_field( wp_unslash( $_REQUEST['s'] ) ) . '%'; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list table search.
 			$where .= $wpdb->prepare( ' AND (post_title LIKE %s OR post_name LIKE %s )', $var, $var );
 		}
 		return $where;

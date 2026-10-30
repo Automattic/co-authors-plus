@@ -20,6 +20,21 @@
 		</properties>
 	</rule>
 
+	<!-- "cap" alone is too short for the sniff, so the underscore is part of the prefix. -->
+	<rule ref="WordPress.NamingConventions.PrefixAllGlobals">
+		<properties>
+			<property name="prefixes" type="array">
+				<element value="coauthors"/>
+				<element value="cap_"/>
+				<element value="Automattic\CoAuthorsPlus"/>
+			</property>
+		</properties>
+		<!-- Tests, dev scripts and Behat fixtures don't ship, and interact with WordPress globals and hooks. -->
+		<exclude-pattern>*/bin/*</exclude-pattern>
+		<exclude-pattern>*/features/*</exclude-pattern>
+		<exclude-pattern>*/tests/*</exclude-pattern>
+	</rule>
+
 	<rule ref="PHPCompatibilityWP"/>
 	<config name="testVersion" value="7.4-"/>
 
@@ -58,20 +73,6 @@
 	</rule>
 	<!-- PHPUnit test files use PascalCase naming convention -->
 	<rule ref="WordPress.Files.FileName">
-		<exclude-pattern>*/tests/*</exclude-pattern>
-	</rule>
-	<!-- Test namespaces don't need plugin prefix -->
-	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedNamespaceFound">
-		<exclude-pattern>*/tests/*</exclude-pattern>
-	</rule>
-	<!-- Tests interact with WordPress globals and hooks -->
-	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedVariableFound">
-		<exclude-pattern>*/tests/*</exclude-pattern>
-	</rule>
-	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound">
-		<exclude-pattern>*/tests/*</exclude-pattern>
-	</rule>
-	<rule ref="WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedClassFound">
 		<exclude-pattern>*/tests/*</exclude-pattern>
 	</rule>
 	<!-- Test stubs may have mixed structure -->
