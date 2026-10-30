@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.2.0] - 2026-10-30
 
 **This release changes several behaviors that sites and extensions may rely on:**
 
@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+* Each field on the Edit Guest Author screen is associated with its label, so screen readers announce what each field is for, and clicking a label focuses its field by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1544
 * Search in the block editor's author selector actually sends a request, so authors beyond the first page of results can be found by @davidsword in https://github.com/Automattic/Co-Authors-Plus/pull/1356
 * The block editor's Authors panel is populated on sites that override the `coauthors` REST field, for example with a long-standing `register_rest_field()` snippet by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1363
 * Co-author names with apostrophes or ampersands display correctly in the block editor by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1465
@@ -865,7 +866,7 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
-[Unreleased]: https://github.com/automattic/co-authors-plus/compare/4.1.3...develop
+[4.2.0]: https://github.com/automattic/co-authors-plus/compare/4.1.3...4.2.0
 [4.1.3]: https://github.com/automattic/co-authors-plus/compare/4.1.2...4.1.3
 [4.1.2]: https://github.com/automattic/co-authors-plus/compare/4.1.1...4.1.2
 [4.1.1]: https://github.com/automattic/co-authors-plus/compare/4.1.0...4.1.1
