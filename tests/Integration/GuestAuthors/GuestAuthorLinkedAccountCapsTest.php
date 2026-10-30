@@ -15,8 +15,9 @@ use WPDieException;
 /**
  * A linked guest author takes the user's place on every byline, and anyone
  * whose login matches the guest author's counts as a co-author of that user's
- * posts. So only users who can manage guest authors can change the link, even
- * though anyone who can edit posts can create a guest author.
+ * posts. So only users who can manage guest authors can change the link. Since
+ * editing a guest author also needs the manage capability (see
+ * GuestAuthorPostTypeCapsTest), these checks are a second line of defence.
  *
  * @covers \CoAuthors_Guest_Authors::manage_guest_author_filter_post_data
  * @covers \CoAuthors_Guest_Authors::manage_guest_author_save_meta_fields
@@ -129,24 +130,6 @@ class GuestAuthorLinkedAccountCapsTest extends TestCase {
 
 		$this->assertFalse( current_user_can( 'edit_post', $victim_post->ID ) );
 		$this->assertSame( 'wpuser', $this->_cap->get_coauthor_by( 'user_login', 'victim' )->type );
-	}
-
-	/**
-	 * Otherwise the guest author would be saved with the user's login and no link,
-	 * and that login would count as a co-author wherever the guest author is.
-	 */
-	public function test_user_who_cannot_manage_guest_authors_cannot_name_a_guest_author_after_a_user(): void {
-		$author = $this->create_author( 'takenlogin' );
-		wp_set_current_user( $author->ID );
-
-		$this->expectException( WPDieException::class );
-
-		$this->save_guest_author(
-			array(
-				'cap-display_name'   => 'takenlogin',
-				'cap-linked_account' => (string) $author->ID,
-			)
-		);
 	}
 
 	public function test_user_who_can_manage_guest_authors_can_link_an_account(): void {

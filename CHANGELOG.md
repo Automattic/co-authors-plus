@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * The `coauthors/v1` REST endpoints return raw, unescaped values, so code that prints them into HTML must escape them itself.
 * The plain byline template tags, such as `coauthors()` and `coauthors_firstnames()`, now escape their output, so markup added through the `get_coauthors` or `get_the_author_{$field}` filters is printed as text.
 * Setting co-authors on a post now needs that post type's own edit-others capability, such as `edit_others_pages` for pages, rather than always `edit_others_posts`.
+* Creating, listing and editing guest authors needs the guest author manage capability (`list_users` by default) everywhere, including WordPress's own post screens for the `guest-author` post type, so Editors can no longer edit guest authors there. Use the `coauthors_guest_author_manage_cap` filter to let other roles manage guest authors.
 * Co-author permissions go through `map_meta_cap`, so a co-author gets the rights the post's author would have under the co-author's own role. This was also released in 4.1.3.
 * The `CoAuthorsPlus_Command` class is gone; every WP-CLI command keeps its name but is now a class of its own.
 
@@ -95,6 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+* Apply the guest author manage capability to the `guest-author` post type, so creating, listing and editing guest authors through WordPress's own post screens or XML-RPC needs it too, and deleting a guest author needs it alongside the usual delete rights. `CoAuthors_Guest_Authors::$add_guest_author_cap` is deprecated by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1549
 * Stop `/wp/v2/coauthors` exposing co-authors' user logins, as term names, to visitors who aren't logged in: reading author terms through core's REST API now needs `edit_posts`. `/wp/v2/guest-author` is removed, as nothing used it; restore it with core's `register_post_type_args` filter if you need it by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1531
 * Escape co-author names and fields in `coauthors()`, `coauthors_firstnames()`, `coauthors_lastnames()`, `coauthors_nicknames()`, `coauthors_emails()` and `coauthors_ids()`, as the linked tags already did. Guest author fields could otherwise print markup by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1517
 * Require the `delete_post` capability on a guest author profile to delete it, not just the capability to manage guest authors. Sites using the default `coauthors_guest_author_manage_cap` won't notice a difference by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1511
