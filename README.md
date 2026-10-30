@@ -1,8 +1,8 @@
 # Co-Authors Plus
 
-Stable tag: 4.1.3  
+Stable tag: 4.2.0  
 Requires at least: 6.4  
-Tested up to: 7.0  
+Tested up to: 7.1  
 Requires PHP: 7.4  
 License: GPLv2 or later  
 License URI: https://www.gnu.org/licenses/gpl-2.0.html  
@@ -83,6 +83,20 @@ Yes. Many parts of Co-Authors Plus can be changed with a filter, for example mak
 
 The highlights of recent releases are below. Every change, including older releases, is listed in [CHANGELOG.md](https://github.com/Automattic/co-authors-plus/blob/main/CHANGELOG.md).
 
+### 4.2.0
+
+- **Changed:** RSS feeds credit each item's co-authors on every site. To keep the old feed bylines, return `false` from the `coauthors_filter_feed_authors` filter.
+- **Changed:** Creating, listing and editing guest authors needs the guest author manage capability (Administrators by default) everywhere, including WordPress's own post screens, so Editors can no longer edit guest authors there. Change this with the `coauthors_guest_author_manage_cap` filter.
+- **Changed:** Setting co-authors on pages and custom post types checks that post type's own edit-others capability.
+- **Changed:** Core's `/wp/v2/coauthors` REST route needs the `edit_posts` capability, and `/wp/v2/guest-author` is gone. Read co-authors through the plugin's `coauthors/v1` endpoints, which now return unescaped values.
+- **Changed:** The plain byline template tags, such as `coauthors()`, escape their output.
+- **New:** WP-CLI commands to move guest authors and their bylines between sites (`export-coauthors`, `import-coauthors`) and to list a post's co-authors (`list-authors`).
+- **New:** Filters to change the author data in the editors' author search, for example to hide email addresses.
+- **Fixed:** Co-author names with apostrophes display correctly in the block editor, and the Authors panel fills in on sites that override the `coauthors` REST field.
+- **Fixed:** Trashing a guest author no longer drops them from bylines.
+- **Fixed:** Many WP-CLI commands now do what they report, including `swap-coauthors --dry-run`, `reassign-terms` and the author term backfills.
+- **Security:** Tighter permission checks for managing guest authors, and no more user logins in public REST responses.
+
 ### 4.1.3
 
 - **Changed:** Co-authors now get the rights the post's author would have under the co-author's own role. A Subscriber credited on a post can no longer edit it, and co-authors can trash posts they are credited on when their role allows it for their own posts.
@@ -94,6 +108,10 @@ The highlights of recent releases are below. Every change, including older relea
 - **Security:** Tighten permission checks when changing a post's co-authors. Thanks to Faisal Ahammad for responsibly disclosing the issue.
 
 ## Upgrade Notice
+
+### 4.2.0
+
+Includes behaviour changes: feeds now credit co-authors, managing guest authors needs the manage capability on every screen, and core REST author routes need edit_posts. If you customise permissions, feeds or REST, read the changelog first.
 
 ### 4.1.3
 
