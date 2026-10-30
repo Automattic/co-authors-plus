@@ -13,7 +13,7 @@ use Automattic\CoAuthorsPlus\Tests\Integration\TestCase;
 
 /**
  * @covers \CoAuthors_Plus::fix_author_page()
- * @covers \CoAuthors_Plus::handle_unknown_author_404()
+ * @covers \CoAuthors_Plus::empty_unknown_author_query()
  */
 class UnknownAuthorArchiveTest extends TestCase {
 
@@ -56,20 +56,30 @@ class UnknownAuthorArchiveTest extends TestCase {
 	 *
 	 * @dataProvider data_unknown_author_urls
 	 */
-	public function test_unknown_author_slug_is_404( string $path, array $query_flags ): void {
+	public function test_unknown_author_slug_is_404( string $path ): void {
 		$this->go_to( home_url( $path ) );
 
-		$this->assertQueryTrue( ...$query_flags );
+		$this->assertQueryTrue( 'is_404' );
 		$this->assertSame( 404, $this->status_code );
+		$this->assertSame( 0, $GLOBALS['wp_query']->post_count );
 	}
 
 	public static function data_unknown_author_urls(): array {
 		return array(
-			'archive'     => array( '/author/does-not-exist/', array( 'is_404' ) ),
-			'second page' => array( '/author/does-not-exist/page/2/', array( 'is_404' ) ),
-			// WP_Query::set_404() keeps is_feed.
-			'feed'        => array( '/author/does-not-exist/feed/', array( 'is_404', 'is_feed' ) ),
+			'archive'     => array( '/author/does-not-exist/' ),
+			'second page' => array( '/author/does-not-exist/page/2/' ),
 		);
+	}
+
+	/**
+	 * Core never sends a 404 for a feed with no posts, so the feed is empty instead.
+	 */
+	public function test_unknown_author_feed_is_empty(): void {
+		$this->go_to( home_url( '/author/does-not-exist/feed/' ) );
+
+		$this->assertQueryTrue( 'is_feed' );
+		$this->assertSame( 200, $this->status_code );
+		$this->assertSame( 0, $GLOBALS['wp_query']->post_count );
 	}
 
 	/**
@@ -95,9 +105,9 @@ class UnknownAuthorArchiveTest extends TestCase {
 	}
 
 	/**
-	 * Core never sends a 404 in wp-admin, where author_name filters the posts list.
+	 * The wp-admin posts list, where author_name filters by author, is left alone.
 	 */
-	public function test_unknown_author_name_in_admin_is_not_404(): void {
+	public function test_unknown_author_name_in_admin_is_not_emptied(): void {
 		global $wp_query;
 
 		// go_to() leaves wp-admin, so call fix_author_page() as edit.php's query would.
@@ -105,21 +115,24 @@ class UnknownAuthorArchiveTest extends TestCase {
 		$wp_query->is_author = true;
 		set_query_var( 'author_name', 'does-not-exist' );
 		$this->_cap->fix_author_page( '' );
-		$has_404_callback = has_filter( 'pre_handle_404', array( $this->_cap, 'handle_unknown_author_404' ) );
+		$has_empty_query_callback = has_filter( 'posts_pre_query', array( $this->_cap, 'empty_unknown_author_query' ) );
 		$GLOBALS['current_screen'] = null;
 
-		$this->assertFalse( $has_404_callback );
+		$this->assertFalse( $has_empty_query_callback );
 	}
 
 	/**
-	 * A plugin that already handled the request through pre_handle_404 keeps its decision.
+	 * Only the main query is emptied, not another query on the same request.
 	 */
-	public function test_earlier_pre_handle_404_decision_is_kept(): void {
-		add_filter( 'pre_handle_404', '__return_true' );
+	public function test_secondary_query_is_not_emptied(): void {
+		global $wp_query;
 
-		$this->go_to( home_url( '/author/does-not-exist/' ) );
+		$wp_query->is_author = true;
+		set_query_var( 'author_name', 'does-not-exist' );
+		$this->_cap->fix_author_page( '' );
 
-		$this->assertFalse( is_404() );
-		$this->assertNull( $this->status_code );
+		$secondary = new \WP_Query( array( 'post_type' => 'post' ) );
+
+		$this->assertSame( 2, $secondary->post_count );
 	}
 }

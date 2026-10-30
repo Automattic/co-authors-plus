@@ -2249,38 +2249,33 @@ class CoAuthors_Plus {
 			$wp_query->is_author      = $wp_query->is_archive = false;
 
 			// Core queries an unknown author_name as post_author = 0, which matches
-			// posts bylined only by guest authors. Without a 404, every slug renders
-			// those posts as a paginated archive. Like core, never 404 in wp-admin.
+			// posts bylined only by guest authors. Without this, every slug renders
+			// those posts as a paginated archive and feed. With no posts, core sends
+			// the 404 itself. Leave wp-admin, where author_name filters the posts list.
 			if ( ! is_admin() ) {
-				add_filter( 'pre_handle_404', array( $this, 'handle_unknown_author_404' ) );
+				add_filter( 'posts_pre_query', array( $this, 'empty_unknown_author_query' ), 10, 2 );
 			}
 		}
 	}
 
 	/**
-	 * Send a 404 for an author archive whose slug matches no user or guest author.
+	 * Return no posts for an author archive whose slug matches no user or guest author.
 	 *
-	 * Hooked to `pre_handle_404` by fix_author_page(), so it runs once, in place
-	 * of WP::handle_404(), and does what core does when it decides on a 404. A
-	 * callback that already handled the request keeps its decision.
+	 * Hooked to `posts_pre_query` by fix_author_page(), and removed once it has run
+	 * for the main query.
 	 *
-	 * @param bool $preempt Whether to short-circuit default header status handling.
-	 * @return bool
+	 * @param WP_Post[]|int[]|null $posts Posts to return instead of querying, or null to query.
+	 * @param WP_Query             $query The query.
+	 * @return WP_Post[]|int[]|null
 	 */
-	public function handle_unknown_author_404( $preempt ): bool {
-		global $wp_query;
-
-		remove_filter( 'pre_handle_404', array( $this, 'handle_unknown_author_404' ) );
-
-		if ( false !== $preempt ) {
-			return (bool) $preempt;
+	public function empty_unknown_author_query( $posts, $query ): ?array {
+		if ( ! $query->is_main_query() ) {
+			return $posts;
 		}
 
-		$wp_query->set_404();
-		status_header( 404 );
-		nocache_headers();
+		remove_filter( 'posts_pre_query', array( $this, 'empty_unknown_author_query' ), 10 );
 
-		return true;
+		return array();
 	}
 
 	/**
