@@ -266,11 +266,13 @@ If a guest author with the same email address, or failing that the same login, a
 Creates a guest author profile, linked to the account, for each WordPress user on the site.
 
 ```sh
-wp co-authors-plus create-guest-authors [--offset=<offset>] [--number=<number>]
+wp co-authors-plus create-guest-authors [--offset=<offset>] [--number=<number>] [--role=<role>] [--<field>=<value>]
 ```
 
 - `--offset`: how many users to skip before starting. Defaults to 0.
 - `--number`: how many users to process. Defaults to all of them.
+- `--role`: only process users with this role.
+- `--<field>`: only process the users matched by any other [`WP_User_Query`](https://developer.wordpress.org/reference/classes/wp_user_query/prepare_query/) argument, such as `--include=12,34`. As with `wp user list`, the value of an argument whose name contains `__` is split on commas, so `--role__in=administrator,editor,author` matches all three roles. `--fields` is ignored.
 
 Users are taken in `user_login` order, so `--offset` and `--number` let you work through a large user list in chunks. Users that already have a linked profile are skipped, even if their display name has changed since, so an interrupted run can be repeated. The command shows a progress bar, then the number of profiles created and skipped. A user whose profile can't be created, for example because an unlinked guest author already has the login, gets a warning with the reason. A user that fails doesn't stop the run. The command reports how many users failed, and exits with 0.
 

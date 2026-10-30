@@ -54,6 +54,12 @@ class Create_Guest_Authors_Command {
 	 * [--number=<number>]
 	 * : How many users to process in this run. Defaults to all of them.
 	 *
+	 * [--role=<role>]
+	 * : Only process users with a certain role.
+	 *
+	 * [--<field>=<value>]
+	 * : Filter the users processed by any argument accepted by WP_User_Query().
+	 *
 	 * ## EXAMPLES
 	 *
 	 *     # Create profiles for every user.
@@ -61,6 +67,9 @@ class Create_Guest_Authors_Command {
 	 *
 	 *     # Work through the list a thousand at a time.
 	 *     $ wp co-authors-plus create-guest-authors --offset=1000 --number=1000
+	 *
+	 *     # Create profiles only for administrators, editors and authors.
+	 *     $ wp co-authors-plus create-guest-authors --role__in=administrator,editor,author
 	 *
 	 * @when after_wp_load
 	 *
@@ -76,6 +85,18 @@ class Create_Guest_Authors_Command {
 			'number' => '',
 		);
 		$parsed_args = wp_parse_args( $assoc_args, $defaults );
+
+		// WP-CLI passes every value as a string, but WP_User_Query only splits
+		// role and capability on commas. Split the __in and __not_in lists the
+		// same way `wp user list` does.
+		foreach ( $parsed_args as $key => $value ) {
+			if ( false !== strpos( $key, '__' ) && is_string( $value ) ) {
+				$parsed_args[ $key ] = explode( ',', $value );
+			}
+		}
+
+		// The loop below reads user objects, whatever --fields asks for.
+		$parsed_args['fields'] = 'all';
 
 		// Chunked runs rely on a stable ordering across invocations. get_users().
 		// orders by user_login ASC by default, which is stable provided users.

@@ -113,3 +113,69 @@ Feature: Guest authors can be created
       """
       2
       """
+
+	Scenario: Process only users with a given role
+		Given I run `wp user create alice alice@example.com --role=editor --porcelain`
+		And I run `wp user create bob bob@example.com --role=author --porcelain`
+		When I run `wp co-authors-plus create-guest-authors --role=editor`
+		Then STDOUT should be:
+      """
+      Attempting to create a guest author profile for 1 user.
+      All done! Here are your results:
+      - 1 guest author profile was created
+      - 0 users already had guest author profiles
+      """
+		When I run `wp post list --post_type=guest-author --field=post_name`
+		Then STDOUT should be:
+      """
+      cap-alice
+      """
+
+	Scenario: Process users matched by any WP_User_Query argument
+		Given I run `wp user create alice alice@example.com --role=author --porcelain`
+		And I run `wp user create bob bob@example.com --role=author --porcelain`
+		And save STDOUT as {BOB_ID}
+		When I run `wp co-authors-plus create-guest-authors --include={BOB_ID}`
+		Then STDOUT should be:
+      """
+      Attempting to create a guest author profile for 1 user.
+      All done! Here are your results:
+      - 1 guest author profile was created
+      - 0 users already had guest author profiles
+      """
+		When I run `wp post list --post_type=guest-author --field=post_name`
+		Then STDOUT should be:
+      """
+      cap-bob
+      """
+
+	Scenario: Process users matched by a comma-separated list argument
+		Given I run `wp user create alice alice@example.com --role=editor --porcelain`
+		And I run `wp user create bob bob@example.com --role=author --porcelain`
+		And I run `wp user create carol carol@example.com --role=subscriber --porcelain`
+		When I run `wp co-authors-plus create-guest-authors --role__in=editor,author`
+		Then STDOUT should be:
+      """
+      Attempting to create guest author profiles for 2 users.
+      All done! Here are your results:
+      - 2 guest author profiles were created
+      - 0 users already had guest author profiles
+      """
+		When I run `wp post list --post_type=guest-author --field=post_name --orderby=name --order=ASC`
+		Then STDOUT should be:
+      """
+      cap-alice
+      cap-bob
+      """
+
+	Scenario: A --fields argument does not change what the command reads
+		Given I run `wp user create alice alice@example.com --role=author --porcelain`
+		When I run `wp co-authors-plus create-guest-authors --fields=ID`
+		Then STDERR should be empty
+		And STDOUT should be:
+      """
+      Attempting to create guest author profiles for 2 users.
+      All done! Here are your results:
+      - 2 guest author profiles were created
+      - 0 users already had guest author profiles
+      """
