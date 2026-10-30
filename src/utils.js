@@ -112,7 +112,7 @@ export const addItemByValue = (
 	const newAuthorObj = dropDownAuthors.find(
 		( item ) => item.value === newAuthorValue
 	);
-	return [ ...currAuthors, newAuthorObj ];
+	return newAuthorObj[ 0 ] ? [ ...currAuthors, newAuthorObj[ 0 ] ] : currAuthors;
 };
 
 /**
