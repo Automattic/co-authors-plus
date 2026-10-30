@@ -276,7 +276,7 @@ class CoAuthors_Guest_Authors {
 			wp_die( esc_html( $post_id->get_error_message() ) );
 		}
 
-		do_action( 'cap_guest_author_create' );
+		do_action( 'cap_guest_author_create' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Legacy cap_ prefix; renaming would break existing callbacks.
 
 		// Redirect to the edit Guest Author screen
 		$edit_link   = get_edit_post_link( $post_id, 'redirect' );
@@ -355,7 +355,7 @@ class CoAuthors_Guest_Authors {
 		} else {
 			$args['message'] = 'guest-author-deleted';
 
-			do_action( 'cap_guest_author_del' );
+			do_action( 'cap_guest_author_del' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Legacy cap_ prefix; renaming would break existing callbacks.
 		}
 
 		// Redirect to safety
@@ -382,8 +382,8 @@ class CoAuthors_Guest_Authors {
 			wp_send_json( array() );
 		}
 
-		if ( ! empty( $_GET['guest_author'] ) ) {
-			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_nicename );
+		if ( ! empty( $_GET['guest_author'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only AJAX autocomplete, capability check enforced above.
+			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_nicename ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only AJAX autocomplete, capability check enforced above.
 		} else {
 			$ignore = array();
 		}
@@ -567,12 +567,12 @@ class CoAuthors_Guest_Authors {
 	public function action_admin_enqueue_scripts(): void {
 		global $pagenow;
 		// Enqueue our guest author CSS on the related pages
-		if ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'view-guest-authors' === $_GET['page'] ) {
+		if ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'view-guest-authors' === $_GET['page'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only decides which assets to enqueue.
 			wp_enqueue_style( 'guest-authors-css', plugins_url( 'css/guest-authors.css', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
 			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), array( 'jquery', 'jquery-ui-autocomplete' ), COAUTHORS_PLUS_VERSION, true );
 
 			// Pass AJAX URL for co-author search.
-			$guest_author_id = isset( $_GET['id'] ) ? (int) $_GET['id'] : 0;
+			$guest_author_id = isset( $_GET['id'] ) ? (int) $_GET['id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only builds the AJAX search URL.
 			wp_localize_script(
 				'guest-authors-js',
 				'coAuthorsGuestAuthors',
@@ -615,7 +615,7 @@ class CoAuthors_Guest_Authors {
 	public function action_admin_notices(): void {
 		global $pagenow;
 
-		if ( $this->parent_page != $pagenow || ! isset( $_REQUEST['message'] ) ) {
+		if ( $this->parent_page != $pagenow || ! isset( $_REQUEST['message'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Admin notice after redirect, nonce verified during form submission.
 			return;
 		}
 
@@ -831,7 +831,7 @@ class CoAuthors_Guest_Authors {
 				// We then take -1 on save and convert it back to 0. (#blamenacin)
 				'selected'         => $linked_account_id,
 				// Don't let user accounts to be linked to more than one guest author
-				'exclude'          => $linked_account_user_ids,
+				'exclude'          => $linked_account_user_ids, // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_exclude -- Only users already linked to another guest author.
 				// Restrict candidates to users who can write posts. The
 				// coauthors_edit_author_cap filter mirrors the same check used
 				// by the AJAX co-author search and validation paths, so a site
@@ -1122,7 +1122,7 @@ class CoAuthors_Guest_Authors {
 			}
 
 			if ( isset( $author_field['sanitize_function'] ) && is_callable( $author_field['sanitize_function'] ) ) {
-				$value = call_user_func( $author_field['sanitize_function'], wp_unslash( $_POST[ $key ] ) );
+				$value = call_user_func( $author_field['sanitize_function'], wp_unslash( $_POST[ $key ] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by the field's own sanitize_function.
 			} else {
 				$value = sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
 			}
@@ -1411,7 +1411,7 @@ class CoAuthors_Guest_Authors {
 		$retval    = wp_cache_get( $cache_key, self::$cache_group );
 
 		if ( true === $force || false === $retval ) {
-			$user_logins = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key=%s AND meta_value !=''", $this->get_post_meta_key( 'linked_account' ) ) );
+			$user_logins = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key=%s AND meta_value !=''", $this->get_post_meta_key( 'linked_account' ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- No core API lists distinct meta values; the result is cached.
 			$users       = array();
 			foreach ( $user_logins as $user_login ) {
 				$user = get_user_by( 'login', $user_login );

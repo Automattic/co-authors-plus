@@ -147,7 +147,7 @@ class Swap_Coauthors_Command {
 			'orderby'        => 'ID',
 			'posts_per_page' => 100,
 			'paged'          => 1,
-			'tax_query'      => array(
+			'tax_query'      => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Co-authors are stored as taxonomy terms.
 				array(
 					'taxonomy' => $coauthors_plus->coauthor_taxonomy,
 					'field'    => 'slug',
@@ -203,7 +203,7 @@ class Swap_Coauthors_Command {
 					// CAP itself rewrites author queries to include term matches, which
 					// would defeat the point of this count. CLI-only, one query per run.
 					'suppress_filters' => true, // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.SuppressFilters_suppress_filters
-					'tax_query'        => array(
+					'tax_query'        => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Co-authors are stored as taxonomy terms.
 						array(
 							'taxonomy' => $coauthors_plus->coauthor_taxonomy,
 							'field'    => 'slug',

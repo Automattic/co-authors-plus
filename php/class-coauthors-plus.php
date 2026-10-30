@@ -976,7 +976,7 @@ class CoAuthors_Plus {
 		$query .= $wpdb->prepare( " GROUP BY {$wpdb->posts}.ID HAVING MAX( IF ( {$wpdb->term_taxonomy}.taxonomy = '%s', IF ( {$having_terms},2,1 ),0 ) ) <> 1 ", $this->coauthor_taxonomy ); //phpcs:ignore
 
 		$count = $wpdb->query( $query ); // phpcs:ignore
-		$wpdb->update( $wpdb->term_taxonomy, array( 'count' => $count ), array( 'term_taxonomy_id' => $term->term_taxonomy_id ) );
+		$wpdb->update( $wpdb->term_taxonomy, array( 'count' => $count ), array( 'term_taxonomy_id' => $term->term_taxonomy_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Core has no API to set a term count directly.
 
 		wp_cache_delete( 'author-term-' . $coauthor->user_nicename, 'co-authors-plus' );
 	}
@@ -1897,7 +1897,7 @@ class CoAuthors_Plus {
 		}
 
 		if ( ! empty( $new_author ) ) {
-			$update = $wpdb->update( $wpdb->posts, array( 'post_author' => $new_author->ID ), array( 'ID' => $post_id ) );
+			$update = $wpdb->update( $wpdb->posts, array( 'post_author' => $new_author->ID ), array( 'ID' => $post_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Runs inside save_post, where wp_update_post() would recurse.
 			clean_post_cache( $post_id );
 
 			if ( is_bool( $update ) ) {
@@ -1990,7 +1990,7 @@ class CoAuthors_Plus {
 	 * @props kingkool68, http://wordpress.org/support/topic/plugin-co-authors-plus-making-authors-sortable
 	 */
 	public function filter_wp_get_object_terms( $terms, $object_ids, $taxonomies, $args ) {
-		if ( ! isset( $_REQUEST['bulk_edit'] ) || $this->coauthor_taxonomy !== $taxonomies ) {
+		if ( ! isset( $_REQUEST['bulk_edit'] ) || $this->coauthor_taxonomy !== $taxonomies ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only detects a bulk edit; core verifies its nonce.
 			return $terms;
 		}
 
@@ -2092,7 +2092,7 @@ class CoAuthors_Plus {
 		$post_types = (array) $post_type;
 
 		$args = array(
-			'tax_query'              => array(
+			'tax_query'              => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Co-authors are stored as taxonomy terms.
 				array(
 					'taxonomy' => $this->coauthor_taxonomy,
 					'field'    => 'term_id',
@@ -2293,7 +2293,7 @@ class CoAuthors_Plus {
 
 		$ignore = array();
 		if ( ! empty( $_REQUEST['existing_authors'] ) ) {
-			$ignore = array_map( 'sanitize_text_field', explode( ',', wp_unslash( $_REQUEST['existing_authors'] ) ) );
+			$ignore = array_map( 'sanitize_text_field', explode( ',', wp_unslash( $_REQUEST['existing_authors'] ) ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each item is sanitized by array_map().
 		}
 
 		$authors = $this->search_authors( $search, $ignore );
@@ -2483,7 +2483,7 @@ class CoAuthors_Plus {
 		if ( 'post' !== get_post_type() ) {
 			$mine_args['post_type'] = get_current_screen()->post_type;
 		}
-		if ( ! empty( $_REQUEST['author_name'] ) && wp_get_current_user()->user_nicename == $_REQUEST['author_name'] ) {
+		if ( ! empty( $_REQUEST['author_name'] ) && wp_get_current_user()->user_nicename == $_REQUEST['author_name'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only highlights the current view.
 			$class = ' class="current"';
 		} else {
 			$class = '';

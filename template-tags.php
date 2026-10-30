@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @param int $post_id Optional. Post ID to fetch co-authors for. Defaults to the current post in the loop.
  * @return array List of co-author objects, filtered through the `get_coauthors` filter.
  */
-function get_coauthors( $post_id = 0 ) {
+function get_coauthors( $post_id = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	global $post, $post_ID, $coauthors_plus, $wpdb;
 
 	$coauthors = array();
@@ -51,7 +51,7 @@ function get_coauthors( $post_id = 0 ) {
 	}
 	// remove duplicate $coauthors objects from mapping user accounts to guest authors accounts
 	$coauthors = array_unique( $coauthors, SORT_REGULAR );
-	$coauthors = apply_filters( 'get_coauthors', $coauthors, $post_id );
+	$coauthors = apply_filters( 'get_coauthors', $coauthors, $post_id ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public filter; renaming would break existing callbacks.
 	return $coauthors;
 }
 
@@ -61,7 +61,7 @@ function get_coauthors( $post_id = 0 ) {
  * @param object|int $user
  * @param int        $post_id
  */
-function is_coauthor_for_post( $user, $post_id = 0 ) {
+function is_coauthor_for_post( $user, $post_id = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	global $post;
 
 	if ( ! $post_id && $post ) {
@@ -281,7 +281,7 @@ function coauthors_posts_links_single( $author ) {
 		remove_filter( 'the_author', $the_author_filter, $priority );
 	}
 
-	$display_name = apply_filters( 'the_author', $author->display_name );
+	$display_name = apply_filters( 'the_author', $author->display_name ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core hook, applied as get_the_author() does.
 	$args         = array(
 		'before_html' => '',
 		'href'        => get_author_posts_url( $author->ID, $author->user_nicename ),
@@ -526,7 +526,7 @@ function coauthors_ids( $between = null, $betweenLast = null, $before = null, $a
  *
  * @return array $meta Value of the user field
  */
-function get_the_coauthor_meta( $field, $user_id = false ) {
+function get_the_coauthor_meta( $field, $user_id = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	global $coauthors_plus;
 
 	if ( ! $user_id ) {
@@ -575,7 +575,7 @@ function get_the_coauthor_meta( $field, $user_id = false ) {
  * @param string $field   The user field to retrieve. See get_the_coauthor_meta() for accepted values.
  * @param int    $user_id Optional. Restrict output to a single co-author by ID. Default 0 (all co-authors).
  */
-function the_coauthor_meta( $field, $user_id = 0 ) {
+function the_coauthor_meta( $field, $user_id = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	// TODO: need before after options
 	$coauthor_meta = get_the_coauthor_meta( $field, $user_id );
 	foreach ( $coauthor_meta as $meta ) {
