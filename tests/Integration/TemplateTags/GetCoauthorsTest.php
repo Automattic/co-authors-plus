@@ -115,6 +115,37 @@ class GetCoauthorsTest extends TestCase {
 	}
 
 	/**
+	 * Checks that a mapped guest author profile is returned instead of the raw
+	 * WP_User when a post has no coauthor terms yet (e.g. created before the
+	 * plugin was active) but its post_author has a linked guest author.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/114
+	 */
+	public function test_get_coauthors_when_terms_missing_but_post_author_has_linked_guest_author(): void {
+
+		global $coauthors_plus;
+
+		$user = $this->create_author( 'mapped-author' );
+
+		$guest_author_id = $coauthors_plus->guest_authors->create_guest_author_from_user_id( $user->ID );
+		$this->assertIsInt( $guest_author_id );
+
+		$post_id = $this->factory()->post->create( array( 'post_author' => $user->ID ) );
+
+		// Remove the co-author term CAP auto-assigns on save, simulating a post
+		// created before CAP was active (i.e. no coauthor terms at all).
+		wp_delete_object_term_relationships( $post_id, $coauthors_plus->coauthor_taxonomy );
+		$this->assertFalse( $coauthors_plus->has_author_terms( $post_id ) );
+
+		$coauthors = get_coauthors( $post_id );
+
+		$this->assertCount( 1, $coauthors );
+		$this->assertIsGuestAuthorNotWpUser( $coauthors[0] );
+		$this->assertEquals( $guest_author_id, $coauthors[0]->ID );
+		$this->assertEquals( $user->user_login, $coauthors[0]->linked_account );
+	}
+
+	/**
 	 * Checks coauthors order.
 	 */
 	public function test_coauthors_order(): void {
