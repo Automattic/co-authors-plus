@@ -572,7 +572,7 @@ class CoAuthors_Plus {
 	 * DB write or the pre_user_nicename filter) can't be found by slug. The
 	 * term name holds the user_login, so use that instead.
 	 *
-	 * @since 4.2.0
+	 * @since 4.2.1
 	 * @see https://github.com/Automattic/co-authors-plus/issues/142
 	 *
 	 * @param string $slug Unprefixed author term slug.
