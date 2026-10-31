@@ -8,6 +8,9 @@
 	"description": "Uses your theme's image sizes to display a scalable avatar for a co-author with a guest author profile. Does not fallback to Gravatar images.",
 	"keywords": [ "coauthors" ],
 	"supports": {
+		"interactivity": {
+			"clientNavigation": true
+		},
 		"__experimentalBorder": {
 			"color": true,
 			"radius": true,

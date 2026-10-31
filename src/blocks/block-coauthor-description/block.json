@@ -8,6 +8,9 @@
 	"description": "Displays a co-author's biographical description.",
 	"keywords": [ "coauthors", "description", "bio", "biography" ],
 	"supports": {
+		"interactivity": {
+			"clientNavigation": true
+		},
 		"html": false,
 		"color": {
 			"link": true,

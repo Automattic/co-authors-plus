@@ -7,6 +7,9 @@
 	"category": "theme",
 	"description": "Displays the co-authors of a post by using blocks to create a template. Start with co-author name and add any other co-author blocks.",
 	"supports": {
+		"interactivity": {
+			"clientNavigation": true
+		},
 		"html": false,
 		"color": {
 			"link": true,
