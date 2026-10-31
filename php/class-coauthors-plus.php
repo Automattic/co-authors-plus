@@ -145,6 +145,7 @@ class CoAuthors_Plus {
 
 		// Filter to correct author on author archive page
 		add_filter( 'get_the_archive_title', array( $this, 'filter_author_archive_title' ), 10, 3 );
+		add_filter( 'get_the_archive_description', array( $this, 'filter_author_archive_description' ) );
 
 		// Filter to display author image if exists instead of avatar
 		add_filter( 'pre_get_avatar_data', array( $this, 'filter_pre_get_avatar_data_url' ), 10, 2 );
@@ -3064,6 +3065,38 @@ class CoAuthors_Plus {
 		// Match core's `%1$s %2$s` archive-title format. The translatable part
 		// is the prefix, which core has already resolved before reaching here.
 		return sprintf( '%1$s %2$s', $prefix, $author->display_name );
+	}
+
+	/**
+	 * Filter the author archive description so the displayed description reflects
+	 * the co-author (including guest authors).
+	 *
+	 * @since 4.3.0
+	 *
+	 * @param string|null $description Archive description.
+	 * @return string Archive description.
+	 */
+	public function filter_author_archive_description( $description ): string {
+		$description = (string) $description;
+
+		// Bail if not an author archive template.
+		if ( ! is_author() ) {
+			return $description;
+		}
+
+		$author_name_var = get_query_var( 'author_name' );
+		if ( ! is_string( $author_name_var ) || '' === $author_name_var ) {
+			return $description;
+		}
+
+		$author_slug = sanitize_user( $author_name_var );
+		$author      = $this->get_coauthor_by( 'user_nicename', $author_slug );
+
+		if ( ! is_object( $author ) || empty( $author->description ) ) {
+			return $description;
+		}
+
+		return (string) $author->description;
 	}
 
 	/**
