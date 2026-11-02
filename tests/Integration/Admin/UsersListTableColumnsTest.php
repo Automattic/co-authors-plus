@@ -142,6 +142,31 @@ class UsersListTableColumnsTest extends TestCase {
 	}
 
 	/**
+	 * User IDs and guest author post IDs are unrelated, so a guest author post
+	 * that happens to share the user's ID must not be shown as their linked
+	 * guest author.
+	 *
+	 * @covers \CoAuthors_Plus::_filter_manage_users_custom_column
+	 */
+	public function test_linked_author_column_ignores_guest_author_post_sharing_the_user_id(): void {
+		$user = $this->create_author( 'columns-shared-id' );
+
+		$guest_id = wp_insert_post(
+			array(
+				'import_id'   => $user->ID,
+				'post_type'   => $this->_cap->guest_authors->post_type,
+				'post_title'  => 'Unrelated Guest Author',
+				'post_status' => 'publish',
+			)
+		);
+		$this->assertSame( $user->ID, $guest_id, 'The guest author post shares the user ID.' );
+
+		$value = $this->_cap->_filter_manage_users_custom_column( '', 'coauthors_linked_author', $user->ID );
+
+		$this->assertSame( '', $value, 'A guest author post with the same ID is not a linked guest author.' );
+	}
+
+	/**
 	 * Columns the filter does not recognise must pass through unchanged so
 	 * other plugins relying on the same hook keep working.
 	 *
