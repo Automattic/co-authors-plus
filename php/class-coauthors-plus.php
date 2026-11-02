@@ -907,8 +907,10 @@ class CoAuthors_Plus {
 	 * @param int $user_id ID of the currently-listed user.
 	 */
 	private function render_users_linked_author_column( $user_id ): string {
-		$author_info = $this->get_coauthor_by( 'id', $user_id, false );
-		if ( ! $author_info || 'guest-author' !== $author_info->type ) {
+		// Not get_coauthor_by( 'id' ): it checks guest author post IDs first, and this is a user ID.
+		$user        = get_userdata( $user_id );
+		$author_info = $user ? $this->get_coauthor_by( 'linked_account', $user->user_login ) : false;
+		if ( ! $author_info ) {
 			return '';
 		}
 
