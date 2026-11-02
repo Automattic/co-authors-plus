@@ -107,18 +107,81 @@ class CoauthorsPostsLinksTest extends TestCase {
 		$this->assert_old_theme_author_link_uses_guest_author_archive( '' );
 	}
 
-		/**
-		 * Assert that an old-theme byline using get_the_author_meta( 'ID' ) for the
-		 * href and get_the_author() for the label points at the guest archive.
-		 *
-		 * The coauthors_auto_apply_template_tags filter is simulated by registering
-		 * the template filters after init, which is how that filter behaves.
-		 *
-		 * @param string $permalink_structure Permalink structure to test with.
-		 */
+	/**
+	 * Test that without coauthors_auto_apply_template_tags, an old-theme link
+	 * built from post_author still points at the post owner's archive.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1351
+	 */
+	public function test_old_theme_author_link_keeps_owner_archive_without_auto_apply_template_tags(): void {
+		global $coauthors_plus;
+
+		$this->set_permalink_structure( '/%postname%/' );
+
+		$publisher = $this->create_author( 'publisher-bob' );
+		$this->create_guest_author( 'jane-guest' );
+		$post = $this->create_post( $publisher );
+		$coauthors_plus->add_coauthors( $post->ID, array( 'jane-guest' ), false );
+
+		$link = $this->render_old_theme_byline( $post->ID );
+
+		$this->assertStringContainsString( home_url( '/author/publisher-bob/' ), $link );
+		$this->assertStringNotContainsString( '/author/jane-guest/', $link );
+	}
+
+	/**
+	 * Test that a user whose ID matches the guest author's post ID keeps their
+	 * own archive link, because user IDs and post IDs are unrelated.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1351
+	 */
+	public function test_old_theme_author_link_keeps_user_archive_when_user_id_matches_guest_author_id(): void {
+		global $coauthors_plus, $wpdb;
+
+		add_filter( 'coauthors_auto_apply_template_tags', '__return_true' );
+		$this->set_permalink_structure( '/%postname%/' );
+
+		$publisher = $this->create_author( 'publisher-bob' );
+		$guest_id  = $this->create_guest_author( 'jane-guest' );
+		$post      = $this->create_post( $publisher );
+		$coauthors_plus->add_coauthors( $post->ID, array( 'jane-guest' ), false );
+
+		// wp_insert_user() ignores an ID on insert, so reserve the guest author's
+		// post ID for a user directly.
+		$this->assertFalse( get_userdata( $guest_id ), 'No user has the guest author post ID yet.' );
+		$inserted = $wpdb->insert(
+			// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.user_meta__wpdb__users -- Test-only: a user must share the guest author's post ID.
+			$wpdb->users,
+			array(
+				'ID'              => $guest_id,
+				'user_login'      => 'id-twin',
+				'user_pass'       => 'password',
+				'user_nicename'   => 'id-twin',
+				'user_email'      => 'id-twin@example.org',
+				'user_registered' => current_time( 'mysql' ),
+				'display_name'    => 'id-twin',
+			)
+		);
+		$this->assertSame( 1, $inserted, 'The id-twin user was inserted.' );
+		clean_user_cache( $guest_id );
+
+		$this->go_to( get_permalink( $post->ID ) );
+
+		$this->assertSame( home_url( '/author/id-twin/' ), get_author_posts_url( $guest_id ) );
+		$this->assertSame( home_url( '/author/jane-guest/' ), get_author_posts_url( $publisher->ID ) );
+	}
+
+	/**
+	 * Assert that an old-theme byline using get_the_author_meta( 'ID' ) for the
+	 * href and get_the_author() for the label points at the guest archive when
+	 * coauthors_auto_apply_template_tags is on.
+	 *
+	 * @param string $permalink_structure Permalink structure to test with.
+	 */
 	private function assert_old_theme_author_link_uses_guest_author_archive( string $permalink_structure ): void {
 		global $coauthors_plus;
 
+		add_filter( 'coauthors_auto_apply_template_tags', '__return_true' );
 		$this->set_permalink_structure( $permalink_structure );
 
 		$publisher = $this->create_author( 'publisher-bob' );
@@ -126,9 +189,31 @@ class CoauthorsPostsLinksTest extends TestCase {
 		$post      = $this->create_post( $publisher );
 		$coauthors_plus->add_coauthors( $post->ID, array( 'jane-guest' ), false );
 
+		$link = $this->render_old_theme_byline( $post->ID );
+
+		$expected_href = $permalink_structure
+			? home_url( '/author/jane-guest/' )
+			: add_query_arg( 'author_name', 'jane-guest', home_url() );
+
+		$this->assertStringContainsString( $expected_href, $link );
+		$this->assertStringNotContainsString( 'publisher-bob', $link );
+		$this->assertSame( $publisher->ID, (int) get_the_author_meta( 'ID' ) );
+	}
+
+	/**
+	 * Render a post's byline the way old themes do: the href from
+	 * get_the_author_meta( 'ID' ) and the label from get_the_author().
+	 *
+	 * The template filters are registered directly, because
+	 * coauthors_auto_apply_template_tags is only read on init.
+	 *
+	 * @param int $post_id Post to render.
+	 * @return string Byline markup.
+	 */
+	private function render_old_theme_byline( int $post_id ): string {
 		$filters = new \CoAuthors_Template_Filters();
 		$filters->register_hooks();
-		$this->go_to( get_permalink( $post->ID ) );
+		$this->go_to( get_permalink( $post_id ) );
 
 		// Old themes render the byline inside the loop, where the_post() sets
 		// $authordata from the post_author field (the original publisher).
@@ -142,13 +227,7 @@ class CoauthorsPostsLinksTest extends TestCase {
 			);
 		}
 
-		$expected_href = $permalink_structure
-			? home_url( '/author/jane-guest/' )
-			: add_query_arg( 'author_name', 'jane-guest', home_url() );
-
-		$this->assertStringContainsString( $expected_href, $link );
-		$this->assertStringNotContainsString( 'publisher-bob', $link );
-		$this->assertSame( $publisher->ID, (int) get_the_author_meta( 'ID' ) );
+		return $link;
 	}
 
 	/**

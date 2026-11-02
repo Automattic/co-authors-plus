@@ -1796,17 +1796,17 @@ class CoAuthors_Guest_Authors {
 	public function filter_author_link( $link, $author_id, $author_nicename ): ?string {
 		// Old themes can filter the author name but build the link from the
 		// post_author field. Use the single guest coauthor's slug in that case.
-		global $authordata;
-		$post = get_post();
-		if ( isset( $authordata->type ) && 'guest-author' === $authordata->type && (int) $author_id === (int) $authordata->ID ) {
-			$author_nicename = $authordata->user_nicename;
-		}
-		if ( $post && ! is_admin() && is_singular() ) {
-			$coauthors = get_coauthors( $post->ID );
-			if ( 1 === count( $coauthors ) && isset( $coauthors[0]->type ) && 'guest-author' === $coauthors[0]->type ) {
-				$guest_author = $coauthors[0];
-				if ( (int) $author_id === (int) $post->post_author || (int) $author_id === (int) $guest_author->ID ) {
-					$author_nicename = $guest_author->user_nicename;
+		// Only for sites that opt in, so other sites keep linking to post_author.
+		if ( apply_filters( 'coauthors_auto_apply_template_tags', false ) ) {
+			global $authordata;
+			$post = get_post();
+			if ( isset( $authordata->type ) && 'guest-author' === $authordata->type && (int) $author_id === (int) $authordata->ID ) {
+				$author_nicename = $authordata->user_nicename;
+			}
+			if ( $post && ! is_admin() && is_singular() ) {
+				$coauthors = get_coauthors( $post->ID );
+				if ( 1 === count( $coauthors ) && isset( $coauthors[0]->type ) && 'guest-author' === $coauthors[0]->type && (int) $author_id === (int) $post->post_author ) {
+					$author_nicename = $coauthors[0]->user_nicename;
 				}
 			}
 		}
