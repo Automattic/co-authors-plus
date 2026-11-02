@@ -58,6 +58,8 @@ co-authors-plus/
 - `php/services/` — Domain services the commands and other entry points can share
 - `php/integrations/` — Integrations with AMP, Yoast SEO, WordPress Importer, Jetpack
 
+Read `docs/identity-model.md` before changing how co-authors are looked up or matched to users: `$coauthor->ID` is a user ID or a post ID, and login, nicename and slug are different values. Don't change a function's lookup order. See `docs/identity-model.md#changing-how-co-authors-are-found`.
+
 ### Dependencies
 
 - **Dev**: `automattic/vipwpcs`, `yoast/wp-test-utils`, `phpunit/phpunit`, `behat/behat`, `automattic/behat-wp-env-context`
