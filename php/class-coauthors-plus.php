@@ -3145,7 +3145,7 @@ class CoAuthors_Plus {
 	public function filter_pre_get_avatar_data_url( $args, $id ): array {
 		global $wp_current_filter;
 
-		if ( isset( $args['url'] ) || ! $id || ! is_numeric( $id ) || ! $this->is_guest_authors_enabled() ) {
+		if ( isset( $args['url'] ) || ! $id || ! is_numeric( $id ) || ! $this->is_guest_authors_enabled() || ! isset( $this->guest_authors ) ) {
 			return $args;
 		}
 
@@ -3175,8 +3175,8 @@ class CoAuthors_Plus {
 			return $args;
 		}
 
-		$coauthor = $this->get_coauthor_by( 'id', $id );
-		if ( false !== $coauthor && isset( $coauthor->type ) && 'guest-author' === $coauthor->type ) {
+		$coauthor = $this->guest_authors->get_guest_author_by( 'ID', $id );
+		if ( false !== $coauthor ) {
 			if ( has_post_thumbnail( $id ) ) {
 				$args['url'] = get_the_post_thumbnail_url( $id, array( $args['width'], $args['height'] ) );
 			} elseif ( isset( $coauthor->user_email ) ) {
