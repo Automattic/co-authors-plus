@@ -199,6 +199,12 @@ class Yoast {
 				$authors[] = $author_data;
 			}
 		}
+
+		// Fallback in case of error. With no author to swap in, keep Yoast's own author reference and Person node rather than leave them dangling.
+		if ( empty( $ids ) ) {
+			return $data;
+		}
+
 		$schema_types  = new Schema_Types();
 		$article_types = array_column( $schema_types->get_article_type_options(), 'value' );
 
