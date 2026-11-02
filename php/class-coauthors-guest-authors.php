@@ -671,9 +671,10 @@ class CoAuthors_Guest_Authors {
 				wp_die( esc_html__( "You don't have permission to delete this guest author.", 'co-authors-plus' ) );
 			}
 
-			// get post count
+			// Deleting only changes posts on the guest author's own term, so don't count a linked user's other posts.
 			global $coauthors_plus;
-			$count = $coauthors_plus->get_guest_author_post_count( $guest_author );
+			$guest_author_term = $coauthors_plus->get_author_term( $guest_author );
+			$count             = $guest_author_term ? $guest_author_term->count : 0;
 
 			echo '<div class="wrap">';
 			echo '<h1>' . esc_html__( 'Delete Guest Authors', 'co-authors-plus' ) . '</h1>';
