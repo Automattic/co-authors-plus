@@ -188,8 +188,33 @@ class CoAuthorsControllerTest extends TestCase {
 	 * @covers ::has_public_posts
 	 */
 	public function test_has_public_posts_is_cached(): void {
+		global $wpdb;
 
 		$author  = $this->create_author( 'cached-author' );
+		$post_id = self::factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+			)
+		);
+		$this->_cap->add_coauthors( $post_id, array( $author->user_nicename ) );
+
+		$coauthor = $this->_cap->get_coauthor_by( 'user_nicename', 'cached-author' );
+
+		$this->assertTrue( $this->controller->has_public_posts( $coauthor ) );
+
+		$queries = $wpdb->num_queries;
+
+		$this->assertTrue( $this->controller->has_public_posts( $coauthor ) );
+		$this->assertSame( $queries, $wpdb->num_queries );
+	}
+
+	/**
+	 * @covers ::has_public_posts
+	 */
+	public function test_has_public_posts_follows_post_status(): void {
+
+		$author  = $this->create_author( 'status-author' );
 		$post_id = self::factory()->post->create(
 			array(
 				'post_author' => $author->ID,
@@ -198,18 +223,22 @@ class CoAuthorsControllerTest extends TestCase {
 		);
 		$this->_cap->add_coauthors( $post_id, array( $author->user_nicename ) );
 
-		$coauthor = $this->_cap->get_coauthor_by( 'user_nicename', 'cached-author' );
+		$coauthor = $this->_cap->get_coauthor_by( 'user_nicename', 'status-author' );
 
 		$this->assertFalse( $this->controller->has_public_posts( $coauthor ) );
 
-		// Publishing the post does not change the result while the cached value is live.
 		wp_publish_post( $post_id );
 
-		$this->assertFalse( $this->controller->has_public_posts( $coauthor ) );
-
-		wp_cache_flush();
-
 		$this->assertTrue( $this->controller->has_public_posts( $coauthor ) );
+
+		wp_update_post(
+			array(
+				'ID'          => $post_id,
+				'post_status' => 'draft',
+			)
+		);
+
+		$this->assertFalse( $this->controller->has_public_posts( $coauthor ) );
 	}
 
 	/**

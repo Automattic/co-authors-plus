@@ -2121,8 +2121,8 @@ class CoAuthors_Plus {
 	 *
 	 * A post on more than one of the terms counts once.
 	 *
-	 * The result is cached in the object cache for five minutes, so counts can
-	 * lag behind newly published or deleted posts by up to that long.
+	 * The result is cached in the object cache, keyed on when posts and terms
+	 * last changed, so any post or co-author change is reflected immediately.
 	 *
 	 * @since 3.6.3
 	 *
@@ -2144,9 +2144,10 @@ class CoAuthors_Plus {
 
 		$term_taxonomy_ids = wp_list_pluck( is_array( $term ) ? $term : array( $term ), 'term_taxonomy_id' );
 
-		$cache_key = 'author-post-count-' . md5( implode( ',', $term_taxonomy_ids ) . '|' . implode( ',', $post_types ) . '|' . implode( ',', $post_statuses ) );
-		$found     = false;
-		$count     = wp_cache_get( $cache_key, 'co-authors-plus', false, $found );
+		$last_changed = wp_cache_get_last_changed( 'posts' ) . wp_cache_get_last_changed( 'terms' );
+		$cache_key    = 'author-post-count-' . md5( implode( ',', $term_taxonomy_ids ) . '|' . implode( ',', $post_types ) . '|' . implode( ',', $post_statuses ) . '|' . $last_changed );
+		$found        = false;
+		$count        = wp_cache_get( $cache_key, 'co-authors-plus', false, $found );
 
 		if ( $found ) {
 			return (int) $count;
