@@ -386,36 +386,26 @@ class AuthorQueriesTest extends TestCase {
 	 * @see https://github.com/Automattic/co-authors-plus/pull/1498
 	 */
 	public function test_user_takes_precedence_when_id_collides_with_guest_author(): void {
-		global $wpdb;
-
-		$author1  = $this->create_author( 'owner_post_g' );
+		// Move the guest author onto the user's ID, not the reverse. An explicit user ID
+		// would advance the users AUTO_INCREMENT, which a rollback does not reset, so
+		// later tests' user IDs would collide with their guest author post IDs.
+		$user     = $this->create_author( 'colliding_user' );
+		$set_id   = static function ( $data ) use ( $user ) {
+			$data['ID'] = $user->ID;
+			return $data;
+		};
+		add_filter( 'wp_insert_post_data', $set_id );
 		$guest_id = $this->create_guest_author( 'colliding_guest' );
-		$post_g   = $this->create_post( $author1 );
+		remove_filter( 'wp_insert_post_data', $set_id );
+		$this->assertSame( $user->ID, (int) $guest_id, 'The guest author must share the user ID.' );
+
+		$author1 = $this->create_author( 'owner_post_g' );
+		$post_g  = $this->create_post( $author1 );
 		$this->_cap->add_coauthors( $post_g->ID, array( 'colliding_guest' ) );
-
-		$user_login = 'colliding_user';
-		$wpdb->insert(
-			// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.user_meta__wpdb__users -- Direct table write needed to pin ID collision behavior in test.
-			$wpdb->users,
-			array(
-				'ID'              => $guest_id,
-				'user_login'      => $user_login,
-				'user_pass'       => wp_hash_password( 'password' ),
-				'user_nicename'   => $user_login,
-				'user_email'      => 'colliding_user@example.com',
-				'user_registered' => current_time( 'mysql' ),
-				'user_status'     => 0,
-				'display_name'    => 'Colliding User',
-			)
-		);
-		clean_user_cache( $guest_id );
-
-		$user = get_userdata( $guest_id );
-		$this->assertInstanceOf( \WP_User::class, $user, 'User with colliding ID must be resolvable.' );
 
 		$author2 = $this->create_author( 'owner_post_u' );
 		$post_u  = $this->create_post( $author2 );
-		$this->_cap->add_coauthors( $post_u->ID, array( $user_login ) );
+		$this->_cap->add_coauthors( $post_u->ID, array( $user->user_login ) );
 
 		$author3    = $this->create_author( 'unrelated_owner' );
 		$post_unrel = $this->create_post( $author3 );
@@ -434,10 +424,6 @@ class AuthorQueriesTest extends TestCase {
 			$query_in,
 			'author__in query must match the WP user, not the guest author, when IDs collide.'
 		);
-
-		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.user_meta__wpdb__users -- Direct table cleanup after test collision simulation.
-		$wpdb->delete( $wpdb->users, array( 'ID' => $guest_id ) );
-		clean_user_cache( $guest_id );
 	}
 
 	/**
@@ -454,7 +440,7 @@ class AuthorQueriesTest extends TestCase {
 
 		$this->go_to( home_url( '/?author=' . $guest_id ) );
 
-		$this->assertQueryTrue( 'is_404', 'Main query for /?author=<guest ID> must be a 404.' );
+		$this->assertQueryTrue( 'is_404' );
 		$this->assertSame( 0, $GLOBALS['wp_query']->post_count, 'Main query for /?author=<guest ID> must return no posts.' );
 	}
 
