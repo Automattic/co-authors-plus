@@ -579,7 +579,10 @@ class CoAuthors_Plus {
 	 * @return WP_User|false
 	 */
 	private function get_user_by_author_term_name( string $slug ) {
-		$slug = sanitize_title( $slug );
+		if ( sanitize_title( $slug ) !== $slug ) {
+			return false;
+		}
+
 		$term = get_term_by( 'slug', Prefix::prefix_slug( $slug ), $this->coauthor_taxonomy );
 		if ( ! $term ) {
 			$term = get_term_by( 'slug', $slug, $this->coauthor_taxonomy );

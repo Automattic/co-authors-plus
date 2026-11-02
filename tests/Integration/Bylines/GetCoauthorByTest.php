@@ -272,6 +272,32 @@ class GetCoauthorByTest extends TestCase {
 	}
 
 	/**
+	 * Checks that a login can't reach another user through the term name fallback, by sanitizing to their nicename.
+	 *
+	 * @covers ::get_coauthor_by
+	 */
+	public function test_get_coauthor_by_nicename_ignores_login_that_sanitizes_to_other_nicename(): void {
+
+		$other = $this->factory()->user->create_and_get( array( 'user_login' => 'john-smith' ) );
+		$this->_cap->update_author_term( $other );
+
+		$author = $this->factory()->user->create_and_get( array( 'user_login' => 'john.smith' ) );
+		$this->assertSame( 'john-smith-2', $author->user_nicename );
+
+		$this->assertFalse( $this->_cap->get_coauthor_by( 'user_nicename', $author->user_login ) );
+
+		// Appending looks up the post's existing co-authors by login.
+		$post_id = $this->factory()->post->create();
+		$this->_cap->add_coauthors( $post_id, array( $author->user_nicename ) );
+		$this->_cap->add_coauthors( $post_id, array( $this->author1->user_nicename ), true );
+
+		$this->assertSame(
+			array( $author->ID, $this->author1->ID ),
+			wp_list_pluck( get_coauthors( $post_id ), 'ID' )
+		);
+	}
+
+	/**
 	 * Checks that the term name fallback doesn't return a user whose nicename doesn't match the slug.
 	 *
 	 * @covers ::get_coauthor_by
