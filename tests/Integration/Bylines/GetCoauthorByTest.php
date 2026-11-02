@@ -272,6 +272,36 @@ class GetCoauthorByTest extends TestCase {
 	}
 
 	/**
+	 * Checks that the email key still finds a user, with a deprecation notice.
+	 *
+	 * @covers ::get_coauthor_by
+	 */
+	public function test_get_coauthor_by_email_key_is_deprecated(): void {
+
+		$this->setExpectedDeprecated( 'CoAuthors_Plus::get_coauthor_by' );
+
+		$coauthor = $this->_cap->get_coauthor_by( 'email', $this->author1->user_email );
+
+		$this->assertSame( $this->author1->ID, $coauthor->ID );
+	}
+
+	/**
+	 * Checks that the post_name key still finds a guest author, with a deprecation notice.
+	 *
+	 * @covers ::get_coauthor_by
+	 */
+	public function test_get_coauthor_by_post_name_key_is_deprecated(): void {
+
+		$this->setExpectedDeprecated( 'CoAuthors_Plus::get_coauthor_by' );
+
+		$guest_author_id = $this->create_guest_author( 'deprecated_key_guest' );
+
+		$coauthor = $this->_cap->get_coauthor_by( 'post_name', 'deprecated_key_guest' );
+
+		$this->assertSame( $guest_author_id, (int) $coauthor->ID );
+	}
+
+	/**
 	 * Checks that the term name fallback doesn't return a user whose nicename doesn't match the slug.
 	 *
 	 * @covers ::get_coauthor_by

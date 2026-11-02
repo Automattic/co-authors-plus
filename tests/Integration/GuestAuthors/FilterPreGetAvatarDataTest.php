@@ -133,6 +133,27 @@ class FilterPreGetAvatarDataTest extends TestCase {
 	}
 
 	/**
+	 * The guest-user flag only looks for a guest author post with that ID, so a
+	 * linked user's ID still gets the user's own avatar.
+	 */
+	public function test_guest_user_flag_with_a_linked_user_id_gets_the_user_avatar(): void {
+		$user = $this->create_author( 'flag_linked_user' );
+		$this->_cap->guest_authors->create(
+			array(
+				'display_name'   => 'Flag Linked Guest',
+				'user_login'     => 'flag_linked_guest',
+				'user_email'     => 'flag_linked_guest@example.com',
+				'linked_account' => $user->user_login,
+			)
+		);
+
+		$this->assertSame(
+			get_avatar_url( $user->user_email ),
+			get_avatar_url( $user->ID, array( 'user_type' => 'guest-user' ) )
+		);
+	}
+
+	/**
 	 * The wp-user flag always bypasses the filter.
 	 */
 	public function test_wp_user_flag_bypasses_filter(): void {

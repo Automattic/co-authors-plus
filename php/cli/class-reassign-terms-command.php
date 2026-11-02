@@ -149,7 +149,7 @@ class Reassign_Terms_Command {
 			}
 
 			// The old user should exist as a term.
-			$old_term = $coauthors_plus->get_author_term( $coauthors_plus->get_coauthor_by( 'login', $old_user ) );
+			$old_term = $coauthors_plus->get_author_term( $coauthors_plus->get_coauthor_by( 'user_login', $old_user ) );
 			if ( ! $old_term ) {
 				WP_CLI::log( "Error: Term '{$old_user}' doesn't exist, skipping" );
 				$results->old_term_missing++;
@@ -159,7 +159,7 @@ class Reassign_Terms_Command {
 			// If the new user exists as a term already, we want to reassign all posts to that.
 			// new term and delete the original.
 			// Otherwise, simply rename the old term.
-			$new_term = $coauthors_plus->get_author_term( $coauthors_plus->get_coauthor_by( 'login', $new_user ) );
+			$new_term = $coauthors_plus->get_author_term( $coauthors_plus->get_coauthor_by( 'user_login', $new_user ) );
 			if ( is_object( $new_term ) ) {
 				// Both logins can resolve to the same term. Merging would hand the posts
 				// to the very term about to be deleted, leaving them with none at all.
