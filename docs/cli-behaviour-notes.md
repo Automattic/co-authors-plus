@@ -397,7 +397,7 @@ PHP 8.4) rather than inferred from reading the source.
   `cap-olduser` and the term survives.
 - The docblock (:518-525) advertises cleaning up after an import that created
   'author' terms under the OLD user_login, but the old-term lookup goes through
-  `get_coauthor_by( 'login', ... )` -> `get_author_term()`, which returns null for a
+  `get_coauthor_by( 'user_login', ... )` -> `get_author_term()`, which returns null for a
   non-object. An orphan author term with no user or guest author behind it is
   therefore reported as `Error: Term 'orphan' doesn't exist, skipping` and left in
   place, so the documented use case cannot be served. Pinned (with a term_id state
@@ -405,7 +405,7 @@ PHP 8.4) rather than inferred from reading the source.
   without an error exit", alongside the never-existed slug, so the two causes of the
   same message are now distinguishable.
 - Idempotency: a second identical run reports the old term as missing even though
-  `get_coauthor_by( 'login', 'olduser' )` still finds the guest-author profile — the
+  `get_coauthor_by( 'user_login', 'olduser' )` still finds the guest-author profile — the
   rename left `post_name` as `cap-olduser` while the term became `newuser`, so
   `get_author_term()` (which tries `cap-<nicename>` then `<nicename>`) finds nothing.
   This command never touches the guest-author profile (contrast rename-coauthor);

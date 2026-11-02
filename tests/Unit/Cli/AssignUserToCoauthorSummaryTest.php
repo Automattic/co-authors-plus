@@ -73,7 +73,7 @@ final class AssignUserToCoauthorSummaryTest extends TestCase {
 
 		$coauthors_plus = Mockery::mock( 'CoAuthors_Plus' );
 		$coauthors_plus->shouldReceive( 'get_coauthor_by' )
-			->with( 'login', 'jane' )
+			->with( 'user_login', 'jane' )
 			->andReturn( (object) array( 'user_login' => 'jane' ) );
 		$coauthors_plus->shouldReceive( 'supported_post_types' )->andReturn( array( 'post' ) );
 

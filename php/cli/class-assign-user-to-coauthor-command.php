@@ -104,7 +104,7 @@ class Assign_User_To_Coauthor_Command {
 			}
 		}
 
-		$coauthor = $coauthors_plus->get_coauthor_by( 'login', $assoc_args['coauthor'] );
+		$coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $assoc_args['coauthor'] );
 
 		if ( ! $coauthor ) {
 			WP_CLI::error( __( 'Please specify a valid co-author login', 'co-authors-plus' ) );
