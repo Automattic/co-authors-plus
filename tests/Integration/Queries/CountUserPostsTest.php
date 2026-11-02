@@ -156,7 +156,7 @@ class CountUserPostsTest extends TestCase {
 	 * @covers CoAuthors_Plus::get_post_count_for_author_term
 	 */
 	public function test_count_user_posts_is_cached(): void {
-		global $wpdb;
+		global $coauthors_plus, $wpdb;
 
 		$author = $this->create_author();
 
@@ -169,11 +169,12 @@ class CountUserPostsTest extends TestCase {
 			)
 		);
 
-		$this->assertSame( 2, count_user_posts( $author->ID ) );
+		$this->assertSame( 2, $coauthors_plus->filter_count_user_posts( 0, $author->ID ) );
 
+		// Call the filter directly, as older versions of count_user_posts() run their own query every time.
 		$queries = $wpdb->num_queries;
 
-		$this->assertSame( 2, count_user_posts( $author->ID ) );
+		$this->assertSame( 2, $coauthors_plus->filter_count_user_posts( 0, $author->ID ) );
 		$this->assertSame( $queries, $wpdb->num_queries );
 	}
 
