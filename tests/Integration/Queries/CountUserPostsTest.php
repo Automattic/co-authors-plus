@@ -186,6 +186,40 @@ class CountUserPostsTest extends TestCase {
 	}
 
 	/**
+	 * Test that an empty list of post types counts posts, as WP_Query does.
+	 *
+	 * @covers CoAuthors_Plus::filter_count_user_posts
+	 * @covers CoAuthors_Plus::get_post_count_for_author_term
+	 */
+	public function test_count_user_posts_empty_post_types_counts_posts(): void {
+		$author = $this->create_author();
+
+		$this->factory()->post->create_many(
+			2,
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+		$this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'page',
+			)
+		);
+
+		$this->assertSame( 2, count_user_posts( $author->ID, array() ) );
+
+		add_filter( 'coauthors_count_published_post_types', '__return_empty_array' );
+
+		$this->assertSame( 2, count_user_posts( $author->ID ) );
+
+		remove_filter( 'coauthors_count_published_post_types', '__return_empty_array' );
+	}
+
+	/**
 	 * Test count for guest authors with custom post types.
 	 *
 	 * @covers CoAuthors_Plus::filter_count_user_posts

@@ -2137,6 +2137,11 @@ class CoAuthors_Plus {
 		$post_types    = (array) $post_type;
 		$post_statuses = $public_only ? array( 'publish' ) : array( 'publish', 'private' );
 
+		// WP_Query treats an empty list of post types as 'post'.
+		if ( empty( $post_types ) ) {
+			$post_types = array( 'post' );
+		}
+
 		$term_taxonomy_ids = wp_list_pluck( is_array( $term ) ? $term : array( $term ), 'term_taxonomy_id' );
 
 		$cache_key = 'author-post-count-' . md5( implode( ',', $term_taxonomy_ids ) . '|' . implode( ',', $post_types ) . '|' . implode( ',', $post_statuses ) );
