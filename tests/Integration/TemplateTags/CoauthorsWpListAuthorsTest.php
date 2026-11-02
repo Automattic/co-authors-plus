@@ -295,4 +295,189 @@ class CoauthorsWpListAuthorsTest extends TestCase {
 
 		$this->assertStringContainsString( $guest_author->display_name, coauthors_wp_list_authors( $args ) );
 	}
+
+	/**
+	 * A linked guest author can share one term with their user. They're the
+	 * only entry for that person, so removing duplicates mustn't remove them.
+	 *
+	 * @covers ::coauthors_get_users()
+	 */
+	public function test_linked_guest_author_sharing_users_term_is_listed(): void {
+		$author       = $this->create_author( 'sharedterm' );
+		$guest_author = $this->create_linked_guest_author( $author );
+
+		// Precondition for this scenario: the pair has one term.
+		$this->assertSame( $author->user_nicename, $guest_author->user_nicename );
+
+		$this->factory()->post->create_many(
+			3,
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		$authors = coauthors_get_users();
+
+		$this->assertCount( 1, $authors );
+		$author_entry = reset( $authors );
+		$this->assertSame( 'guest-author', $author_entry->type );
+		$this->assertSame( 3, $author_entry->post_count );
+	}
+
+	/**
+	 * The login is the term's name and the link's value, so a nicename that
+	 * differs from it doesn't stop the pair sharing a term.
+	 *
+	 * @covers ::coauthors_get_users()
+	 */
+	public function test_linked_guest_author_sharing_term_with_user_whose_login_differs_from_nicename_is_listed(): void {
+		$author = $this->factory()->user->create_and_get(
+			array(
+				'role'          => 'author',
+				'user_login'    => 'jo.bloggs',
+				'user_nicename' => 'jo-bloggs',
+				'display_name'  => 'Jo Bloggs',
+			)
+		);
+
+		$this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		$guest_author = $this->create_linked_guest_author( $author );
+
+		// Precondition for this scenario: the pair has one term.
+		$this->assertSame( $author->user_nicename, $guest_author->user_nicename );
+
+		$this->assertCount( 1, coauthors_get_users() );
+	}
+
+	/**
+	 * A pair with a term each is still listed once, with the posts on either
+	 * term, and a post on both counts once.
+	 *
+	 * @covers ::coauthors_get_users()
+	 */
+	public function test_linked_guest_author_with_own_term_is_listed_once_with_all_posts(): void {
+		global $coauthors_plus;
+
+		$author = $this->create_author_with_own_slug_display_name();
+
+		// Posts from before the link have the user's own term.
+		$post_ids = $this->factory()->post->create_many(
+			3,
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		$guest_author = $this->create_linked_guest_author( $author );
+
+		// Precondition for this scenario: the pair has two different terms.
+		$this->assertNotSame( $author->user_nicename, $guest_author->user_nicename );
+
+		foreach ( $this->factory()->post->create_many( 2, array( 'post_status' => 'publish' ) ) as $post_id ) {
+			$coauthors_plus->add_coauthors( $post_id, array( $guest_author->user_login ) );
+		}
+
+		wp_add_object_terms( $post_ids[0], $coauthors_plus->get_author_term( $guest_author )->term_id, $coauthors_plus->coauthor_taxonomy );
+
+		$authors = coauthors_get_users();
+
+		$this->assertCount( 1, $authors );
+		$this->assertSame( 5, reset( $authors )->post_count );
+	}
+
+	/**
+	 * A pair's posts can all be on the user's term, which hide_empty mustn't
+	 * mistake for a person with no posts.
+	 *
+	 * @covers ::coauthors_wp_list_authors()
+	 */
+	public function test_linked_guest_author_with_posts_only_on_users_term_is_not_hidden_as_empty(): void {
+		$author = $this->create_author_with_own_slug_display_name();
+
+		$this->factory()->post->create_many(
+			3,
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		$this->create_linked_guest_author( $author );
+
+		$this->assertStringContainsString(
+			$author->display_name . '</a> (3)',
+			coauthors_wp_list_authors(
+				array(
+					'echo'        => false,
+					'optioncount' => true,
+				)
+			)
+		);
+	}
+
+	/**
+	 * Only published posts are counted, as for anyone else in the list.
+	 *
+	 * @covers ::coauthors_get_users()
+	 */
+	public function test_linked_guest_author_with_own_term_count_only_includes_published_posts(): void {
+		$author = $this->create_author_with_own_slug_display_name();
+
+		$this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+			)
+		);
+		$this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'private',
+			)
+		);
+
+		$this->create_linked_guest_author( $author );
+
+		$authors = coauthors_get_users();
+
+		$this->assertSame( 1, reset( $authors )->post_count );
+	}
+
+	/**
+	 * Creates an author whose display name gives their guest author a different slug.
+	 *
+	 * @return \WP_User The created user.
+	 */
+	private function create_author_with_own_slug_display_name(): \WP_User {
+		return $this->factory()->user->create_and_get(
+			array(
+				'role'         => 'author',
+				'user_login'   => 'ownslug',
+				'display_name' => 'Own Slug Author',
+			)
+		);
+	}
+
+	/**
+	 * Creates a guest author linked to the given user.
+	 *
+	 * @param \WP_User $user User to link the guest author to.
+	 * @return object The guest author.
+	 */
+	private function create_linked_guest_author( \WP_User $user ) {
+		global $coauthors_plus;
+
+		return $coauthors_plus->guest_authors->get_guest_author_by(
+			'ID',
+			$coauthors_plus->guest_authors->create_guest_author_from_user_id( $user->ID )
+		);
+	}
 }

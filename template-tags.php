@@ -635,10 +635,18 @@ function coauthors_get_users( $args = array() ) {
 	}
 	$authors = apply_filters( 'coauthors_wp_list_authors_array', $authors );
 
-	// remove duplicates from linked accounts
-	$linked_accounts = array_unique( array_column( $authors, 'linked_account' ) );
-	foreach ( $linked_accounts as $linked_account ) {
-		unset( $authors[ $linked_account ] );
+	// Remove duplicates from linked accounts. A guest author sharing their user's term is the only entry for that person.
+	foreach ( array_count_values( array_column( $authors, 'linked_account' ) ) as $linked_account => $entries ) {
+		if ( $entries > 1 ) {
+			unset( $authors[ $linked_account ] );
+		}
+	}
+
+	// A linked guest author with their own slug has a term each with their user, and a post can be on both.
+	foreach ( $authors as $author ) {
+		if ( isset( $author->wp_user ) && $author->wp_user->user_nicename !== $author->user_nicename ) {
+			$author->post_count = count_user_posts( $author->wp_user->ID, 'post', true ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.count_user_posts_count_user_posts -- Term counts can't tell if a post is on both terms.
+		}
 	}
 
 	return $authors;
