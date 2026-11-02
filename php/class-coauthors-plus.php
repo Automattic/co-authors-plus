@@ -3109,6 +3109,10 @@ class CoAuthors_Plus {
 	/**
 	 * Get the post count for the guest author
 	 *
+	 * For a linked guest author, this includes the linked user's posts.
+	 *
+	 * @since 4.2.1 Includes the linked user's posts when the guest author's own term has none.
+	 *
 	 * @param object $guest_author guest-author object.
 	 * @return int post count for the guest author
 	 */
@@ -3117,21 +3121,16 @@ class CoAuthors_Plus {
 			return 0;
 		}
 
-		$term       = $this->get_author_term( $guest_author );
-		$guest_term = get_term_by( 'slug', Prefix::prefix_slug( $guest_author->user_nicename ), $this->coauthor_taxonomy );
-
-		if ( is_object( $guest_term )
-			&& ! empty( $guest_author->linked_account )
-			&& $guest_term->count ) {
+		if ( ! empty( $guest_author->linked_account ) ) {
 			$user = get_user_by( 'login', $guest_author->linked_account );
 			if ( is_object( $user ) ) {
 				return count_user_posts( $user->ID ); // phpcs:ignore
 			}
-		} elseif ( $term ) {
-			return $term->count;
 		}
 
-		return 0;
+		$term = $this->get_author_term( $guest_author );
+
+		return $term ? $term->count : 0;
 	}
 
 	/**
