@@ -15,7 +15,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Plugin Name:       Co-Authors Plus
  * Plugin URI:        https://wordpress.org/plugins/co-authors-plus/
  * Description:       Allows multiple authors to be assigned to a post. This plugin is an extended version of the Co-Authors plugin developed by Weston Ruter.
- * Version:           4.1.1
+ * Version:           4.2.0
  * Requires at least: 6.4
  * Requires PHP:      7.4
  * Author:            Mohammad Jangda, Daniel Bachhuber, Automattic
@@ -25,13 +25,14 @@ if ( ! defined( 'ABSPATH' ) ) {
  * License URI:       http://www.gnu.org/licenses/gpl-2.0.txt
  */
 
-const COAUTHORS_PLUS_VERSION = '4.1.1';
+const COAUTHORS_PLUS_VERSION = '4.2.0';
 const COAUTHORS_PLUS_FILE = __FILE__;
 
 require_once __DIR__ . '/template-tags.php';
 
 require_once __DIR__ . '/php/class-prefix.php';
 require_once __DIR__ . '/php/class-coauthors-template-filters.php';
+require_once __DIR__ . '/php/class-coauthors-feed-filters.php';
 require_once __DIR__ . '/php/class-coauthors-endpoint.php';
 require_once __DIR__ . '/php/integrations/amp.php';
 require_once __DIR__ . '/php/integrations/yoast.php';
@@ -45,6 +46,7 @@ require_once __DIR__ . '/php/blocks/class-blocks.php';
 
 // REST APIs for Blocks
 require_once __DIR__ . '/php/api/endpoints/class-coauthors-controller.php';
+require_once __DIR__ . '/php/api/endpoints/class-author-terms-controller.php';
 
 global $coauthors_plus;
 $coauthors_plus     = new CoAuthors_Plus();
@@ -115,7 +117,7 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 		 * @param string[] $emails     An array of email addresses to receive a comment notification.
 		 * @param string   $comment_id The comment ID as a numeric string.
 		 */
-		$emails = apply_filters( 'comment_notification_recipients', $emails, $comment->comment_ID );
+		$emails = apply_filters( 'comment_notification_recipients', $emails, $comment->comment_ID ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core hook, applied as wp_notify_postauthor() does.
 		$emails = array_filter( $emails );
 
 		// If there are no addresses to send the comment to, bail.
@@ -132,7 +134,7 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 		 * @param bool   $notify_author Whether to notify the post author of their own comment.
 		 * @param string $comment_id    The comment ID as a numeric string.
 		 */
-		$notify_author = apply_filters( 'comment_notification_notify_author', false, $comment->comment_ID );
+		$notify_author = apply_filters( 'comment_notification_notify_author', false, $comment->comment_ID ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core hook, applied as wp_notify_postauthor() does.
 
 		// The comment was left by one of the co-authors.
 		// Note: for a guest author, $coauthor->ID is the guest-author CPT's post ID, not a WP user ID —
@@ -194,7 +196,7 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 		 * @param string $message_headers Headers for the comment notification email.
 		 * @param string $comment_id      Comment ID as a numeric string.
 		 */
-		$message_headers = apply_filters( 'comment_notification_headers', $message_headers, $comment->comment_ID );
+		$message_headers = apply_filters( 'comment_notification_headers', $message_headers, $comment->comment_ID ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core hook, applied as wp_notify_postauthor() does.
 
 		foreach ( $emails as $email ) {
 			$user = get_user_by( 'email', $email );
@@ -275,7 +277,7 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 			 * @param string $notify_message The comment notification email text.
 			 * @param string $comment_id     The comment ID as a numeric string.
 			 */
-			$notify_message = apply_filters( 'comment_notification_text', $notify_message, $comment->comment_ID );
+			$notify_message = apply_filters( 'comment_notification_text', $notify_message, $comment->comment_ID ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core hook, applied as wp_notify_postauthor() does.
 
 			/**
 			 * Filters the comment notification email subject.
@@ -283,7 +285,7 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 			 * @param string $subject    The comment notification email subject.
 			 * @param string $comment_id The comment ID as a numeric string.
 			 */
-			$subject = apply_filters( 'comment_notification_subject', $subject, $comment->comment_ID );
+			$subject = apply_filters( 'comment_notification_subject', $subject, $comment->comment_ID ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core hook, applied as wp_notify_postauthor() does.
 
 			wp_mail( $email, wp_specialchars_decode( $subject ), $notify_message, $message_headers );
 
@@ -303,7 +305,7 @@ endif;
  * @param int   $comment_id
  * @return array
  */
-function cap_filter_comment_moderation_email_recipients( $recipients, $comment_id ) {
+function cap_filter_comment_moderation_email_recipients( $recipients, $comment_id ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Legacy cap_ prefix; renaming would break existing callers.
 	$comment = get_comment( $comment_id );
 	$post_id = $comment->comment_post_ID;
 
@@ -330,7 +332,7 @@ function cap_filter_comment_moderation_email_recipients( $recipients, $comment_i
  * @param int $post_id ID of the post for which to retrieve authors.
  * @return array Array of coauthor WP_Term objects
  */
-function cap_get_coauthor_terms_for_post( $post_id ) {
+function cap_get_coauthor_terms_for_post( $post_id ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Legacy cap_ prefix; renaming would break existing callers.
 	global $coauthors_plus;
 	return $coauthors_plus->get_coauthor_terms_for_post( $post_id );
 }
@@ -338,7 +340,7 @@ function cap_get_coauthor_terms_for_post( $post_id ) {
 /**
  * Register CoAuthor REST API Routes
  */
-function cap_register_coauthors_rest_api_routes(): void {
+function cap_register_coauthors_rest_api_routes(): void { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Legacy cap_ prefix; renaming would break existing callers.
 	global $coauthors_plus;
 	( new CoAuthors\API\Endpoints\CoAuthors_Controller( $coauthors_plus ) )->register_routes();
 }

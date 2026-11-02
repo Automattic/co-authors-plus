@@ -14,7 +14,15 @@ class CoAuthors_Guest_Authors {
 	public $post_type              = 'guest-author';
 	public $parent_page            = 'users.php';
 	public $list_guest_authors_cap = 'list_users';
-	public $add_guest_author_cap   = 'edit_posts';
+
+	/**
+	 * No longer used: creating a guest author needs the post type's
+	 * `create_posts` capability, which is the manage capability.
+	 *
+	 * @deprecated 4.2.0
+	 * @var string
+	 */
+	public $add_guest_author_cap = 'edit_posts';
 
 	public static $cache_group = 'coauthors-plus-guest-authors';
 
@@ -59,6 +67,9 @@ class CoAuthors_Guest_Authors {
 		add_action( 'add_meta_boxes', array( $this, 'action_add_meta_boxes' ), 10, 2 );
 		add_action( 'wp_insert_post_data', array( $this, 'manage_guest_author_filter_post_data' ), 10, 2 );
 		add_action( 'save_post', array( $this, 'manage_guest_author_save_meta_fields' ), 10, 2 );
+
+		// Keep the slug that bylines resolve by when a guest author is trashed.
+		add_filter( 'wp_insert_post_data', array( $this, 'filter_keep_post_name_when_trashed' ), 10, 2 );
 
 		// Empty associated caches when the guest author profile is updated
 		add_filter( 'update_post_metadata', array( $this, 'filter_update_post_metadata' ), 10, 5 );
@@ -135,7 +146,26 @@ class CoAuthors_Guest_Authors {
 			'exclude_from_search' => true,
 			'show_ui'             => true,
 			'show_in_menu'        => false,
-			'show_in_rest'        => true,
+			// Nothing reads guest authors through core REST; coauthors/v1 is the supported route.
+			'show_in_rest'        => false,
+			// Creating, listing and editing all need the manage capability, so
+			// core's post screens (post-new.php, post.php, edit.php) and anything
+			// else that checks these follow the same rule as the Guest Authors
+			// screen. Deleting keeps the usual post rights and also needs the
+			// manage capability; see require_manage_cap_to_delete().
+			'map_meta_cap'        => true,
+			'capabilities'        => array_fill_keys(
+				array(
+					'create_posts',
+					'edit_posts',
+					'edit_others_posts',
+					'edit_private_posts',
+					'edit_published_posts',
+					'publish_posts',
+					'read_private_posts',
+				),
+				$this->list_guest_authors_cap
+			),
 			'supports'            => array(
 				'thumbnail',
 			),
@@ -151,6 +181,29 @@ class CoAuthors_Guest_Authors {
 		remove_post_type_support( $this->post_type, 'title' );
 		remove_post_type_support( $this->post_type, 'editor' );
 
+		add_filter( 'map_meta_cap', array( $this, 'require_manage_cap_to_delete' ), 10, 4 );
+	}
+
+	/**
+	 * Require the manage capability, as well as the usual post rights, to delete a guest author.
+	 *
+	 * The manage capability can be lowered with the coauthors_guest_author_manage_cap
+	 * filter, so deleting a profile still needs the rights to delete it as a post,
+	 * wherever the deletion comes from: the Guest Authors screen, core's trash or XML-RPC.
+	 *
+	 * @param string[] $caps    Primitive capabilities required.
+	 * @param string   $cap     Capability being checked.
+	 * @param int      $user_id User ID.
+	 * @param array    $args    Arguments; the post ID first.
+	 * @return string[]
+	 */
+	public function require_manage_cap_to_delete( $caps, $cap, $user_id, $args ) {
+		if ( 'delete_post' === $cap && ! empty( $args[0] ) && get_post_type( $args[0] ) === $this->post_type ) {
+			// The manage capability as registered, like the post type's other capabilities.
+			$caps[] = get_post_type_object( $this->post_type )->cap->create_posts;
+		}
+
+		return $caps;
 	}
 
 	/**
@@ -207,7 +260,7 @@ class CoAuthors_Guest_Authors {
 			return;
 		}
 
-		if ( ! wp_verify_nonce( $_GET['nonce'], 'create-guest-author' ) ) {
+		if ( ! wp_verify_nonce( sanitize_key( wp_unslash( $_GET['nonce'] ) ), 'create-guest-author' ) ) {
 			wp_die( esc_html__( "Doin' something fishy, huh?", 'co-authors-plus' ) );
 		}
 
@@ -223,7 +276,7 @@ class CoAuthors_Guest_Authors {
 			wp_die( esc_html( $post_id->get_error_message() ) );
 		}
 
-		do_action( 'cap_guest_author_create' );
+		do_action( 'cap_guest_author_create' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Legacy cap_ prefix; renaming would break existing callbacks.
 
 		// Redirect to the edit Guest Author screen
 		$edit_link   = get_edit_post_link( $post_id, 'redirect' );
@@ -246,7 +299,7 @@ class CoAuthors_Guest_Authors {
 		}
 
 		// Verify the user is who they say they are
-		if ( ! wp_verify_nonce( $_POST['_wpnonce'], 'delete-guest-author' ) ) {
+		if ( ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['_wpnonce'] ) ), 'delete-guest-author' ) ) {
 			wp_die( esc_html__( "Doin' something fishy, huh?", 'co-authors-plus' ) );
 		}
 
@@ -256,14 +309,19 @@ class CoAuthors_Guest_Authors {
 		}
 
 		// Make sure the guest author actually exists
-		$guest_author = $this->get_guest_author_by( 'ID', (int) wp_unslash( $_POST['id'] ) );
+		$guest_author = $this->get_guest_author_by( 'ID', (int) $_POST['id'] );
 		if ( ! $guest_author ) {
 			wp_die( esc_html__( "Guest author can't be deleted because it doesn't exist.", 'co-authors-plus' ) );
 		}
 
+		// The manage cap can be lowered by filter; deleting still needs rights to this profile.
+		if ( ! current_user_can( 'delete_post', $guest_author->ID ) ) {
+			wp_die( esc_html__( "You don't have permission to delete this guest author.", 'co-authors-plus' ) );
+		}
+
 		// Perform the reassignment if needed
 		$guest_author_term = $coauthors_plus->get_author_term( $guest_author );
-		switch ( wp_unslash( $_POST['reassign'] ) ) {
+		switch ( sanitize_key( wp_unslash( $_POST['reassign'] ) ) ) {
 			// Leave assigned to the current linked account
 			case 'leave-assigned':
 				$reassign_to = $guest_author->linked_account;
@@ -297,7 +355,7 @@ class CoAuthors_Guest_Authors {
 		} else {
 			$args['message'] = 'guest-author-deleted';
 
-			do_action( 'cap_guest_author_del' );
+			do_action( 'cap_guest_author_del' ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Legacy cap_ prefix; renaming would break existing callbacks.
 		}
 
 		// Redirect to safety
@@ -324,8 +382,8 @@ class CoAuthors_Guest_Authors {
 			wp_send_json( array() );
 		}
 
-		if ( ! empty( $_GET['guest_author'] ) ) {
-			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_login );
+		if ( ! empty( $_GET['guest_author'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only AJAX autocomplete, capability check enforced above.
+			$ignore = array( $this->get_guest_author_by( 'ID', (int) $_GET['guest_author'] )->user_nicename ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only AJAX autocomplete, capability check enforced above.
 		} else {
 			$ignore = array();
 		}
@@ -509,12 +567,12 @@ class CoAuthors_Guest_Authors {
 	public function action_admin_enqueue_scripts(): void {
 		global $pagenow;
 		// Enqueue our guest author CSS on the related pages
-		if ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'view-guest-authors' === $_GET['page'] ) {
+		if ( $this->parent_page === $pagenow && isset( $_GET['page'] ) && 'view-guest-authors' === $_GET['page'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only decides which assets to enqueue.
 			wp_enqueue_style( 'guest-authors-css', plugins_url( 'css/guest-authors.css', __DIR__ ), false, COAUTHORS_PLUS_VERSION );
 			wp_enqueue_script( 'guest-authors-js', plugins_url( 'js/guest-authors.js', __DIR__ ), array( 'jquery', 'jquery-ui-autocomplete' ), COAUTHORS_PLUS_VERSION, true );
 
 			// Pass AJAX URL for co-author search.
-			$guest_author_id = isset( $_GET['id'] ) ? (int) $_GET['id'] : 0;
+			$guest_author_id = isset( $_GET['id'] ) ? (int) $_GET['id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only builds the AJAX search URL.
 			wp_localize_script(
 				'guest-authors-js',
 				'coAuthorsGuestAuthors',
@@ -557,7 +615,7 @@ class CoAuthors_Guest_Authors {
 	public function action_admin_notices(): void {
 		global $pagenow;
 
-		if ( $this->parent_page != $pagenow || ! isset( $_REQUEST['message'] ) ) {
+		if ( $this->parent_page != $pagenow || ! isset( $_REQUEST['message'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Admin notice after redirect, nonce verified during form submission.
 			return;
 		}
 
@@ -599,7 +657,7 @@ class CoAuthors_Guest_Authors {
 		// Allow guest authors to be deleted
 		if ( isset( $_GET['action'], $_GET['id'], $_GET['_wpnonce'] ) && 'delete' == $_GET['action'] ) {
 			// Make sure the user is who they say they are
-			if ( ! wp_verify_nonce( $_GET['_wpnonce'], 'guest-author-delete' ) ) {
+			if ( ! wp_verify_nonce( sanitize_key( wp_unslash( $_GET['_wpnonce'] ) ), 'guest-author-delete' ) ) {
 				wp_die( esc_html__( "Doin' something fishy, huh?", 'co-authors-plus' ) );
 			}
 
@@ -609,9 +667,14 @@ class CoAuthors_Guest_Authors {
 				wp_die( esc_html__( "Guest author can't be deleted because it doesn't exist.", 'co-authors-plus' ) );
 			}
 
-			// get post count
+			if ( ! current_user_can( 'delete_post', $guest_author->ID ) ) {
+				wp_die( esc_html__( "You don't have permission to delete this guest author.", 'co-authors-plus' ) );
+			}
+
+			// Deleting only changes posts on the guest author's own term, so don't count a linked user's other posts.
 			global $coauthors_plus;
-			$count = $coauthors_plus->get_guest_author_post_count( $guest_author );
+			$guest_author_term = $coauthors_plus->get_author_term( $guest_author );
+			$count             = $guest_author_term ? $guest_author_term->count : 0;
 
 			echo '<div class="wrap">';
 			echo '<h1>' . esc_html__( 'Delete Guest Authors', 'co-authors-plus' ) . '</h1>';
@@ -686,7 +749,7 @@ class CoAuthors_Guest_Authors {
 			<div class="wrap">
 				<h1 class="wp-heading-inline"><?php echo esc_html( get_admin_page_title() ); ?></h1>
 				<?php
-				if ( current_user_can( $this->add_guest_author_cap ) ) {
+				if ( current_user_can( get_post_type_object( $this->post_type )->cap->create_posts ) ) {
 					$add_new_url = admin_url( "post-new.php?post_type={$this->post_type}" );
 					?><a href="<?php echo esc_url( $add_new_url ); ?>" class="page-title-action"><?php esc_html_e( 'Add New', 'co-authors-plus' ); ?></a><?php
 				}
@@ -737,7 +800,8 @@ class CoAuthors_Guest_Authors {
 		$pm_key        = $this->get_post_meta_key( 'user_login' );
 		$existing_slug = get_post_meta( $post->ID, $pm_key, true );
 
-		echo '<input type="text" disabled="disabled" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( urldecode( $existing_slug ) ) . '" />';
+		echo '<label for="' . esc_attr( $pm_key ) . '" class="screen-reader-text">' . esc_html__( 'Unique Slug', 'co-authors-plus' ) . '</label>';
+		echo '<input type="text" disabled="disabled" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( urldecode( $existing_slug ) ) . '" />';
 
 		// Taken from grist_authors.
 		$linked_account_key = $this->get_post_meta_key( 'linked_account' );
@@ -748,8 +812,9 @@ class CoAuthors_Guest_Authors {
 			$linked_account_id = -1;
 		}
 
-		// If user_login is the same as linked account, don't let the association be removed
-		if ( $linked_account == $existing_slug ) {
+		// If user_login is the same as linked account, don't let the association be removed.
+		// Only users who can manage guest authors can change the linked account at all.
+		if ( $linked_account == $existing_slug || ! current_user_can( $this->list_guest_authors_cap ) ) {
 			add_filter( 'wp_dropdown_users', array( $this, 'filter_wp_dropdown_users_to_disable' ) );
 		}
 
@@ -758,27 +823,33 @@ class CoAuthors_Guest_Authors {
 			unset( $linked_account_user_ids[ $key ] );
 		}
 
-		echo '<p><label>' . esc_html__( 'WordPress User Mapping', 'co-authors-plus' ) . '</label> ';
-		wp_dropdown_users(
-			apply_filters(
-				'coauthors_guest_author_linked_account_args',
-				array(
-					'show_option_none' => __( '-- Not mapped --', 'co-authors-plus' ),
-					'name'             => esc_attr( $this->get_post_meta_key( 'linked_account' ) ),
-					// If we're adding an author or if there is no post author (0), then use -1 (which is show_option_none).
-					// We then take -1 on save and convert it back to 0. (#blamenacin)
-					'selected'         => $linked_account_id,
-					// Don't let user accounts to be linked to more than one guest author
-					'exclude'          => $linked_account_user_ids,
-					// Restrict candidates to users who can write posts. The
-					// coauthors_edit_author_cap filter mirrors the same check used
-					// by the AJAX co-author search and validation paths, so a site
-					// that already overrides who can be a co-author keeps its
-					// linked-account dropdown consistent.
-					'capability'       => array( apply_filters( 'coauthors_edit_author_cap', 'edit_posts' ) ),
-				)
+		$dropdown_args = apply_filters(
+			'coauthors_guest_author_linked_account_args',
+			array(
+				'show_option_none' => __( '-- Not mapped --', 'co-authors-plus' ),
+				'name'             => esc_attr( $this->get_post_meta_key( 'linked_account' ) ),
+				// If we're adding an author or if there is no post author (0), then use -1 (which is show_option_none).
+				// We then take -1 on save and convert it back to 0. (#blamenacin)
+				'selected'         => $linked_account_id,
+				// Don't let user accounts to be linked to more than one guest author
+				'exclude'          => $linked_account_user_ids, // phpcs:ignore WordPressVIPMinimum.Performance.WPQueryParams.PostNotIn_exclude -- Only users already linked to another guest author.
+				// Restrict candidates to users who can write posts. The
+				// coauthors_edit_author_cap filter mirrors the same check used
+				// by the AJAX co-author search and validation paths, so a site
+				// that already overrides who can be a co-author keeps its
+				// linked-account dropdown consistent.
+				'capability'       => array( apply_filters( 'coauthors_edit_author_cap', 'edit_posts' ) ),
+				// Keep a linked user the capability or site membership
+				// would leave out, such as one linked with WP-CLI. Without
+				// their option, saving the profile would unlink them.
+				'include_selected' => true,
 			)
 		);
+		// wp_dropdown_users() falls back to the name for the select's id.
+		$dropdown_id = ! empty( $dropdown_args['id'] ) ? $dropdown_args['id'] : ( $dropdown_args['name'] ?? 'user' );
+
+		echo '<p><label for="' . esc_attr( $dropdown_id ) . '">' . esc_html__( 'WordPress User Mapping', 'co-authors-plus' ) . '</label> ';
+		wp_dropdown_users( $dropdown_args );
 		echo '</p>';
 
 		remove_filter( 'wp_dropdown_users', array( $this, 'filter_wp_dropdown_users_to_disable' ) );
@@ -816,9 +887,9 @@ class CoAuthors_Guest_Authors {
 			}
 			$field['input'] = apply_filters( 'coauthors_name_field_type_' . $pm_key, $field['input'] );
 			if ( $field['input'] === 'checkbox' ) {
-				echo '<input type="checkbox" name="' . esc_attr( $pm_key ) . '"' . checked( '1', $value, false ) . ' value="1"/>';
+				echo '<input type="checkbox" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '"' . checked( '1', $value, false ) . ' value="1"/>';
 			} else {
-				echo '<input type="' . esc_attr( $field['input'] ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( $value ) . '" class="regular-text" />';
+				echo '<input type="' . esc_attr( $field['input'] ) . '" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( $value ) . '" class="regular-text" />';
 			}
 			echo '</td></tr>';
 		}
@@ -849,9 +920,9 @@ class CoAuthors_Guest_Authors {
 			}
 			$field['input'] = apply_filters( 'coauthors_name_field_type_' . $pm_key, $field['input'] );
 			if ( $field['input'] === 'checkbox' ) {
-				echo '<input type="checkbox" name="' . esc_attr( $pm_key ) . '"' . checked( '1', $value, false ) . ' value="1"/>';
+				echo '<input type="checkbox" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '"' . checked( '1', $value, false ) . ' value="1"/>';
 			} else {
-				echo '<input type="' . esc_attr( $field['input'] ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( $value ) . '" class="regular-text" />';
+				echo '<input type="' . esc_attr( $field['input'] ) . '" id="' . esc_attr( $pm_key ) . '" name="' . esc_attr( $pm_key ) . '" value="' . esc_attr( $value ) . '" class="regular-text" />';
 			}
 
 			echo '</td></tr>';
@@ -877,16 +948,15 @@ class CoAuthors_Guest_Authors {
 				'
 				<tr>
 					<th>
-						<label for="%s">%s</label>
+						<label for="%1$s">%2$s</label>
 					</th>
 					<td>
-						<textarea style="width:300px;margin-bottom:6px;" name="%s">%s</textarea>
+						<textarea style="width:300px;margin-bottom:6px;" id="%1$s" name="%1$s">%3$s</textarea>
 					</td>
 				</tr>
 				',
 				esc_attr( $pm_key ),
 				esc_html( $field['label'] ),
-				esc_attr( $pm_key ),
 				esc_textarea( $value )
 			);
 		}
@@ -910,7 +980,7 @@ class CoAuthors_Guest_Authors {
 			return $post_data;
 		}
 
-		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( $_POST['guest-author-nonce'], 'guest-author-nonce' ) ) {
+		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['guest-author-nonce'] ) ), 'guest-author-nonce' ) ) {
 			return $post_data;
 		}
 
@@ -918,10 +988,12 @@ class CoAuthors_Guest_Authors {
 		if ( empty( $_POST['cap-display_name'] ) ) {
 			wp_die( esc_html__( 'Guest authors cannot be created without display names.', 'co-authors-plus' ) );
 		}
-		$post_data['post_title'] = sanitize_text_field( wp_unslash( $_POST['cap-display_name'] ) );
+		// $post_data is slashed: core unslashes it after this filter.
+		$post_data['post_title'] = wp_slash( sanitize_text_field( wp_unslash( $_POST['cap-display_name'] ) ) );
 
-		$slug = sanitize_title( get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true ) );
-		if ( ! $slug ) {
+		$slug     = sanitize_title( get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'user_login' ), true ) );
+		$new_slug = ! $slug;
+		if ( $new_slug ) {
 			$slug = sanitize_title( wp_unslash( $_POST['cap-display_name'] ) );
 		}
 
@@ -939,14 +1011,18 @@ class CoAuthors_Guest_Authors {
 		 */
 		$post_data['post_name'] = $this->get_post_meta_key( $slug );
 
-		// Guest authors can't be created with the same user_login as a user
-		$user_nicename = Prefix::strip_slug_prefix( $slug );
-		$user          = get_user_by( 'slug', $user_nicename );
+		/*
+		 * Guest authors can't be created with the same user_login as a user.
+		 * Only checked when the slug is chosen, as create() does: the slug
+		 * can't be changed here afterwards, so refusing a later save can't
+		 * undo a collision caused by a user created since, and would only
+		 * lock the profile.
+		 */
+		$user = $new_slug ? $this->get_user_matching_slug( $slug ) : false;
 		if ( $user
-			&& is_user_member_of_blog( $user->ID, get_current_blog_id() )
 			&& $user->user_login != get_post_meta( $original_args['ID'], $this->get_post_meta_key( 'linked_account' ), true ) ) {
 			// if user has selected to link account to matching user we don't have to bail
-			if ( isset( $_POST['cap-linked_account'] ) && (int) $_POST['cap-linked_account'] === $user->ID ) {
+			if ( isset( $_POST['cap-linked_account'] ) && (int) $_POST['cap-linked_account'] === $user->ID && current_user_can( $this->list_guest_authors_cap ) ) {
 				return $post_data;
 			}
 			wp_die( esc_html__( 'There is a WordPress user with the same username as this guest author, please go back and link them in order to update.', 'co-authors-plus' ) );
@@ -959,6 +1035,32 @@ class CoAuthors_Guest_Authors {
 		}
 
 		return $post_data;
+	}
+
+	/**
+	 * Stop core renaming a guest author's post_name when it is trashed.
+	 *
+	 * Core appends `__trashed` to free the slug for reuse, but bylines look
+	 * guest authors up by post_name, so every post credited to a trashed guest
+	 * author would silently lose them. Core has already stored the original
+	 * slug in `_wp_desired_post_slug` by the time this runs, and puts it back
+	 * (and deletes the meta) on untrash.
+	 *
+	 * @param array $data    Slashed, sanitized post data about to be saved.
+	 * @param array $postarr Sanitized post data passed to wp_insert_post().
+	 * @return array Post data.
+	 */
+	public function filter_keep_post_name_when_trashed( $data, $postarr ) {
+		if ( $this->post_type !== $data['post_type'] || 'trash' !== $data['post_status'] || empty( $postarr['ID'] ) ) {
+			return $data;
+		}
+
+		$desired_post_slug = get_post_meta( $postarr['ID'], '_wp_desired_post_slug', true );
+		if ( $desired_post_slug ) {
+			$data['post_name'] = $desired_post_slug;
+		}
+
+		return $data;
 	}
 
 	/**
@@ -977,7 +1079,7 @@ class CoAuthors_Guest_Authors {
 			return;
 		}
 
-		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( $_POST['guest-author-nonce'], 'guest-author-nonce' ) ) {
+		if ( ! isset( $_POST['guest-author-nonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_POST['guest-author-nonce'] ) ), 'guest-author-nonce' ) ) {
 			return;
 		}
 
@@ -995,8 +1097,10 @@ class CoAuthors_Guest_Authors {
 			}
 			if ( 'linked_account' == $author_field['key'] ) {
 				$linked_account_key = $this->get_post_meta_key( 'linked_account' );
-				if ( ! empty( $_POST[ $linked_account_key ] ) ) {
-					$user_id = (int) wp_unslash( $_POST[ $linked_account_key ] );
+				// A linked guest author takes the user's place on every byline, so only users
+				// who can manage guest authors can change the link.
+				if ( ! empty( $_POST[ $linked_account_key ] ) && current_user_can( $this->list_guest_authors_cap ) ) {
+					$user_id = (int) $_POST[ $linked_account_key ];
 				} else {
 					continue;
 				}
@@ -1019,11 +1123,12 @@ class CoAuthors_Guest_Authors {
 			}
 
 			if ( isset( $author_field['sanitize_function'] ) && is_callable( $author_field['sanitize_function'] ) ) {
-				$value = call_user_func( $author_field['sanitize_function'], wp_unslash( $_POST[ $key ] ) );
+				$value = call_user_func( $author_field['sanitize_function'], wp_unslash( $_POST[ $key ] ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Sanitized by the field's own sanitize_function.
 			} else {
 				$value = sanitize_text_field( wp_unslash( $_POST[ $key ] ) );
 			}
-			update_post_meta( $post_id, $key, $value );
+			// update_post_meta() unslashes, so slash the plain value or its backslashes are lost.
+			update_post_meta( $post_id, $key, wp_slash( $value ) );
 		}
 
 		$author      = $this->get_guest_author_by( 'ID', $post_id );
@@ -1236,7 +1341,9 @@ class CoAuthors_Guest_Authors {
 				'key'               => 'description',
 				'label'             => __( 'Biographical Info', 'co-authors-plus' ),
 				'group'             => 'about',
-				'sanitize_function' => 'wp_filter_post_kses',
+				// Not wp_filter_post_kses: that returns slashed output, and every write
+				// path slashes the sanitised value itself.
+				'sanitize_function' => 'wp_kses_post',
 			),
 		);
 		$fields_to_return = array();
@@ -1305,7 +1412,7 @@ class CoAuthors_Guest_Authors {
 		$retval    = wp_cache_get( $cache_key, self::$cache_group );
 
 		if ( true === $force || false === $retval ) {
-			$user_logins = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key=%s AND meta_value !=''", $this->get_post_meta_key( 'linked_account' ) ) );
+			$user_logins = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key=%s AND meta_value !=''", $this->get_post_meta_key( 'linked_account' ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- No core API lists distinct meta values; the result is cached.
 			$users       = array();
 			foreach ( $user_logins as $user_login ) {
 				$user = get_user_by( 'login', $user_login );
@@ -1389,13 +1496,56 @@ class CoAuthors_Guest_Authors {
 
 	}
 
+	/**
+	 * Find the WordPress user a guest author slug would collide with.
+	 *
+	 * A user whose login or nicename matches the slug, with or without a
+	 * leading 'cap-', shares the guest author's lookups and, by nicename, its
+	 * author term, and the guest author wins both. Shared by the edit screen
+	 * and create() so the two refuse the same slugs.
+	 *
+	 * Any user on the network counts, not only members of this site: core and
+	 * get_coauthor_by() resolve the slug without a membership check, and a
+	 * non-member can still have posts here (a super admin, or a user removed
+	 * from the site or added to it later).
+	 *
+	 * @param string $slug Guest author user_login.
+	 * @return WP_User|false
+	 */
+	private function get_user_matching_slug( string $slug ) {
+		foreach ( array_unique( array( $slug, Prefix::strip_slug_prefix( $slug ) ) ) as $candidate ) {
+			$user = get_user_by( 'login', $candidate );
+			if ( ! $user ) {
+				$user = get_user_by( 'slug', sanitize_title( $candidate ) );
+			}
+			if ( $user ) {
+				return $user;
+			}
+		}
+		return false;
+	}
 
 	/**
 	 * Create a guest author.
 	 *
-	 * @param $args array Author args. Required keys to create author: 'display_name' and 'user_email'.
+	 * This is a low-level primitive and trusts its arguments. Post meta is
+	 * stored exactly as given, and the display name goes straight into
+	 * wp_insert_post(), so core filters the resulting post title (trim, and
+	 * kses for users without the unfiltered_html capability).
+	 *
+	 * Callers are responsible for sanitising.
+	 * Guest_Author_Service::sanitize_profile() applies the same rules as the
+	 * admin save. New external or HTTP callers should go through
+	 * Guest_Author_Service::create(), which sanitises, rather than calling this
+	 * method directly.
+	 *
+	 * Not sanitising here also keeps the user_login collision guard honest: it
+	 * compares the caller's linked_account value against the user's real login,
+	 * and create_guest_author_from_user_id() passes that login through untouched.
 	 *
 	 * @since 3.0
+	 *
+	 * @param array $args Author args. Required keys: 'display_name' and 'user_login'.
 	 * @return int|WP_Error The ID of the created guest author, or a WP_Error object if the author could not be created.
 	 */
 	public function create( $args ) {
@@ -1412,23 +1562,27 @@ class CoAuthors_Guest_Authors {
 			}
 
 			// The user login field shouldn't collide with any existing users
-			if ( 'user_login' == $field['key'] && $existing_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $args['user_login'], true ) ) {
+			if ( 'user_login' == $field['key'] ) {
 				// A matching WordPress user is only allowed when this profile is being
 				// created as that user's linked account, mirroring the allowance
 				// manage_guest_author_filter_post_data() makes on the edit screen.
 				// Anything else silently adopted the user's author term and rewrote
 				// its description, so the user's own posts resolved to the new
 				// guest author.
-				$linked_account = isset( $args['linked_account'] ) ? $args['linked_account'] : '';
-				if ( 'guest-author' === $existing_coauthor->type || $existing_coauthor->user_login !== $linked_account ) {
+				$existing_coauthor = $coauthors_plus->get_coauthor_by( 'user_login', $args['user_login'], true );
+				$user              = $this->get_user_matching_slug( $args['user_login'] );
+				$linked_account    = isset( $args['linked_account'] ) ? $args['linked_account'] : '';
+				if ( ( $existing_coauthor && 'guest-author' === $existing_coauthor->type ) || ( $user && $user->user_login !== $linked_account ) ) {
 					return new WP_Error( 'duplicate-field', __( 'user_login cannot duplicate existing guest author or mapped user', 'co-authors-plus' ) );
 				}//end if
 			}
 		}//end foreach
 
 		// Create the primary post object
+		// wp_insert_post() and update_post_meta() both unslash, so slash the plain
+		// values given here or their backslashes are lost.
 		$new_post = array(
-			'post_title' => $args['display_name'],
+			'post_title' => wp_slash( $args['display_name'] ),
 			// The meta key rule, deliberately. See manage_guest_author_filter_post_data().
 			'post_name'  => sanitize_title( $this->get_post_meta_key( $args['user_login'] ) ),
 			'post_type'  => $this->post_type,
@@ -1445,7 +1599,7 @@ class CoAuthors_Guest_Authors {
 				continue;
 			}
 			$pm_key = $this->get_post_meta_key( $key );
-			update_post_meta( $post_id, $pm_key, $args[ $key ] );
+			update_post_meta( $post_id, $pm_key, wp_slash( $args[ $key ] ) );
 		}
 
 		// Attach the avatar / featured image.
@@ -1511,7 +1665,7 @@ class CoAuthors_Guest_Authors {
 
 			$reassign_to_term = $coauthors_plus->get_author_term( $reassign_to_author );
 			// In the case where the guest author and its linked account shared the same term, we don't want to reassign
-			if ( $guest_author_term->term_id != $reassign_to_term->term_id ) {
+			if ( $guest_author_term && $reassign_to_term && $guest_author_term->term_id != $reassign_to_term->term_id ) {
 				wp_delete_term(
 					$guest_author_term->term_id,
 					$coauthors_plus->coauthor_taxonomy,
@@ -1521,7 +1675,9 @@ class CoAuthors_Guest_Authors {
 					)
 				);
 			}
-		} else {
+		} elseif ( $guest_author_term ) {
+			// A guest author linked to a user shares the user's term, which is gone
+			// already when this runs as part of deleting or removing that user.
 			wp_delete_term( $guest_author_term->term_id, $coauthors_plus->coauthor_taxonomy );
 		}
 
@@ -1752,19 +1908,13 @@ class CoAuthors_Guest_Authors {
 			);
 		}
 
-		$author_data = array(
-			'ID'           => __( 'ID', 'co-authors-plus' ),
-			'user_login'   => __( 'Login Name', 'co-authors-plus' ),
-			'display_name' => __( 'Display Name', 'co-authors-plus' ),
-			'user_email'   => __( 'Email', 'co-authors-plus' ),
-			'first_name'   => __( 'First Name', 'co-authors-plus' ),
-			'last_name'    => __( 'Last Name', 'co-authors-plus' ),
-			'website'      => __( 'Website', 'co-authors-plus' ),
-			'aim'          => __( 'AIM', 'co-authors-plus' ),
-			'yahooim'      => __( 'Yahoo IM', 'co-authors-plus' ),
-			'jabber'       => __( 'Jabber / Google Talk', 'co-authors-plus' ),
-			'description'  => __( 'Biographical Info', 'co-authors-plus' ),
-		);
+		// Export whatever the profile stores, under the labels the edit screen
+		// shows, so fields added through coauthors_guest_author_fields are
+		// covered too.
+		$author_data = array( 'ID' => __( 'ID', 'co-authors-plus' ) );
+		foreach ( $this->get_guest_author_fields() as $field ) {
+			$author_data[ $field['key'] ] = $field['label'] ?? $field['key'];
+		}
 
 		$author_data_to_export = array();
 

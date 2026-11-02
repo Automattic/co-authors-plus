@@ -48,7 +48,7 @@
 			"type": "string"
 		}
 	},
-	"usesContext": [ "postId" ],
+	"usesContext": [ "postId", "postType" ],
 	"textdomain": "co-authors-plus",
 	"editorScript": "file:./index.js",
 	"style": "file:./style-index.css"

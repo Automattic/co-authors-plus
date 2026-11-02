@@ -180,38 +180,35 @@ Feature: Guest authors can be created from a CSV file
 		cap-dirty-login
 		"""
 
-	Scenario: A CSV header that omits columns warns for every missing key but still imports
+	# Backslashes used to be stripped on write, and an apostrophe in the bio must not
+	# come back slashed now that they are kept.
+	Scenario: Backslashes and apostrophes survive into the profile
+		When I run `wp co-authors-plus create-guest-authors-from-csv --file=features/fixtures/guest-authors-backslash.csv`
+		Then the return code should be 0
+		When I run `wp post list --post_type=guest-author --meta_key=cap-user_login --meta_value=pat-obrien --format=ids`
+		And save STDOUT as {PAT_ID}
+		And I run `wp post meta get {PAT_ID} cap-display_name`
+		Then STDOUT should be:
+		"""
+		Pat O'Brien \ Co
+		"""
+		When I run `wp post meta get {PAT_ID} cap-description`
+		Then STDOUT should be:
+		"""
+		It's kept in C:\Users\pat
+		"""
+
+	Scenario: A CSV header that omits optional columns imports them as empty
 		# The fixture's header also ends in a nameless column whose row cell holds a
 		# value; the exact meta block below shows that cell is dropped rather than
 		# stored under an empty key.
 		When I run `wp co-authors-plus create-guest-authors-from-csv --file=features/fixtures/guest-authors-missing-columns.csv`
 		Then the return code should be 0
+		And STDOUT should not match /Undefined array key/
 		And STDOUT should contain:
 		"""
 		Found 1 author in CSV
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "user_email"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "website"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "description"
-		"""
-		And STDOUT should contain:
-		"""
-		Undefined array key "avatar"
-		"""
-		And STDOUT should contain:
-		"""
 		Processing author casey-missing ()
-		"""
-		And STDOUT should contain:
-		"""
 		Success: -- Created as guest author #
 		"""
 		When I run `wp post list --post_type=guest-author --format=ids`
@@ -225,6 +222,28 @@ Feature: Guest authors can be created from a CSV file
 		{CASEY_ID},cap-last_name,Missing
 		{CASEY_ID},cap-user_login,casey-missing
 		{CASEY_ID},_original_author_login,casey-missing
+		"""
+
+	Scenario: A CSV header without a required column is refused before any row is imported
+		When I try `wp co-authors-plus create-guest-authors-from-csv --file=features/fixtures/guest-authors-missing-user-login.csv`
+		Then the return code should be 1
+		And STDERR should be:
+		"""
+		Error: The CSV file is missing the required column: user_login
+		"""
+		And STDOUT should be empty
+		# An empty file has no header at all, so both required columns are missing.
+		When I try `wp co-authors-plus create-guest-authors-from-csv --file=features/fixtures/guest-authors-empty.csv`
+		Then the return code should be 1
+		And STDERR should be:
+		"""
+		Error: The CSV file is missing the required columns: display_name, user_login
+		"""
+		And STDOUT should be empty
+		When I run `wp post list --post_type=guest-author --format=count`
+		Then STDOUT should be:
+		"""
+		0
 		"""
 
 	Scenario: A row that fails validation is warned about and the import carries on

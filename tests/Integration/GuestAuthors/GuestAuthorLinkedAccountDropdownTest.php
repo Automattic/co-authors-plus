@@ -131,6 +131,30 @@ class GuestAuthorLinkedAccountDropdownTest extends TestCase {
 	}
 
 	/**
+	 * A linked user the dropdown wouldn't otherwise list, such as a Subscriber
+	 * linked with WP-CLI, stays selected. Without their option the browser
+	 * submits "Not mapped", and saving the profile unlinks them.
+	 *
+	 * @covers CoAuthors_Guest_Authors::metabox_manage_guest_author_slug
+	 */
+	public function test_dropdown_html_keeps_linked_user_without_capability_selected(): void {
+		global $coauthors_plus;
+
+		$subscriber = $this->create_subscriber( 'linked_subscriber' );
+		update_post_meta( $this->guest_author->ID, 'cap-linked_account', $subscriber->user_login );
+
+		ob_start();
+		$coauthors_plus->guest_authors->metabox_manage_guest_author_slug();
+		$html = ob_get_clean();
+
+		$this->assertMatchesRegularExpression(
+			"/<option value='{$subscriber->ID}'[^>]*selected='selected'/",
+			$html,
+			'The linked Subscriber should be listed and selected.'
+		);
+	}
+
+	/**
 	 * Run a callable while capturing the args passed through the
 	 * `coauthors_guest_author_linked_account_args` filter. Returns the captured
 	 * args, or null if the filter never ran.

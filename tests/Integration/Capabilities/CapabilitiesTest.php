@@ -108,9 +108,120 @@ class CapabilitiesTest extends TestCase {
 	}
 
 	/**
+	 * Pages are checked against edit_others_pages, not edit_others_posts.
+	 *
+	 * @covers ::current_user_can_set_authors
+	 */
+	public function test_current_user_can_set_authors_on_pages_uses_edit_others_pages(): void {
+		$current_user = get_current_user_id();
+
+		$pages_only = $this->create_editor( 'pages_only' );
+		$pages_only->add_cap( 'edit_others_posts', false );
+		wp_set_current_user( $pages_only->ID );
+
+		$this->assertTrue( $this->_cap->current_user_can_set_authors( 'page' ) );
+		$this->assertFalse( $this->_cap->current_user_can_set_authors( 'post' ) );
+		$this->assertFalse( $this->_cap->current_user_can_set_authors(), 'Without a post type, edit_others_posts is checked.' );
+
+		$posts_only = $this->create_editor( 'posts_only' );
+		$posts_only->add_cap( 'edit_others_pages', false );
+		wp_set_current_user( $posts_only->ID );
+
+		$this->assertFalse( $this->_cap->current_user_can_set_authors( 'page' ) );
+		$this->assertTrue( $this->_cap->current_user_can_set_authors( 'post' ) );
+		$this->assertTrue( $this->_cap->current_user_can_set_authors() );
+
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * A post type with its own capability type is checked against its own
+	 * edit_others cap, and super admins can still set authors on it.
+	 *
+	 * @covers ::current_user_can_set_authors
+	 */
+	public function test_current_user_can_set_authors_on_custom_post_type_uses_its_capability(): void {
+		$current_user = get_current_user_id();
+		register_post_type(
+			'cap_book',
+			array(
+				'capability_type' => array( 'cap_book', 'cap_books' ),
+				'map_meta_cap'    => true,
+				'supports'        => array( 'title', 'author' ),
+			)
+		);
+
+		$book_editor = $this->create_subscriber( 'book_editor' );
+		$book_editor->add_cap( 'edit_others_cap_books' );
+		wp_set_current_user( $book_editor->ID );
+		$book_editor_can_set_book = $this->_cap->current_user_can_set_authors( 'cap_book' );
+		$book_editor_can_set_post = $this->_cap->current_user_can_set_authors( 'post' );
+
+		wp_set_current_user( $this->editor1->ID );
+		$editor_can_set_book = $this->_cap->current_user_can_set_authors( 'cap_book' );
+
+		// An Administrator has no cap_book caps, so only the super admin check lets them through.
+		$admin = $this->factory()->user->create_and_get( array( 'role' => 'administrator' ) );
+		if ( is_multisite() ) {
+			grant_super_admin( $admin->ID );
+		}
+		wp_set_current_user( $admin->ID );
+		$admin_can_set_book = $this->_cap->current_user_can_set_authors( 'cap_book' );
+
+		if ( is_multisite() ) {
+			revoke_super_admin( $admin->ID );
+		}
+		unregister_post_type( 'cap_book' );
+		wp_set_current_user( $current_user );
+
+		$this->assertTrue( $book_editor_can_set_book );
+		$this->assertFalse( $book_editor_can_set_post );
+		$this->assertFalse( $editor_can_set_book );
+		$this->assertTrue( $admin_can_set_book );
+	}
+
+	/**
+	 * An unknown post type falls back to edit_others_posts.
+	 *
+	 * @covers ::current_user_can_set_authors
+	 */
+	public function test_current_user_can_set_authors_falls_back_for_unknown_post_type(): void {
+		$current_user = get_current_user_id();
+
+		wp_set_current_user( $this->editor1->ID );
+		$this->assertTrue( $this->_cap->current_user_can_set_authors( 'not_a_post_type' ) );
+
+		wp_set_current_user( $this->author1->ID );
+		$this->assertFalse( $this->_cap->current_user_can_set_authors( 'not_a_post_type' ) );
+
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * The coauthors_plus_edit_authors filter is told which post type is checked.
+	 *
+	 * @covers ::current_user_can_set_authors
+	 */
+	public function test_coauthors_plus_edit_authors_filter_receives_post_type(): void {
+		$seen   = array();
+		$filter = static function ( $can_set_authors, $post_type = 'not passed' ) use ( &$seen ) {
+			$seen[] = $post_type;
+			return $can_set_authors;
+		};
+		add_filter( 'coauthors_plus_edit_authors', $filter, 10, 2 );
+
+		$this->_cap->current_user_can_set_authors( 'page' );
+		$this->_cap->current_user_can_set_authors();
+
+		remove_filter( 'coauthors_plus_edit_authors', $filter, 10 );
+
+		$this->assertSame( array( 'page', null ), $seen );
+	}
+
+	/**
 	 * Checks if the current user can edit a post they are set as a coauthor for.
 	 *
-	 * @covers ::filter_user_has_cap
+	 * @covers ::filter_map_meta_cap
 	 */
 	public function test_current_user_can_edit_post_they_coauthor(): void {
 		global $coauthors_plus;
@@ -149,5 +260,406 @@ class CapabilitiesTest extends TestCase {
 
 		// Restore original user from backup.
 		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * Creates a post owned by an administrator, so test users are never the post author.
+	 *
+	 * @param string $status Post status.
+	 * @return int Post ID.
+	 */
+	private function create_admin_post( string $status ): int {
+		$admin = $this->factory()->user->create( array( 'role' => 'administrator' ) );
+
+		return $this->factory()->post->create(
+			array(
+				'post_author' => $admin,
+				'post_status' => $status,
+			)
+		);
+	}
+
+	/**
+	 * Adds users as co-authors after the post author, so post_author stays the same.
+	 *
+	 * Otherwise add_coauthors() makes the first co-author the post author, and the
+	 * cap check passes as the owner instead of as a co-author.
+	 *
+	 * @param int        $post_id Post ID.
+	 * @param \WP_User[] $users   Users to add.
+	 */
+	private function add_secondary_coauthors( int $post_id, array $users ): void {
+		global $coauthors_plus;
+
+		$post_author = get_post( $post_id )->post_author;
+
+		$coauthors_plus->add_coauthors( $post_id, wp_list_pluck( $users, 'user_login' ), true, 'user_login' );
+
+		$this->assertSame( $post_author, get_post( $post_id )->post_author );
+	}
+
+	/**
+	 * A co-author needs edit_posts for a draft, like the post author does.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_contributor_coauthor_can_edit_draft(): void {
+		$contributor = $this->create_contributor();
+		$post_id     = $this->create_admin_post( 'draft' );
+
+		$this->assertFalse( user_can( $contributor, 'edit_post', $post_id ) );
+
+		$this->add_secondary_coauthors( $post_id, array( $contributor ) );
+
+		$this->assertTrue( user_can( $contributor, 'edit_post', $post_id ) );
+		$this->assertTrue( user_can( $contributor, 'read_post', $post_id ) );
+	}
+
+	/**
+	 * A user whose role has no edit_posts can't edit a draft only because they are credited on it.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_subscriber_coauthor_cannot_edit_draft(): void {
+		$subscriber = $this->create_subscriber();
+		$post_id    = $this->create_admin_post( 'draft' );
+
+		$this->add_secondary_coauthors( $post_id, array( $subscriber ) );
+
+		$current_user = get_current_user_id();
+		wp_set_current_user( $subscriber->ID );
+
+		$this->assertFalse( current_user_can( 'edit_post', $post_id ) );
+
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * Status caps still come from the user's own role.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_status_caps_come_from_own_role(): void {
+		$contributor  = $this->create_contributor();
+		$published_id = $this->create_admin_post( 'publish' );
+		$private_id   = $this->create_admin_post( 'private' );
+
+		$this->add_secondary_coauthors( $published_id, array( $contributor, $this->author1 ) );
+		$this->add_secondary_coauthors( $private_id, array( $this->author1 ) );
+
+		// Contributors have no edit_published_posts, authors do.
+		$this->assertFalse( user_can( $contributor, 'edit_post', $published_id ) );
+		$this->assertTrue( user_can( $this->author1, 'edit_post', $published_id ) );
+
+		// Authors have no edit_private_posts.
+		$this->assertFalse( user_can( $this->author1, 'edit_post', $private_id ) );
+	}
+
+	/**
+	 * A co-author can trash or delete a post they're credited on, like the post author can.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1029
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_can_delete_post_they_coauthor(): void {
+		$contributor  = $this->create_contributor();
+		$draft_id     = $this->create_admin_post( 'draft' );
+		$published_id = $this->create_admin_post( 'publish' );
+
+		$this->assertFalse( user_can( $contributor, 'delete_post', $draft_id ) );
+		$this->assertFalse( user_can( $this->author1, 'delete_post', $published_id ) );
+
+		$this->add_secondary_coauthors( $draft_id, array( $contributor ) );
+		$this->add_secondary_coauthors( $published_id, array( $this->author1 ) );
+
+		$this->assertTrue( user_can( $contributor, 'delete_post', $draft_id ) );
+		$this->assertTrue( user_can( $this->author1, 'delete_post', $published_id ) );
+		$this->assertFalse( user_can( $this->author1, 'delete_others_posts' ) );
+	}
+
+	/**
+	 * Delete status caps still come from the user's own role, and a role with no
+	 * delete_posts can't delete a post only because they are credited on it.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_delete_caps_come_from_own_role(): void {
+		$contributor  = $this->create_contributor();
+		$subscriber   = $this->create_subscriber();
+		$published_id = $this->create_admin_post( 'publish' );
+		$private_id   = $this->create_admin_post( 'private' );
+		$draft_id     = $this->create_admin_post( 'draft' );
+
+		$this->add_secondary_coauthors( $published_id, array( $contributor ) );
+		$this->add_secondary_coauthors( $private_id, array( $this->author1 ) );
+		$this->add_secondary_coauthors( $draft_id, array( $subscriber ) );
+
+		// Contributors have no delete_published_posts.
+		$this->assertFalse( user_can( $contributor, 'delete_post', $published_id ) );
+
+		// Authors have no delete_private_posts.
+		$this->assertFalse( user_can( $this->author1, 'delete_post', $private_id ) );
+
+		// Subscribers have no delete_posts.
+		$this->assertFalse( user_can( $subscriber, 'delete_post', $draft_id ) );
+	}
+
+	/**
+	 * A trashed post that was published still needs the published caps, like it
+	 * does for the post author.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_contributor_coauthor_cannot_delete_trashed_published_post(): void {
+		$contributor  = $this->create_contributor();
+		$published_id = $this->create_admin_post( 'publish' );
+		$draft_id     = $this->create_admin_post( 'draft' );
+
+		$this->add_secondary_coauthors( $published_id, array( $contributor ) );
+		$this->add_secondary_coauthors( $draft_id, array( $contributor ) );
+
+		wp_trash_post( $published_id );
+		wp_trash_post( $draft_id );
+
+		$this->assertFalse( user_can( $contributor, 'delete_post', $published_id ) );
+		$this->assertFalse( user_can( $contributor, 'edit_post', $published_id ) );
+
+		// A trashed draft can still be deleted.
+		$this->assertTrue( user_can( $contributor, 'delete_post', $draft_id ) );
+	}
+
+	/**
+	 * Verifies the save nonce for a post, like post.php does before it saves or previews.
+	 *
+	 * @param int $post_id Post ID.
+	 */
+	private function verify_save_nonce( int $post_id ): void {
+		$_REQUEST['_wpnonce'] = wp_create_nonce( 'update-post_' . $post_id );
+
+		$this->assertSame( 1, check_admin_referer( 'update-post_' . $post_id ) );
+	}
+
+	/**
+	 * A co-author can save from the classic editor, which sends the stored post_author.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_can_save_post_without_changing_author(): void {
+		$current_user = get_current_user_id();
+		$post_id      = $this->create_admin_post( 'publish' );
+		$post_author  = (int) get_post( $post_id )->post_author;
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_author' => $post_author,
+			'post_title'  => 'Saved by co-author',
+		);
+		$this->verify_save_nonce( $post_id );
+
+		$this->assertSame( $post_id, edit_post() );
+		$this->assertSame( 'Saved by co-author', get_post( $post_id )->post_title );
+		$this->assertSame( $post_author, (int) get_post( $post_id )->post_author );
+
+		// Changing the post author to someone else still needs edit_others_posts.
+		$_POST['post_author'] = $this->editor1->ID;
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+
+		$_POST = array();
+		set_current_screen( 'front' );
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * Saving from the classic editor keeps a sticky post sticky. The sticky
+	 * checkbox is not shown to an Author co-author, so sticky is not in the POST.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_save_keeps_post_sticky(): void {
+		$current_user = get_current_user_id();
+		$post_id      = $this->create_admin_post( 'publish' );
+
+		stick_post( $post_id );
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_author' => get_post( $post_id )->post_author,
+			'post_title'  => 'Saved by co-author',
+		);
+		$this->verify_save_nonce( $post_id );
+
+		$this->assertSame( $post_id, edit_post() );
+		$this->assertTrue( is_sticky( $post_id ) );
+
+		$_POST = array();
+		set_current_screen( 'front' );
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * Being a co-author must not give the edit_others_posts primitive cap.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/138
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_does_not_get_edit_others_posts(): void {
+		global $coauthors_plus, $post;
+
+		$current_user = get_current_user_id();
+		$post_id      = $this->create_admin_post( 'publish' );
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		wp_set_current_user( $this->author1->ID );
+		// Like on the edit screen, where the global post is the co-authored post.
+		$post = get_post( $post_id ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+
+		$this->assertTrue( current_user_can( 'edit_post', $post_id ) );
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+		$this->assertFalse( $coauthors_plus->current_user_can_set_authors() );
+
+		$post = null; // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited
+		wp_set_current_user( $current_user );
+	}
+
+	/**
+	 * Posting a co-authored post's ID and author to any other admin request does
+	 * not give edit_others_posts.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_does_not_get_edit_others_posts_from_forged_post_data(): void {
+		$post_id = $this->create_admin_post( 'publish' );
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		set_current_screen( 'dashboard' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'action'      => 'some-other-action',
+			'post_ID'     => $post_id,
+			'post_author' => get_post( $post_id )->post_author,
+		);
+
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+	}
+
+	/**
+	 * The save nonce must be valid and for the posted post.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_save_needs_valid_nonce_for_the_posted_post(): void {
+		$post_id  = $this->create_admin_post( 'publish' );
+		$other_id = $this->create_admin_post( 'publish' );
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+		$this->add_secondary_coauthors( $other_id, array( $this->author1 ) );
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_author' => get_post( $post_id )->post_author,
+		);
+
+		// A valid nonce, but for another post.
+		$this->verify_save_nonce( $other_id );
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+
+		// The right action, but the nonce failed.
+		do_action( 'check_admin_referer', 'update-post_' . $post_id, false );
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+	}
+
+	/**
+	 * Only the first edit_others_posts check after the save nonce is allowed,
+	 * which is the one in _wp_translate_postdata().
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_save_allows_only_one_check(): void {
+		$post_id = $this->create_admin_post( 'publish' );
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_author' => get_post( $post_id )->post_author,
+		);
+		$this->verify_save_nonce( $post_id );
+
+		$this->assertTrue( current_user_can( 'edit_others_posts' ) );
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+	}
+
+	/**
+	 * The post author never needs the save grant, since core skips the
+	 * edit_others_posts check for them.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_post_author_does_not_get_edit_others_posts_on_save(): void {
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $this->author1->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_author' => $this->author1->ID,
+		);
+		$this->verify_save_nonce( $post_id );
+
+		$this->assertFalse( current_user_can( 'edit_others_posts' ) );
+	}
+
+	/**
+	 * A co-author can preview their changes, which core stores as an autosave.
+	 *
+	 * @covers ::filter_map_meta_cap
+	 */
+	public function test_coauthor_can_preview_post(): void {
+		$post_id = $this->create_admin_post( 'publish' );
+
+		$this->add_secondary_coauthors( $post_id, array( $this->author1 ) );
+
+		set_current_screen( 'post' );
+		wp_set_current_user( $this->author1->ID );
+
+		$_POST = array(
+			'post_ID'     => $post_id,
+			'post_type'   => 'post',
+			'post_author' => get_post( $post_id )->post_author,
+			'post_title'  => 'Previewed by co-author',
+		);
+		$this->verify_save_nonce( $post_id );
+
+		$this->assertIsString( post_preview() );
+
+		$autosave = wp_get_post_autosave( $post_id, $this->author1->ID );
+		$this->assertInstanceOf( \WP_Post::class, $autosave );
+		$this->assertSame( 'Previewed by co-author', $autosave->post_title );
 	}
 }

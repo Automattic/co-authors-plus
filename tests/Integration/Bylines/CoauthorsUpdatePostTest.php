@@ -145,4 +145,44 @@ class CoauthorsUpdatePostTest extends TestCase {
 
 		$this->assertEmpty( $coauthors );
 	}
+
+	/**
+	 * Setting co-authors from the classic editor checks the saved post's type.
+	 *
+	 * @covers \CoAuthors_Plus::coauthors_update_post
+	 */
+	public function test_coauthors_update_post_checks_the_post_type_of_the_saved_post(): void {
+		global $coauthors_plus;
+
+		$pages_only = $this->create_editor( 'pages_only' );
+		$pages_only->add_cap( 'edit_others_posts', false );
+
+		$page_id = $this->factory()->post->create(
+			array(
+				'post_author' => $this->author1,
+				'post_type'   => 'page',
+			)
+		);
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $this->author1,
+			)
+		);
+
+		wp_set_current_user( $pages_only->ID );
+
+		$nonce                       = wp_create_nonce( 'coauthors-edit' );
+		$_POST['coauthors-nonce']    = $nonce;
+		$_REQUEST['coauthors-nonce'] = $nonce;
+		$_POST['coauthors']          = array(
+			$pages_only->user_nicename,
+			get_userdata( $this->author1 )->user_nicename,
+		);
+
+		$coauthors_plus->coauthors_update_post( $page_id, get_post( $page_id ) );
+		$coauthors_plus->coauthors_update_post( $post_id, get_post( $post_id ) );
+
+		$this->assertSame( array( $pages_only->ID, $this->author1 ), wp_list_pluck( get_coauthors( $page_id ), 'ID' ) );
+		$this->assertSame( array( $this->author1 ), wp_list_pluck( get_coauthors( $post_id ), 'ID' ) );
+	}
 }

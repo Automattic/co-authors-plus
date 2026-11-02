@@ -68,13 +68,15 @@ class Create_Author_Terms_For_Posts_Command {
 	 * ## OPTIONS
 	 *
 	 * [--post-types=<post-types>]
-	 * : Comma-separated post types to cover. Defaults to post.
+	 * : Comma-separated post types to cover, each enabled for Co-Authors Plus.
+	 * Defaults to post.
 	 *
 	 * [--post-statuses=<post-statuses>]
 	 * : Comma-separated post statuses to cover. Defaults to publish.
 	 *
 	 * [--records-per-batch=<number>]
-	 * : How many posts to handle per batch. Defaults to 250.
+	 * : How many posts to handle per batch, as a positive integer.
+	 * Defaults to 250.
 	 *
 	 * [--unbatched]
 	 * : Handle every matching post in one pass.
@@ -124,9 +126,31 @@ class Create_Author_Terms_For_Posts_Command {
 			WP_CLI::warning( '--above-post-id and --below-post-id are ignored when --specific-post-ids is given.' );
 		}
 
+		// Interpolated into the SQL LIMIT, so a non-numeric value used to surface as
+		// a database error rather than a message about the flag.
+		$records_per_batch = filter_var( $records_per_batch, FILTER_VALIDATE_INT, array( 'options' => array( 'min_range' => 1 ) ) );
+		if ( false === $records_per_batch ) {
+			WP_CLI::error( '--records-per-batch must be a positive integer.' );
+		}
+
 		global $wpdb;
 
 		$coauthors_plus = $this->coauthors_plus;
+
+		// Rejected as a whole, before any write: a typo used to match nothing and
+		// report success, and a real but unsupported type (attachment, revision)
+		// would have had author terms written to it.
+		$supported_post_types   = $coauthors_plus->supported_post_types();
+		$unsupported_post_types = array_diff( $post_types, $supported_post_types );
+		if ( ! empty( $unsupported_post_types ) ) {
+			WP_CLI::error(
+				sprintf(
+					'--post-types must only include post types Co-Authors Plus is enabled for (%s). Not enabled: %s.',
+					implode( ', ', $supported_post_types ),
+					implode( ', ', $unsupported_post_types )
+				)
+			);
+		}
 
 		$count_of_posts_with_missing_author_terms = $this->get_count_of_posts_with_missing_terms(
 			$coauthors_plus->coauthor_taxonomy,
@@ -429,7 +453,7 @@ class Create_Author_Terms_For_Posts_Command {
 		] = array_values( $this->get_sql_for_posts_with_missing_terms( $author_taxonomy, $post_types, $post_statuses, $specific_post_ids, $above_post_id, $below_post_id ) );
 
 		if ( $batched ) {
-			$sql .= " LIMIT $records_per_batch";
+			$sql .= ' LIMIT ' . (int) $records_per_batch;
 		}
 
 		// phpcs:disable -- Query is properly prepared

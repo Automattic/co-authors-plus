@@ -110,4 +110,51 @@ class AddCoauthorPostAuthorTest extends TestCase {
 		$coauthors_plus->add_coauthors( $this->author1_post1, array( $editor1->user_login ) );
 		$this->assertEquals( $this->editor1, get_post( $this->author1_post1 )->post_author );
 	}
+
+	/**
+	 * The post_author follows the first co-author, even when the previous post
+	 * author is still further down the byline, and a later save of the post keeps
+	 * it.
+	 *
+	 * @covers \CoAuthors_Plus::add_coauthors
+	 */
+	public function test_post_author_moves_to_first_coauthor_when_post_author_stays_in_byline(): void {
+		global $coauthors_plus;
+
+		$editor1 = get_user_by( 'id', $this->editor1 );
+		$author1 = get_user_by( 'id', $this->author1 );
+
+		$result = $coauthors_plus->add_coauthors( $this->author1_post1, array( $editor1->user_login, $author1->user_login ) );
+
+		$this->assertTrue( $result );
+		$this->assertSame( $this->editor1, (int) get_post( $this->author1_post1 )->post_author );
+
+		wp_update_post(
+			array(
+				'ID'         => $this->author1_post1,
+				'post_title' => rand_str(),
+			)
+		);
+
+		$this->assertSame( $this->editor1, (int) get_post( $this->author1_post1 )->post_author );
+	}
+
+	/**
+	 * A guest author linked to a WordPress account counts as that account, so
+	 * putting it first makes the linked user the post_author.
+	 *
+	 * @covers \CoAuthors_Plus::add_coauthors
+	 */
+	public function test_post_author_moves_to_user_linked_to_first_guest_author(): void {
+		global $coauthors_plus;
+
+		$guest_author_id = $coauthors_plus->guest_authors->create_guest_author_from_user_id( $this->editor1 );
+		$guest_author    = $coauthors_plus->guest_authors->get_guest_author_by( 'id', $guest_author_id );
+		$author1         = get_user_by( 'id', $this->author1 );
+
+		$result = $coauthors_plus->add_coauthors( $this->author1_post1, array( $guest_author->user_login, $author1->user_login ) );
+
+		$this->assertTrue( $result );
+		$this->assertSame( $this->editor1, (int) get_post( $this->author1_post1 )->post_author );
+	}
 }

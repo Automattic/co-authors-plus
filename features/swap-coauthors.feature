@@ -143,6 +143,37 @@ Feature: One co-author can be swapped with another on their posts
 		{AUTHOR3_ID}
 		"""
 
+	Scenario: Swap between co-authors whose logins differ from their nicenames
+		# Author terms are named cap-<nicename>, so looking for cap-<login> found
+		# none of author1's posts, and the --to co-author has no term yet, so
+		# passing their login on to add_coauthors() matched no one.
+		When I run `wp user create author1 author1@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR1_ID}
+		And I run `wp user update {AUTHOR1_ID} --user_nicename=writer-one`
+		And I run `wp user create author2 author2@example.com --role=author --porcelain`
+		And save STDOUT as {AUTHOR2_ID}
+		And I run `wp user update {AUTHOR2_ID} --user_nicename=writer-two`
+		And I run `wp post create --post_author={AUTHOR1_ID} --post_title="A post" --post_status=publish --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-writer-one
+		"""
+		When I run `wp co-authors-plus swap-coauthors --from=author1 --to=author2`
+		Then STDOUT should be:
+		"""
+		Swapping authorship from author1 to author2
+		Found 1 post to update.
+		1: Post #{POST_ID} has been assigned "author2" as a co-author
+		Success: All done!
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be:
+		"""
+		cap-writer-two
+		"""
+
 	Scenario: Preview a swap with --dry-run and change nothing
 		When I run `wp user create author1 author1@example.com --role=author --porcelain`
 		And save STDOUT as {AUTHOR1_ID}

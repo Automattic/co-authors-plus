@@ -78,8 +78,9 @@ class BulkEditHooksTest extends TestCase {
 		$first    = $this->create_post( $owner );
 		$second   = $this->create_post( $owner );
 
+		// Core passes the IDs it updated as the first argument.
 		$this->_cap->action_bulk_edit_update_coauthors(
-			array(),
+			array( $first->ID, $second->ID ),
 			array(
 				'post'      => array( $first->ID, $second->ID ),
 				'post_type' => 'post',

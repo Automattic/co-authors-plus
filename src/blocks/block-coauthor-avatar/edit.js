@@ -1,4 +1,4 @@
-import { __ } from '@wordpress/i18n';
+import { __, sprintf } from '@wordpress/i18n';
 import {
 	useBlockProps,
 	InspectorControls,
@@ -96,7 +96,11 @@ export default function Edit( { context, attributes, setAttributes } ) {
 					/>
 				) : (
 					<img
-						alt={ author.display_name || '' }
+						alt={ sprintf(
+							/* translators: %s: author display name */
+							__( '%s Avatar', 'co-authors-plus' ),
+							author.display_name || ''
+						) }
 						style={ { ...borderProps.style, verticalAlign } }
 						width={ size }
 						height={ size }

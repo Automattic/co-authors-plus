@@ -225,7 +225,7 @@ class CoAuthors_Controller extends WP_REST_Controller {
 				'no_found_rows'          => true,
 				'update_post_meta_cache' => false,
 				'update_post_term_cache' => false,
-				'tax_query'              => array(
+				'tax_query'              => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Co-authors are stored as taxonomy terms.
 					array(
 						'taxonomy' => $this->coauthors_plus->coauthor_taxonomy,
 						'field'    => 'term_id',
@@ -309,6 +309,36 @@ class CoAuthors_Controller extends WP_REST_Controller {
 				array( 'status' => 406 )
 			);
 		}
+
+		/**
+		 * Filters the resolved co-authors before they are formatted for the REST response.
+		 *
+		 * Allows consumers to limit, reorder, or replace the list returned by the
+		 * coauthors/v1/coauthors collection endpoint. This endpoint is the data source
+		 * for the Co-Authors block's server render and its editor preview, but it is a
+		 * public endpoint also consumed by headless clients and other plugins. Returning
+		 * a non-array short-circuits to an empty list. Invalid entries are dropped and
+		 * sparse keys are reindexed so the response stays a well-formed JSON array.
+		 *
+		 * @since 4.2.0
+		 * @param array           $coauthors Resolved co-author objects (WP_User|stdClass).
+		 * @param int             $post_id   Post ID from the request.
+		 * @param WP_REST_Request $request   The current REST request.
+		 */
+		$coauthors = apply_filters( 'rest_coauthors_prepare_items', $coauthors, (int) $request->get_param( 'post_id' ), $request ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public filter; renaming would break existing callbacks.
+
+		if ( ! is_array( $coauthors ) ) {
+			$coauthors = array();
+		}
+
+		$coauthors = array_values(
+			array_filter(
+				$coauthors,
+				static function ( $author ) {
+					return is_object( $author ) && self::is_coauthor( $author );
+				}
+			)
+		);
 
 		return rest_ensure_response(
 			array_map(
@@ -404,7 +434,7 @@ class CoAuthors_Controller extends WP_REST_Controller {
 		// Take a snapshot of which fields are in the schema pre-filtering.
 		$schema_fields = array_keys( $schema['properties'] );
 
-		$schema = apply_filters( 'rest_coauthors_item_schema', $schema );
+		$schema = apply_filters( 'rest_coauthors_item_schema', $schema ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public filter; renaming would break existing callbacks.
 
 		// Emit a _doing_it_wrong warning if user tries to add new properties using this filter.
 		$new_fields = array_diff( array_keys( $schema['properties'] ), $schema_fields );
@@ -503,13 +533,14 @@ class CoAuthors_Controller extends WP_REST_Controller {
 		$response = rest_ensure_response( $data );
 
 		/**
-		 * Filters the post data for a REST API response.
+		 * Filters the co-author data for a REST API response.
 		 *
 		 * @since 3.6.0
 		 * @param WP_REST_Response $response The response object.
-		 * @param stdClass|WP_User $author
+		 * @param stdClass         $author   The author: a registered user's WP_User->data, with
+		 *                                   `description` added, or the guest author object.
 		 * @param WP_REST_Request  $request  Request object.
 		 */
-		return apply_filters( 'rest_prepare_coauthor', $response, $author, $request );
+		return apply_filters( 'rest_prepare_coauthor', $response, $author, $request ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public filter; renaming would break existing callbacks.
 	}
 }

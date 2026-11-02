@@ -46,12 +46,13 @@ class BlockCoAuthorAvatarTest extends TestCase {
 	}
 
 	/**
-	 * Render the block for an author with two avatar sizes.
+	 * Render the block for an author, by default with two avatar sizes.
 	 *
-	 * @param array $attributes Block attributes.
+	 * @param array      $attributes  Block attributes.
+	 * @param array|null $avatar_urls Avatar URLs keyed by size, or null for sizes 24 and 48.
 	 * @return string
 	 */
-	private function render( array $attributes = array() ): string {
+	private function render( array $attributes = array(), ?array $avatar_urls = null ): string {
 		// isLink is always supplied: the block reads it as
 		// `'' !== $link && $attributes['isLink'] ?? false`, and ?? binds
 		// looser than &&, so a missing key warns rather than defaulting.
@@ -67,7 +68,7 @@ class BlockCoAuthorAvatarTest extends TestCase {
 				'co-authors-plus/author' => array(
 					'display_name' => 'Ada Lovelace',
 					'link'         => 'https://example.org/author/ada/',
-					'avatar_urls'  => array(
+					'avatar_urls'  => $avatar_urls ?? array(
 						24 => 'https://example.org/avatar-24.png',
 						48 => 'https://example.org/avatar-48.png',
 					),
@@ -133,6 +134,69 @@ class BlockCoAuthorAvatarTest extends TestCase {
 		);
 
 		$this->assertStringNotContainsString( '<a ', $output );
+	}
+
+	/**
+	 * The image names the author in its alt text, as core's Avatar block does.
+	 */
+	public function test_gives_the_image_alt_text_naming_the_author(): void {
+		$output = $this->render( array( 'size' => 48 ) );
+
+		$this->assertMatchesRegularExpression( '#<img [^>]*alt="Ada Lovelace Avatar"[^>]*/>#', $output );
+	}
+
+	/**
+	 * A linked image keeps its alt text, which gives the link its accessible name.
+	 */
+	public function test_keeps_the_alt_text_when_the_image_is_linked(): void {
+		$output = $this->render(
+			array(
+				'size'   => 48,
+				'isLink' => true,
+			)
+		);
+
+		$this->assertMatchesRegularExpression(
+			'#<a [^>]*><img [^>]*alt="Ada Lovelace Avatar"[^>]*/></a>#',
+			$output
+		);
+	}
+
+	/**
+	 * A saved size that is no longer offered falls back to the next larger one.
+	 *
+	 * Sites can drop sizes with the rest_avatar_sizes filter, including the
+	 * block's default of 24. The image keeps the size chosen in the editor and
+	 * scales the larger avatar down.
+	 */
+	public function test_falls_back_to_the_next_larger_size_when_the_saved_size_is_missing(): void {
+		$output = $this->render(
+			array( 'size' => 24 ),
+			array(
+				48 => 'https://example.org/avatar-48.png',
+				96 => 'https://example.org/avatar-96.png',
+			)
+		);
+
+		$this->assertStringContainsString( 'src="https://example.org/avatar-48.png"', $output );
+		$this->assertStringContainsString( 'width="24"', $output );
+		$this->assertStringContainsString( 'height="24"', $output );
+	}
+
+	/**
+	 * A saved size larger than every offered size falls back to the largest.
+	 */
+	public function test_falls_back_to_the_largest_size_when_none_is_large_enough(): void {
+		$output = $this->render(
+			array( 'size' => 96 ),
+			array(
+				48 => 'https://example.org/avatar-48.png',
+				24 => 'https://example.org/avatar-24.png',
+			)
+		);
+
+		$this->assertStringContainsString( 'src="https://example.org/avatar-48.png"', $output );
+		$this->assertStringContainsString( 'width="96"', $output );
 	}
 
 	/**

@@ -280,6 +280,57 @@ Feature: Missing author terms can be backfilled for targeted posts
 		Error: --above-post-id must be less than --below-post-id.
 		"""
 
+	Scenario: A --records-per-batch that is not a positive integer is rejected with an error
+		When I try `wp co-authors-plus create-author-terms-for-posts --records-per-batch=abc`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
+		"""
+		Error: --records-per-batch must be a positive integer.
+		"""
+		When I try `wp co-authors-plus create-author-terms-for-posts --records-per-batch=0`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
+		"""
+		Error: --records-per-batch must be a positive integer.
+		"""
+		When I try `wp co-authors-plus create-author-terms-for-posts --records-per-batch=5abc`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
+		"""
+		Error: --records-per-batch must be a positive integer.
+		"""
+
+	Scenario: Post types Co-Authors Plus is not enabled for are rejected before anything is written
+		When I run `wp post create --post_title="First post" --post_status=publish --post_author=1 --porcelain`
+		And save STDOUT as {POST_ID}
+		And I run `wp post term remove {POST_ID} author --all`
+		And I try `wp co-authors-plus create-author-terms-for-posts --post-types=pgae`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
+		"""
+		Error: --post-types must only include post types Co-Authors Plus is enabled for (post, page). Not enabled: pgae.
+		"""
+		When I try `wp co-authors-plus create-author-terms-for-posts --post-types=attachment`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
+		"""
+		Error: --post-types must only include post types Co-Authors Plus is enabled for (post, page). Not enabled: attachment.
+		"""
+		When I try `wp co-authors-plus create-author-terms-for-posts --post-types=post,pgae`
+		Then the return code should be 1
+		And STDOUT should be empty
+		And STDERR should be:
+		"""
+		Error: --post-types must only include post types Co-Authors Plus is enabled for (post, page). Not enabled: pgae.
+		"""
+		When I run `wp term list author --object_ids={POST_ID} --field=slug`
+		Then STDOUT should be empty
+
 	Scenario: A post whose author does not exist gets skip postmeta instead of a term
 		When I run `wp post create --post_title="Orphan post" --post_status=publish --post_author=999 --porcelain`
 		And save STDOUT as {POST_ID}

@@ -40,7 +40,7 @@ final class GuestAuthorServiceTest extends TestCase {
 			array(
 				'key'               => 'description',
 				'group'             => 'about',
-				'sanitize_function' => 'wp_filter_post_kses',
+				'sanitize_function' => 'wp_kses_post',
 			),
 		);
 	}
@@ -103,7 +103,7 @@ final class GuestAuthorServiceTest extends TestCase {
 				return 'clean:' . $value;
 			}
 		);
-		Functions\expect( 'wp_filter_post_kses' )->once()->andReturnUsing(
+		Functions\expect( 'wp_kses_post' )->once()->andReturnUsing(
 			static function ( $value ) {
 				return 'kses:' . $value;
 			}
@@ -140,7 +140,7 @@ final class GuestAuthorServiceTest extends TestCase {
 		list( $service, $guest_authors ) = $this->service();
 
 		Functions\when( 'sanitize_text_field' )->returnArg();
-		Functions\when( 'wp_filter_post_kses' )->returnArg();
+		Functions\when( 'wp_kses_post' )->returnArg();
 
 		$guest_authors->shouldReceive( 'create' )
 			->once()

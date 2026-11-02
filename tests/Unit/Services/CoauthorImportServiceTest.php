@@ -208,6 +208,78 @@ final class CoauthorImportServiceTest extends TestCase {
 		$this->assertSame( 1, $summary['posts_linked'] );
 	}
 
+	/**
+	 * A dry run must count what a real run would change, so a post already
+	 * carrying the author is not reported as one to link.
+	 */
+	public function test_a_dry_run_does_not_count_a_post_that_is_already_linked(): void {
+		$service = $this->service();
+
+		$this->mocks['guests']->shouldReceive( 'find_by' )->andReturn( (object) array( 'user_nicename' => 'jane-doe' ) );
+		$this->mocks['assignments']->shouldReceive( 'nicenames_for_post' )->with( 100 )->andReturn( array( 'jane-doe' ) );
+		$this->mocks['assignments']->shouldNotReceive( 'add_at_position' );
+		Functions\when( 'get_posts' )->justReturn( array( 100 ) );
+
+		$summary = $service->import(
+			array(
+				'guest_authors' => array(
+					$this->entry( 'jane-doe', array( array( 'post_slug' => 'hello' ) ) ),
+				),
+			),
+			true
+		);
+
+		$this->assertSame( 1, $summary['authors_skipped'] );
+		$this->assertSame( 0, $summary['posts_linked'] );
+	}
+
+	public function test_a_dry_run_counts_a_post_an_existing_profile_is_not_on_yet(): void {
+		$service = $this->service();
+
+		$this->mocks['guests']->shouldReceive( 'find_by' )->andReturn( (object) array( 'user_nicename' => 'jane-doe' ) );
+		$this->mocks['assignments']->shouldReceive( 'nicenames_for_post' )->with( 100 )->andReturn( array( 'someone-else' ) );
+		$this->mocks['assignments']->shouldNotReceive( 'add_at_position' );
+		Functions\when( 'get_posts' )->justReturn( array( 100 ) );
+
+		$summary = $service->import(
+			array(
+				'guest_authors' => array(
+					$this->entry( 'jane-doe', array( array( 'post_slug' => 'hello' ) ) ),
+				),
+			),
+			true
+		);
+
+		$this->assertSame( 1, $summary['posts_linked'] );
+	}
+
+	/**
+	 * With --skip-create a missing profile is never created, so a real run can
+	 * link none of its posts, and a dry run must not claim it would.
+	 */
+	public function test_a_dry_run_with_skip_create_does_not_count_posts_it_cannot_link(): void {
+		$service = $this->service();
+
+		$this->mocks['guests']->shouldReceive( 'find_by' )->once()->andReturn( false );
+		$this->mocks['guests']->shouldNotReceive( 'create' );
+		$this->mocks['assignments']->shouldNotReceive( 'add_at_position' );
+		Functions\when( 'get_posts' )->justReturn( array( 100 ) );
+
+		$summary = $service->import(
+			array(
+				'guest_authors' => array(
+					$this->entry( 'jane-doe', array( array( 'post_slug' => 'hello' ) ) ),
+				),
+			),
+			true,
+			true
+		);
+
+		$this->assertSame( 0, $summary['authors_created'] );
+		$this->assertSame( 0, $summary['posts_linked'] );
+		$this->assertContains( 'No profile to link to "hello"; run without --skip-create to create it.', $summary['warnings'] );
+	}
+
 	public function test_skip_create_does_not_create_a_missing_profile(): void {
 		$service = $this->service();
 

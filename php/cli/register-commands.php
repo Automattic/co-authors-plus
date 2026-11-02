@@ -12,6 +12,10 @@
 
 declare( strict_types=1 );
 
+if ( ! defined( 'ABSPATH' ) ) {
+	exit;
+}
+
 use Automattic\CoAuthorsPlus\CLI\Assign_Coauthors_Command;
 use Automattic\CoAuthorsPlus\CLI\Command_Namespace;
 use Automattic\CoAuthorsPlus\CLI\Assign_User_To_Coauthor_Command;

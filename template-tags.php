@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @param int $post_id Optional. Post ID to fetch co-authors for. Defaults to the current post in the loop.
  * @return array List of co-author objects, filtered through the `get_coauthors` filter.
  */
-function get_coauthors( $post_id = 0 ) {
+function get_coauthors( $post_id = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	global $post, $post_ID, $coauthors_plus, $wpdb;
 
 	$coauthors = array();
@@ -51,7 +51,7 @@ function get_coauthors( $post_id = 0 ) {
 	}
 	// remove duplicate $coauthors objects from mapping user accounts to guest authors accounts
 	$coauthors = array_unique( $coauthors, SORT_REGULAR );
-	$coauthors = apply_filters( 'get_coauthors', $coauthors, $post_id );
+	$coauthors = apply_filters( 'get_coauthors', $coauthors, $post_id ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public filter; renaming would break existing callbacks.
 	return $coauthors;
 }
 
@@ -61,7 +61,7 @@ function get_coauthors( $post_id = 0 ) {
  * @param object|int $user
  * @param int        $post_id
  */
-function is_coauthor_for_post( $user, $post_id = 0 ) {
+function is_coauthor_for_post( $user, $post_id = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	global $post;
 
 	if ( ! $post_id && $post ) {
@@ -109,6 +109,10 @@ function is_coauthor_for_post( $user, $post_id = 0 ) {
  * - `tag`: call `$tag` as a function (e.g. `get_the_author_meta`) with `$tag_args`.
  * - `field`: read property `$tag` directly from the co-author object.
  * - `callback`: call `$tag` with the current co-author object.
+ *
+ * `tag` and `field` values, and the `user_login` fallback, are escaped with
+ * `esc_html()`. `callback` output and the separators are used as given, so
+ * they may contain markup.
  *
  * Separators default to the `COAUTHORS_DEFAULT_*` constants when defined, and
  * each is filterable via `coauthors_default_before`, `coauthors_default_between`,
@@ -163,17 +167,19 @@ function coauthors__echo( $tag, $type = 'tag', $separators = array(), $tag_args 
 
 		$author_text = '';
 
+		// Tag and field values are plain text, so escape them. Callbacks return
+		// markup (such as links) and are responsible for their own escaping.
 		if ( 'tag' === $type ) {
-			$author_text = $tag( $tag_args );
+			$author_text = esc_html( $tag( $tag_args ) );
 		} elseif ( 'field' === $type && isset( $i->current_author->$tag ) ) {
-			$author_text = $i->current_author->$tag;
+			$author_text = esc_html( $i->current_author->$tag );
 		} elseif ( 'callback' === $type && is_callable( $tag ) ) {
 			$author_text = $tag( $i->current_author );
 		}
 
 		// Fallback to user_login if we get something empty
 		if ( empty( $author_text ) && ! empty( $i->current_author->user_login ) ) {
-			$author_text = $i->current_author->user_login;
+			$author_text = esc_html( $i->current_author->user_login );
 		}
 
 		// Append separators
@@ -231,22 +237,7 @@ function coauthors( $between = null, $betweenLast = null, $before = null, $after
  * @param bool   $echo Whether the co-authors should be echoed or returned. Defaults to true.
  */
 function coauthors_posts_links( $between = null, $betweenLast = null, $before = null, $after = null, $echo = true ) {
-
-	global $coauthors_plus_template_filters;
-
-	$modify_filter = ! empty( $coauthors_plus_template_filters ) && $coauthors_plus_template_filters instanceof CoAuthors_Template_Filters;
-
-	if ( $modify_filter ) {
-
-		/**
-		 * Removing "the_author" filter so that it won't get called in loop and append names for each author.
-		 *
-		 * Ref : https://github.com/Automattic/Co-Authors-Plus/issues/279
-		 */
-		remove_filter( 'the_author', array( $coauthors_plus_template_filters, 'filter_the_author' ) );
-	}
-
-	$coauthors_posts_links = coauthors__echo(
+	return coauthors__echo(
 		'coauthors_posts_links_single',
 		'callback',
 		array(
@@ -258,12 +249,6 @@ function coauthors_posts_links( $between = null, $betweenLast = null, $before = 
 		null,
 		$echo
 	);
-
-	if ( $modify_filter ) {
-		add_filter( 'the_author', array( $coauthors_plus_template_filters, 'filter_the_author' ) );
-	}
-
-	return $coauthors_posts_links;
 }
 
 /**
@@ -282,17 +267,37 @@ function coauthors_posts_links_single( $author ) {
 		);
 		return;
 	}
-	$args        = array(
+
+	/*
+	 * When template tags are auto-applied, filter_the_author() replaces the name
+	 * with the whole co-author list, so take it off while this link is built.
+	 *
+	 * @see https://github.com/Automattic/Co-Authors-Plus/issues/279
+	 */
+	global $coauthors_plus_template_filters;
+	$the_author_filter = array( $coauthors_plus_template_filters, 'filter_the_author' );
+	$priority          = $coauthors_plus_template_filters instanceof CoAuthors_Template_Filters ? has_filter( 'the_author', $the_author_filter ) : false;
+	if ( false !== $priority ) {
+		remove_filter( 'the_author', $the_author_filter, $priority );
+	}
+
+	$display_name = apply_filters( 'the_author', $author->display_name ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core hook, applied as get_the_author() does.
+	$args         = array(
 		'before_html' => '',
 		'href'        => get_author_posts_url( $author->ID, $author->user_nicename ),
 		'rel'         => 'author',
 		/* translators: %s: author display name */
-		'title'       => sprintf( __( 'Posts by %s', 'co-authors-plus' ), apply_filters( 'the_author', $author->display_name ) ),
+		'title'       => sprintf( __( 'Posts by %s', 'co-authors-plus' ), $display_name ),
 		'class'       => 'author url fn',
-		'text'        => apply_filters( 'the_author', $author->display_name ),
+		'text'        => $display_name,
 		'after_html'  => '',
 	);
-	$args        = apply_filters( 'coauthors_posts_link', $args, $author );
+	$args         = apply_filters( 'coauthors_posts_link', $args, $author );
+
+	if ( false !== $priority ) {
+		add_filter( 'the_author', $the_author_filter, $priority );
+	}
+
 	$single_link = sprintf(
 		'<a href="%1$s" title="%2$s" class="%3$s" rel="%4$s">%5$s</a>',
 		esc_url( $args['href'] ),
@@ -521,7 +526,7 @@ function coauthors_ids( $between = null, $betweenLast = null, $before = null, $a
  *
  * @return array $meta Value of the user field
  */
-function get_the_coauthor_meta( $field, $user_id = false ) {
+function get_the_coauthor_meta( $field, $user_id = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	global $coauthors_plus;
 
 	if ( ! $user_id ) {
@@ -570,7 +575,7 @@ function get_the_coauthor_meta( $field, $user_id = false ) {
  * @param string $field   The user field to retrieve. See get_the_coauthor_meta() for accepted values.
  * @param int    $user_id Optional. Restrict output to a single co-author by ID. Default 0 (all co-authors).
  */
-function the_coauthor_meta( $field, $user_id = 0 ) {
+function the_coauthor_meta( $field, $user_id = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	// TODO: need before after options
 	$coauthor_meta = get_the_coauthor_meta( $field, $user_id );
 	foreach ( $coauthor_meta as $meta ) {
@@ -630,10 +635,18 @@ function coauthors_get_users( $args = array() ) {
 	}
 	$authors = apply_filters( 'coauthors_wp_list_authors_array', $authors );
 
-	// remove duplicates from linked accounts
-	$linked_accounts = array_unique( array_column( $authors, 'linked_account' ) );
-	foreach ( $linked_accounts as $linked_account ) {
-		unset( $authors[ $linked_account ] );
+	// Remove duplicates from linked accounts. A guest author sharing their user's term is the only entry for that person.
+	foreach ( array_count_values( array_column( $authors, 'linked_account' ) ) as $linked_account => $entries ) {
+		if ( $entries > 1 ) {
+			unset( $authors[ $linked_account ] );
+		}
+	}
+
+	// A linked guest author with their own slug has a term each with their user, and a post can be on both.
+	foreach ( $authors as $author ) {
+		if ( isset( $author->wp_user ) && $author->wp_user->user_nicename !== $author->user_nicename ) {
+			$author->post_count = count_user_posts( $author->wp_user->ID, 'post', true ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.count_user_posts_count_user_posts -- Term counts can't tell if a post is on both terms.
+		}
 	}
 
 	return $authors;
@@ -675,6 +688,10 @@ function coauthors_wp_list_authors( $args = array() ) {
 	$authors = coauthors_get_users( $args );
 	foreach ( $authors as $author ) {
 
+		if ( 0 === $author->post_count && $args['hide_empty'] ) {
+			continue;
+		}
+
 		$link = '';
 
 		if ( $args['show_fullname'] && ( $author->first_name && $author->last_name ) ) {
@@ -684,25 +701,17 @@ function coauthors_wp_list_authors( $args = array() ) {
 		}
 
 		if ( ! $args['html'] ) {
-			if ( 0 === $author->post_count ) {
-				if ( ! $args['hide_empty'] ) {
-					$return .= $name . ', ';
-				}
-			} else {
-				$return .= $name . ', ';
-			}
+			$return .= $name . ', ';
 
 			// No need to go further to process HTML.
 			continue;
 		}
 
-		if ( ! ( 0 === $author->post_count && $args['hide_empty'] ) && 'list' == $args['style'] ) {
+		if ( 'list' == $args['style'] ) {
 			$return .= '<li>';
 		}
 		if ( 0 === $author->post_count ) {
-			if ( ! $args['hide_empty'] ) {
-				$link = $name;
-			}
+			$link = $name;
 		} else {
 			/* translators: %s: author display name */
 			$link = '<a href="' . esc_url( get_author_posts_url( $author->ID, $author->user_nicename ) ) . '" title="' . esc_attr( sprintf( __( 'Posts by %s', 'co-authors-plus' ), $name ) ) . '">' . esc_html( $name ) . '</a>';
@@ -745,11 +754,8 @@ function coauthors_wp_list_authors( $args = array() ) {
 			}
 		}
 
-		if ( ! ( 0 === $author->post_count && $args['hide_empty'] ) && 'list' == $args['style'] ) {
-			$return .= $link . '</li>';
-		} elseif ( ! $args['hide_empty'] ) {
-			$return .= $link . ', ';
-		}
+		$return .= $link;
+		$return .= ( 'list' == $args['style'] ) ? '</li>' : ', ';
 	}
 
 	$return = trim( $return, ', ' );

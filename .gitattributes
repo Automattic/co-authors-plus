@@ -44,6 +44,8 @@
 /phpunit.xml                     export-ignore
 /phpunit.xml.dist                export-ignore
 /playwright.config.js            export-ignore
+/vitest.config.mjs               export-ignore
+/vitest.setup.mjs                export-ignore
 /webpack.config.js               export-ignore
 /wpcom-helper.php                export-ignore
 

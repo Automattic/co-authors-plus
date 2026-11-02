@@ -19,6 +19,7 @@ import { useSelect, useDispatch } from '@wordpress/data';
 /**
  * External dependencies
  */
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
 
 /**
@@ -26,14 +27,14 @@ import { render, act } from '@testing-library/react';
  */
 import CoAuthors from '../components/co-authors';
 
-jest.mock( '@wordpress/api-fetch', () => ( {
+vi.mock( '@wordpress/api-fetch', () => ( {
 	__esModule: true,
-	default: jest.fn(),
+	default: vi.fn(),
 } ) );
 
-jest.mock( '@wordpress/data', () => ( {
-	useSelect: jest.fn(),
-	useDispatch: jest.fn(),
+vi.mock( '@wordpress/data', () => ( {
+	useSelect: vi.fn(),
+	useDispatch: vi.fn(),
 } ) );
 
 /**
@@ -47,7 +48,7 @@ jest.mock( '@wordpress/data', () => ( {
  * console warning.
  */
 let selectionProps;
-jest.mock( '../components/author-selection', () => ( {
+vi.mock( '../components/author-selection', () => ( {
 	__esModule: true,
 	default: ( props ) => {
 		selectionProps = props;
@@ -55,7 +56,7 @@ jest.mock( '../components/author-selection', () => ( {
 	},
 } ) );
 
-jest.mock( '../hooks/use-coauthor-details', () => ( {
+vi.mock( '../hooks/use-coauthor-details', () => ( {
 	__esModule: true,
 	default: () => ( { authors: [], isLoading: false } ),
 } ) );
@@ -65,7 +66,7 @@ jest.mock( '../hooks/use-coauthor-details', () => ( {
  * the way a user typing into the field would, without a real DOM widget.
  */
 let comboboxProps;
-jest.mock( '@wordpress/components', () => ( {
+vi.mock( '@wordpress/components', () => ( {
 	ComboboxControl: ( props ) => {
 		comboboxProps = props;
 		return null;
@@ -75,12 +76,12 @@ jest.mock( '@wordpress/components', () => ( {
 
 describe( 'CoAuthors author search', () => {
 	beforeEach( () => {
-		jest.useFakeTimers();
+		vi.useFakeTimers();
 		comboboxProps = undefined;
 		selectionProps = undefined;
 
 		apiFetch.mockResolvedValue( [] );
-		useDispatch.mockReturnValue( { editPost: jest.fn() } );
+		useDispatch.mockReturnValue( { editPost: vi.fn() } );
 
 		// Post resolved with no co-authors selected: the panel renders the
 		// combobox rather than the loading spinner.
@@ -91,9 +92,9 @@ describe( 'CoAuthors author search', () => {
 	} );
 
 	afterEach( () => {
-		jest.runOnlyPendingTimers();
-		jest.useRealTimers();
-		jest.clearAllMocks();
+		vi.runOnlyPendingTimers();
+		vi.useRealTimers();
+		vi.clearAllMocks();
 	} );
 
 	/**
@@ -117,7 +118,7 @@ describe( 'CoAuthors author search', () => {
 		} );
 
 		await act( async () => {
-			jest.advanceTimersByTime( 500 );
+			vi.advanceTimersByTime( 500 );
 		} );
 
 		expect( apiFetch ).toHaveBeenCalledTimes( 1 );
@@ -140,7 +141,7 @@ describe( 'CoAuthors author search', () => {
 		rerender( <CoAuthors /> );
 
 		await act( async () => {
-			jest.advanceTimersByTime( 500 );
+			vi.advanceTimersByTime( 500 );
 		} );
 
 		expect( apiFetch ).toHaveBeenCalledTimes( 1 );
@@ -169,7 +170,7 @@ describe( 'CoAuthors author search', () => {
 		} );
 
 		await act( async () => {
-			jest.advanceTimersByTime( 500 );
+			vi.advanceTimersByTime( 500 );
 		} );
 
 		expect( comboboxProps.options ).toStrictEqual( [
@@ -205,7 +206,7 @@ describe( 'CoAuthors author search', () => {
 		} );
 
 		await act( async () => {
-			jest.advanceTimersByTime( 500 );
+			vi.advanceTimersByTime( 500 );
 		} );
 
 		expect( comboboxProps.options ).not.toHaveLength( 0 );
@@ -217,7 +218,7 @@ describe( 'CoAuthors author search', () => {
 		} );
 
 		await act( async () => {
-			jest.advanceTimersByTime( 500 );
+			vi.advanceTimersByTime( 500 );
 		} );
 
 		expect( comboboxProps.options ).toStrictEqual( [] );
@@ -228,7 +229,7 @@ describe( 'CoAuthors selection wiring', () => {
 	beforeEach( () => {
 		selectionProps = undefined;
 		apiFetch.mockResolvedValue( [] );
-		useDispatch.mockReturnValue( { editPost: jest.fn() } );
+		useDispatch.mockReturnValue( { editPost: vi.fn() } );
 		// No co-authors in the store, so the assertion below is about the
 		// wiring alone. buildCoauthorTermIds() has its own tests for
 		// preserving term IDs the REST endpoint could not resolve.
@@ -239,7 +240,7 @@ describe( 'CoAuthors selection wiring', () => {
 	} );
 
 	afterEach( () => {
-		jest.clearAllMocks();
+		vi.clearAllMocks();
 	} );
 
 	it( 'hands AuthorsSelection both props it requires', async () => {
@@ -251,7 +252,7 @@ describe( 'CoAuthors selection wiring', () => {
 	} );
 
 	it( 'writes the edited byline through updateAuthors', async () => {
-		const editPost = jest.fn();
+		const editPost = vi.fn();
 		useDispatch.mockReturnValue( { editPost } );
 
 		render( <CoAuthors /> );

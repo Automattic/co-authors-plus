@@ -1016,6 +1016,30 @@ class AddCoauthorsTest extends TestCase {
 	}
 
 	/**
+	 * A post that no longer exists must not get author terms, nor report success.
+	 *
+	 * Deleting a post clears its term relationships, so any written
+	 * afterwards are orphans that nothing cleans up. The post_author update
+	 * matches no rows and returns 0, which is not a bool, so without the guard
+	 * the method returns true.
+	 *
+	 * @covers ::add_coauthors
+	 */
+	public function test_add_coauthors_to_deleted_post_returns_false_without_terms(): void {
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $this->author1->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+		wp_delete_post( $post_id, true );
+
+		$this->assertFalse( $this->_cap->add_coauthors( $post_id, array( $this->author2->user_login ) ) );
+		$this->assertSame( array(), wp_get_object_terms( $post_id, $this->_cap->coauthor_taxonomy ) );
+	}
+
+	/**
 	 * Returns the user_login of each of a post's co-authors, in byline order.
 	 *
 	 * @param int $post_id Post to read.

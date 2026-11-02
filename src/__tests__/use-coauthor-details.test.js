@@ -15,6 +15,7 @@ import apiFetch from '@wordpress/api-fetch';
 /**
  * External dependencies
  */
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 /**
@@ -22,9 +23,9 @@ import { renderHook, act } from '@testing-library/react';
  */
 import useCoauthorDetails from '../hooks/use-coauthor-details';
 
-jest.mock( '@wordpress/api-fetch', () => ( {
+vi.mock( '@wordpress/api-fetch', () => ( {
 	__esModule: true,
-	default: jest.fn(),
+	default: vi.fn(),
 } ) );
 
 /**

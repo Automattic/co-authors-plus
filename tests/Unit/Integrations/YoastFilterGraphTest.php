@@ -10,6 +10,7 @@ declare( strict_types=1 );
 namespace Automattic\CoAuthorsPlus\Tests\Unit\Integrations;
 
 use Automattic\CoAuthorsPlus\Tests\Unit\TestCase;
+use Brain\Monkey\Filters;
 use Brain\Monkey\Functions;
 use CoAuthors\Integrations\Yoast;
 
@@ -38,16 +39,27 @@ if ( ! function_exists( 'add_action' ) ) {
  */
 require_once dirname( __DIR__, 3 ) . '/template-tags.php';
 
+/*
+ * Load the guarded Yoast stubs before the integration class is autoloaded, so
+ * the `new Schema_Types()` and `new CoAuthor()` inside filter_graph() never
+ * reach for an absent Yoast autoloader. filter_graph() also tells users from
+ * guest authors with an instanceof check, which needs the WP_User stub.
+ */
+require_once __DIR__ . '/yoast-stubs.php';
+require_once dirname( __DIR__ ) . '/wp-stubs.php';
+
 /**
  * Unit coverage for the Yoast integration's public filter callbacks.
  *
  * Yoast SEO itself is not a test dependency (only `yoast/wp-test-utils` is, which
  * ships Mockery). Where the integration depends on Yoast types that are absent at
  * test time we use Mockery to generate them: a mock of the author-archive
- * presentation (so the `is_a()` guard is satisfied) and an `alias:` mock of the
- * static `\WPSEO_Options` accessor. The WordPress request functions the methods
- * call (`is_singular()`, `is_author()`, `get_post_type()`,
- * `get_queried_object_id()`) are replaced with Brain Monkey stubs.
+ * presentation (so the `is_a()` guard is satisfied), an `alias:` mock of the
+ * static `\WPSEO_Options` accessor, and guarded plain stub classes for the
+ * Yoast classes filter_graph() relies on (see yoast-stubs.php). The WordPress
+ * request functions the methods call (`is_singular()`, `is_author()`,
+ * `get_post_type()`, `get_queried_object_id()`) are replaced with Brain Monkey
+ * stubs.
  */
 final class YoastFilterGraphTest extends TestCase {
 
@@ -104,6 +116,183 @@ final class YoastFilterGraphTest extends TestCase {
 			$data,
 			Yoast::filter_graph( $data, $context ),
 			'filter_graph() must return the graph unchanged when the context post has no ID.'
+		);
+	}
+
+	/**
+	 * A post can carry an author term whose slug matches no user and no guest
+	 * author, so get_coauthors() resolves nobody. With no author to swap in,
+	 * blanking the article's author and removing Yoast's Person node would leave
+	 * the remaining nodes pointing at a Person that is no longer in the graph.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_returns_data_unchanged_when_no_author_resolves(): void {
+		Functions\when( 'is_singular' )->justReturn( true );
+
+		$this->stub_get_coauthors_dependencies();
+
+		$data = $this->graph_with_person_node();
+
+		$this->assertSame(
+			$data,
+			Yoast::filter_graph( $data, $this->context_for_site( 'company', 0 ) ),
+			'filter_graph() must leave the graph untouched when no co-author resolves.'
+		);
+	}
+
+	/**
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_replaces_the_person_node_with_the_resolved_author(): void {
+		$this->stub_resolved_author();
+
+		$result = Yoast::filter_graph(
+			$this->graph_with_person_node(),
+			$this->context_for_site( 'company', 0 )
+		);
+
+		$this->assertSame(
+			array( 'Article', 'WebPage', 'ImageObject', 'BreadcrumbList', 'WebSite', 'Organization', 'HowTo', 'Person' ),
+			array_column( $result, '@type' ),
+			'The resolved author must replace the Person node Yoast generated.'
+		);
+
+		$this->assertSame(
+			array( array( '@id' => 'https://example.com/#/schema/person/7' ) ),
+			$result[0]['author'],
+			'The article node must reference the resolved author.'
+		);
+
+		$this->assertSame(
+			'https://example.com/#/schema/person/7',
+			$result[7]['@id'],
+			'The graph must carry the resolved author\'s own Person node.'
+		);
+	}
+
+	/**
+	 * Regression coverage for issue #1360.
+	 *
+	 * The PHP array_filter() function preserves keys, so removing the
+	 * Yoast-generated Person node from the middle of the graph used to leave a
+	 * numeric key gap behind it. With the key gap in place, json_encode()
+	 * serialized @graph as a JSON object rather than an array, and JSON-LD
+	 * consumers expanding that object discarded every node. The filtered graph
+	 * must come back as a contiguous list instead.
+	 *
+	 * The merge at the end of filter_graph() re-indexes as a side effect, but it is
+	 * skipped when the author is the person the site represents, which is the path
+	 * this test drives.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_reindexes_the_graph_when_a_person_node_is_removed(): void {
+		$this->stub_resolved_author();
+
+		$result = Yoast::filter_graph(
+			$this->graph_with_person_node(),
+			$this->context_for_site( 'person', 7 )
+		);
+
+		$this->assertSame(
+			array_values( $result ),
+			$result,
+			'filter_graph() must return the graph as a contiguous list so @graph stays a JSON array.'
+		);
+
+		$this->assertSame(
+			array( 'Article', 'WebPage', 'ImageObject', 'BreadcrumbList', 'WebSite', 'Organization', 'HowTo' ),
+			array_column( $result, '@type' ),
+			'The Person node must be removed and every other node kept, in order.'
+		);
+	}
+
+	/**
+	 * Yoast's typical piece order on a post: the Person node sits before the
+	 * trailing block schema, so removing it leaves a gap behind it.
+	 *
+	 * @return array
+	 */
+	private function graph_with_person_node(): array {
+		return array(
+			array(
+				'@type'  => 'Article',
+				'@id'    => 'https://example.com/#article',
+				'author' => array( '@id' => 'https://example.com/#person' ),
+			),
+			array(
+				'@type' => 'WebPage',
+				'@id'   => 'https://example.com/#webpage',
+			),
+			array(
+				'@type' => 'ImageObject',
+				'@id'   => 'https://example.com/#mainimage',
+			),
+			array(
+				'@type' => 'BreadcrumbList',
+				'@id'   => 'https://example.com/#breadcrumb',
+			),
+			array(
+				'@type' => 'WebSite',
+				'@id'   => 'https://example.com/#website',
+			),
+			array(
+				'@type' => 'Organization',
+				'@id'   => 'https://example.com/#organization',
+			),
+			array(
+				'@type' => 'Person',
+				'@id'   => 'https://example.com/#person',
+			),
+			array(
+				'@type' => 'HowTo',
+				'@id'   => 'https://example.com/#howto',
+			),
+		);
+	}
+
+	/**
+	 * Build the Yoast context filter_graph() reads for a post.
+	 *
+	 * @param string $site_represents Whether the site represents a person or company.
+	 * @param int    $site_user_id    The ID of the user the site represents.
+	 */
+	private function context_for_site( string $site_represents, int $site_user_id ): \stdClass {
+		$context                  = new \stdClass();
+		$context->post            = new \stdClass();
+		$context->post->ID        = 42;
+		$context->site_represents = $site_represents;
+		$context->site_user_id    = $site_user_id;
+
+		return $context;
+	}
+
+	/**
+	 * Make get_coauthors() resolve one user, with ID 7, and let the real CoAuthor
+	 * generator build their Person node.
+	 */
+	private function stub_resolved_author(): void {
+		Functions\when( 'is_singular' )->justReturn( true );
+
+		$this->stub_get_coauthors_dependencies();
+
+		$author = new class() extends \WP_User {
+			/**
+			 * The user ID.
+			 *
+			 * @var int
+			 */
+			public $ID = 7;
+		};
+
+		Filters\expectApplied( 'get_coauthors' )->andReturn( array( $author ) );
+
+		$options = \Mockery::mock();
+		$options->shouldReceive( 'get' )->with( 'disable-author' )->andReturn( true );
+
+		Functions\when( 'YoastSEO' )->justReturn(
+			(object) array( 'helpers' => (object) array( 'options' => $options ) )
 		);
 	}
 

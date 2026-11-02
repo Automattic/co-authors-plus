@@ -1,12 +1,37 @@
 # Upgrading to Co-Authors Plus 4.0
 
-Version 4.0 is the first major release in six years. Most sites will upgrade without intervention, but there are a handful of changes that can affect third-party code or downstream plugins. This guide covers each of them and what to do.
+Version 4.0 is the first major release since 3.0 in 2012. Most sites will upgrade without intervention, but there are a handful of changes that can affect third-party code or downstream plugins. This guide covers each of them and what to do.
 
 If you only need the bullet-point view, the [CHANGELOG entry for 4.0.0](../CHANGELOG.md) lists every change; this document focuses on the ones likely to require action.
 
 ## Minimum WordPress 6.4
 
 The minimum supported WordPress version moved from 5.9 to 6.4. 6.4 has been the practical floor for the block editor integration for some time; this release makes it explicit. If you cannot upgrade WordPress, stay on the 3.7 branch.
+
+## Installing with Composer
+
+The compiled JavaScript and CSS in `build/` are no longer committed to Git. They are built when a release is deployed, so the WordPress.org release includes them, but the `automattic/co-authors-plus` package on Packagist does not: Packagist serves GitHub's archive of the tagged source, which has no `build/` directory.
+
+**Why it matters.** Without `build/`, the plugin's blocks aren't registered and the block editor's Authors panel doesn't load, so blocks that show bylines render nothing and editors can't change a post's co-authors in the block editor. The classic editor and the template tags still work. From 4.2.0, administrators see a notice when `build/` is missing.
+
+**If you install Co-Authors Plus with Composer,** require the WordPress.org release through [WP Packages](https://wp-packages.org/packages/wp-plugin/co-authors-plus) instead, and remove `automattic/co-authors-plus`:
+
+```json
+{
+	"repositories": [
+		{
+			"type": "composer",
+			"url": "https://repo.wp-packages.org",
+			"only": [ "wp-plugin/*", "wp-theme/*" ]
+		}
+	],
+	"require": {
+		"wp-plugin/co-authors-plus": "^4.2"
+	}
+}
+```
+
+**If you work from a Git checkout,** or install `automattic/co-authors-plus` with `--prefer-source`, run `npm ci && npm run build` in the plugin directory. The Packagist archive can't be built in place, because it leaves out the JavaScript source.
 
 ## Block editor data store is now the core entity store
 
@@ -18,7 +43,7 @@ Before 4.0, the sidebar maintained a custom Redux store under the `cap/authors` 
 
 ```js
 // Before 4.0
-const authors = wp.data.select( 'cap/authors' ).getAuthors();
+const authors = wp.data.select( 'cap/authors' ).getAuthors( postId );
 
 // 4.0 onwards
 const termIds = wp.data.select( 'core/editor' ).getEditedPostAttribute( 'coauthors' );
@@ -56,25 +81,26 @@ The `deprecated.php` file has been deleted. The two constants it defined were mo
 
 ## Filters deprecated on REST saves
 
-Two filters are now soft-deprecated when a post is saved through the REST API:
+Two filters emit a `_deprecated_hook` notice when they're used while a post is saved through the REST API:
 
-- `coauthors_post_list_pluck_field`
 - `coauthors_post_get_coauthor_by_field`
+- `coauthors_post_list_pluck_field`
 
-They still fire and still return their filtered values; the change is that a `_deprecated_hook` notice is emitted and both will be removed in a future release. The replacement is the WordPress core `set_object_terms` action on the `author` taxonomy, which runs on any save path (REST, classic editor, CLI).
+They still fire, and their return values are still used. Outside REST saves (the classic editor, WP-CLI, and calls to `add_coauthors()` from PHP) they aren't deprecated and work as before.
+
+There's no direct replacement, because on a REST save there's nothing useful for them to change:
+
+- `coauthors_post_get_coauthor_by_field` chooses the field used to look up each co-author. A REST save passes the post's author term slugs, which are looked up by `user_nicename`, so returning a different field can only stop them matching.
+- `coauthors_post_list_pluck_field` only runs when co-authors are added to a post's existing ones. A REST save replaces the co-authors instead, so the filter doesn't run there at all.
+
+If you used either filter to react to a post's co-authors changing, use the core `set_object_terms` action on the `author` taxonomy instead. It runs on every save path:
 
 ```php
-// Before 4.0 — specific to REST saves
-add_filter( 'coauthors_post_list_pluck_field', function () {
-    return 'user_nicename';
-} );
-
-// 4.0 onwards — covers every save path
 add_action( 'set_object_terms', function ( $object_id, $terms, $tt_ids, $taxonomy ) {
-    if ( 'author' !== $taxonomy ) {
-        return;
-    }
-    // Your logic here.
+	if ( 'author' !== $taxonomy ) {
+		return;
+	}
+	// React to the new co-authors of post $object_id here.
 }, 10, 4 );
 ```
 

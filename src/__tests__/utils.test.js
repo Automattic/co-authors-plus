@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import {
 	moveItem,
 	removeItem,
@@ -273,15 +274,37 @@ describe( 'Utility - formatAuthorData', () => {
 		} );
 	} );
 
+	it( 'decodes HTML entities stored in the display name', () => {
+		const formatted = formatAuthorData( {
+			...rawAuthors[ 0 ],
+			displayName: 'Tom &amp; Jerry O&#039;Reily',
+		} );
+
+		expect( formatted.display ).toBe( "Tom & Jerry O'Reily" );
+		expect( formatted.label ).toBe(
+			"Tom & Jerry O'Reily | ruby@example.com"
+		);
+	} );
+
 	it( 'leaves missing fields undefined rather than throwing', () => {
 		expect( formatAuthorData( {} ) ).toStrictEqual( {
 			id: undefined,
 			termId: undefined,
-			label: 'undefined | undefined',
+			label: undefined,
 			display: undefined,
 			value: undefined,
 			userType: undefined,
 		} );
+	} );
+
+	it( 'shows only the display name when the email is filtered out', () => {
+		const author = { ...rawAuthors[ 0 ] };
+		delete author.email;
+
+		expect( formatAuthorData( author ).label ).toBe( 'Ruby Bridges' );
+		expect( formatAuthorData( { ...author, email: '' } ).label ).toBe(
+			'Ruby Bridges'
+		);
 	} );
 
 	it( 'lets the coAuthors.formatAuthorData.label filter override the label', () => {

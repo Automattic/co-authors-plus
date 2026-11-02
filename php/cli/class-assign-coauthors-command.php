@@ -77,7 +77,7 @@ class Assign_Coauthors_Command {
 		$coauthors_plus = $this->coauthors_plus;
 
 		$defaults   = array(
-			'meta_key'         => '_original_import_author',
+			'meta_key'         => '_original_import_author', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- CLI-only; finds posts by their imported author.
 			'post_type'        => 'post',
 			'order'            => 'ASC',
 			'orderby'          => 'ID',

@@ -314,4 +314,47 @@ class CreateGuestAuthorTest extends TestCase {
 		$this->assertInstanceOf( \WP_Error::class, $response );
 		$this->assertSame( 'duplicate-field', $response->get_error_code() );
 	}
+
+	/**
+	 * Pins the create() contract: arguments are stored as given, callers sanitise.
+	 *
+	 * Tags, newlines, tabs, backslashes and apostrophes in the display name are
+	 * written to cap-display_name untouched. The backslash catches unslashing,
+	 * and the apostrophe catches double slashing. The write paths that accept
+	 * untrusted input sanitise first, through
+	 * Guest_Author_Service::sanitize_profile(), and this test is the tripwire if
+	 * create() ever starts sanitising internally: it should fail and the
+	 * contract be updated deliberately.
+	 *
+	 * Only the meta value is asserted, not post_title, because wp_insert_post()
+	 * filters the title (trim, and kses for users without unfiltered_html), so a
+	 * title assertion would test core rather than this contract.
+	 *
+	 * @link https://github.com/Automattic/Co-Authors-Plus/issues/1435
+	 *
+	 * @covers ::create
+	 */
+	public function test_create_stores_arguments_verbatim(): void {
+
+		global $coauthors_plus;
+
+		$raw_display_name = "<script>alert(1)</script>\nline\ttab O'Brien Back\\slash";
+
+		$guest_author_id = $coauthors_plus->guest_authors->create(
+			array(
+				'display_name' => $raw_display_name,
+				'user_login'   => 'verbatim-contract-author',
+			)
+		);
+
+		$this->assertIsInt( $guest_author_id );
+
+		$stored_display_name = get_post_meta(
+			$guest_author_id,
+			$coauthors_plus->guest_authors->get_post_meta_key( 'display_name' ),
+			true
+		);
+
+		$this->assertSame( $raw_display_name, $stored_display_name );
+	}
 }
