@@ -4,6 +4,7 @@ What Co-Authors Plus does, and how to install it, is covered in the [README](../
 
 ## Using Co-Authors Plus
 
+- [Why use Co-Authors Plus?](./why-co-authors-plus.md): what it adds to WordPress core, why that takes a sizeable plugin, and when you don't need it.
 - [Guest authors](./guest-authors.md): creating and editing bylines that aren't tied to a WordPress user account, profile fields, migrating users to guest authors, and multisite.
 - [Roles and capabilities](./roles-and-capabilities.md): who can assign co-authors and manage guest authors, and how to change that.
 
