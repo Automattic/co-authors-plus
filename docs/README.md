@@ -19,6 +19,7 @@ What Co-Authors Plus does, and how to install it, is covered in the [README](../
 - [Customizing Co-Authors Plus](./customizing.md): recipes for the most common filters.
 - [Filters and actions](./filters.md): every hook the plugin provides.
 - [REST API](./rest-api.md): the `coauthors/v1` endpoints and the `coauthors` field on core post responses.
+- [How co-authors are identified](./identity-model.md): how terms, profiles and accounts fit together, with diagrams, and what each ID, login and slug means.
 
 ## Site administration
 
@@ -41,5 +42,9 @@ What Co-Authors Plus does, and how to install it, is covered in the [README](../
 - **User:** a WordPress user account.
 - **Guest author:** a Co-Authors Plus author profile that isn't tied to a WordPress user account. Stored as a `guest-author` post.
 - **Co-author:** a user or guest author assigned to a post as one of its bylines.
-- **Author term:** a term in the plugin's `author` taxonomy that links a post to one of its co-authors. Each author has one term, and a post's co-authors are the terms assigned to it.
+- **Author term:** a term in the plugin's `author` taxonomy that links a post to one of its co-authors. A post's co-authors are the terms assigned to it. A term holds no profile data. Most co-authors have one term, but a linked guest author and its user can have one each.
+- **Profile:** who a byline shows. It's stored on the user, or on the `guest-author` post.
+- **Account:** the WordPress user who can log in and act. A guest author has one only if it's linked.
 - **Linked guest author:** a guest author linked to a WordPress user account, so the byline uses the guest author profile while the user keeps their login.
+
+See [How co-authors are identified](./identity-model.md) for how these fit together.

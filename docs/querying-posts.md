@@ -80,7 +80,55 @@ This uses Elementor's custom query integration and Co-Authors Plus' normal `WP_Q
 
 ## Guest authors and supported post types
 
-`author` and `author__in` expect WordPress user IDs. Guest authors are Co-Authors Plus taxonomy terms and do not always have a matching WordPress user ID. Query a guest author with `author_name` and the guest-author slug where supported, or use a taxonomy query with the `author` taxonomy term.
+`author` and `author__in` only accept WordPress user IDs. A guest author's ID is a post ID, so it won't match, even on that guest author's archive, where `get_queried_object_id()` returns it. `/?author=<guest author post ID>` is a 404 for the same reason. See [What a number means to each function](./identity-model.md#what-a-number-means-to-each-function).
+
+To query a guest author's posts, use `author_name` with their `user_nicename`:
+
+```php
+$coauthor = get_queried_object(); // On the guest author's archive.
+
+$query = new WP_Query(
+	array(
+		'post_type'   => 'post',
+		'author_name' => $coauthor->user_nicename,
+	)
+);
+```
+
+`author_name` doesn't work in a callback that runs on `pre_get_posts`, such as [Elementor's custom query hook](#elementor-custom-queries), because WordPress only sets the `is_author` flag while parsing the query. Use `author__in` for anyone with a user account, and a taxonomy query for a guest author without one:
+
+```php
+function my_coauthor_query( $query ) {
+	global $coauthors_plus;
+
+	if ( ! is_author() ) {
+		return;
+	}
+
+	$coauthor = get_queried_object();
+	$user     = $coauthor instanceof WP_User ? $coauthor : ( $coauthor->wp_user ?? null );
+
+	if ( $user ) {
+		$query->set( 'author__in', array( $user->ID ) );
+		return;
+	}
+
+	$term = $coauthors_plus->get_author_term( $coauthor );
+	if ( $term ) {
+		$query->set(
+			'tax_query',
+			array(
+				array(
+					'taxonomy' => $coauthors_plus->coauthor_taxonomy,
+					'field'    => 'term_id',
+					'terms'    => $term->term_id,
+				),
+			)
+		);
+	}
+}
+add_action( 'elementor/query/my_coauthor_query', 'my_coauthor_query' );
+```
 
 The post type must be supported by Co-Authors Plus and registered with the `author` taxonomy. Queries for unsupported post types keep normal WordPress `post_author` behavior.
 
