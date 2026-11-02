@@ -30,6 +30,16 @@ use WP_Query;
  */
 class AuthorQueriesTest extends TestCase {
 
+	public function set_up(): void {
+		parent::set_up();
+		self::factory()->post->create(
+			array(
+				'import_id'   => 1000000,
+				'post_status' => 'draft',
+			)
+		);
+	}
+
 	/**
 	 * Assert that a query returns exactly the expected post IDs, regardless of order.
 	 *
@@ -161,6 +171,10 @@ class AuthorQueriesTest extends TestCase {
 		$post     = $this->create_post( $author );
 		$this->_cap->add_coauthors( $post->ID, array( 'guest_single_id' ) );
 
+		$unrelated_author = $this->create_author( 'unrelated_author_single' );
+		$unrelated_post   = $this->create_post( $unrelated_author );
+		$this->_cap->add_coauthors( $unrelated_post->ID, array( $unrelated_author->user_login ) );
+
 		$query = new WP_Query( array( 'author' => $guest_id ) );
 
 		$this->assertQueryReturns( array( $post->ID ), $query );
@@ -204,6 +218,10 @@ class AuthorQueriesTest extends TestCase {
 
 		$post2 = $this->create_post( $other_author );
 		$this->_cap->add_coauthors( $post2->ID, array( 'comma_g1' ) );
+
+		$unrelated_author = $this->create_author( 'unrelated_author_comma' );
+		$unrelated_post   = $this->create_post( $unrelated_author );
+		$this->_cap->add_coauthors( $unrelated_post->ID, array( $unrelated_author->user_login ) );
 
 		$query = new WP_Query( array( 'author' => $author->ID . ',' . $guest_id ) );
 
@@ -290,6 +308,10 @@ class AuthorQueriesTest extends TestCase {
 		$post     = $this->create_post( $author );
 		$this->_cap->add_coauthors( $post->ID, array( 'guest_in_1' ) );
 
+		$unrelated_author = $this->create_author( 'unrelated_author_in' );
+		$unrelated_post   = $this->create_post( $unrelated_author );
+		$this->_cap->add_coauthors( $unrelated_post->ID, array( $unrelated_author->user_login ) );
+
 		$query = new WP_Query( array( 'author__in' => array( $guest_id ) ) );
 
 		$this->assertQueryReturns(
@@ -314,6 +336,10 @@ class AuthorQueriesTest extends TestCase {
 
 		$post2 = $this->create_post( $author );
 		$this->_cap->add_coauthors( $post2->ID, array( 'guest_multi_2' ) );
+
+		$unrelated_author = $this->create_author( 'unrelated_author_multi' );
+		$unrelated_post   = $this->create_post( $unrelated_author );
+		$this->_cap->add_coauthors( $unrelated_post->ID, array( $unrelated_author->user_login ) );
 
 		$query = new WP_Query( array( 'author__in' => array( $guest1_id, $guest2_id ) ) );
 
@@ -340,6 +366,10 @@ class AuthorQueriesTest extends TestCase {
 		$post2 = $this->create_post( $other_author );
 		$this->_cap->add_coauthors( $post2->ID, array( 'mixed_guest_1' ) );
 
+		$unrelated_author = $this->create_author( 'unrelated_author_mixed' );
+		$unrelated_post   = $this->create_post( $unrelated_author );
+		$this->_cap->add_coauthors( $unrelated_post->ID, array( $unrelated_author->user_login ) );
+
 		$query = new WP_Query( array( 'author__in' => array( $author->ID, $guest_id ) ) );
 
 		$this->assertQueryReturns(
@@ -347,6 +377,109 @@ class AuthorQueriesTest extends TestCase {
 			$query,
 			'author__in must return posts matching either the WordPress user or the guest author.'
 		);
+	}
+
+	/**
+	 * When a WordPress user ID collides with a guest author post ID, the user
+	 * must take precedence in author and author__in queries.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/pull/1498
+	 */
+	public function test_user_takes_precedence_when_id_collides_with_guest_author(): void {
+		global $wpdb;
+
+		$author1  = $this->create_author( 'owner_post_g' );
+		$guest_id = $this->create_guest_author( 'colliding_guest' );
+		$post_g   = $this->create_post( $author1 );
+		$this->_cap->add_coauthors( $post_g->ID, array( 'colliding_guest' ) );
+
+		$user_login = 'colliding_user';
+		$wpdb->insert(
+			// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.user_meta__wpdb__users -- Direct table write needed to pin ID collision behavior in test.
+			$wpdb->users,
+			array(
+				'ID'              => $guest_id,
+				'user_login'      => $user_login,
+				'user_pass'       => wp_hash_password( 'password' ),
+				'user_nicename'   => $user_login,
+				'user_email'      => 'colliding_user@example.com',
+				'user_registered' => current_time( 'mysql' ),
+				'user_status'     => 0,
+				'display_name'    => 'Colliding User',
+			)
+		);
+		clean_user_cache( $guest_id );
+
+		$user = get_userdata( $guest_id );
+		$this->assertInstanceOf( \WP_User::class, $user, 'User with colliding ID must be resolvable.' );
+
+		$author2 = $this->create_author( 'owner_post_u' );
+		$post_u  = $this->create_post( $author2 );
+		$this->_cap->add_coauthors( $post_u->ID, array( $user_login ) );
+
+		$author3    = $this->create_author( 'unrelated_owner' );
+		$post_unrel = $this->create_post( $author3 );
+		$this->_cap->add_coauthors( $post_unrel->ID, array( $author3->user_login ) );
+
+		$query_single = new WP_Query( array( 'author' => $guest_id ) );
+		$this->assertQueryReturns(
+			array( $post_u->ID ),
+			$query_single,
+			'author query must match the WP user, not the guest author, when IDs collide.'
+		);
+
+		$query_in = new WP_Query( array( 'author__in' => array( $guest_id ) ) );
+		$this->assertQueryReturns(
+			array( $post_u->ID ),
+			$query_in,
+			'author__in query must match the WP user, not the guest author, when IDs collide.'
+		);
+
+		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.user_meta__wpdb__users -- Direct table cleanup after test collision simulation.
+		$wpdb->delete( $wpdb->users, array( 'ID' => $guest_id ) );
+		clean_user_cache( $guest_id );
+	}
+
+	/**
+	 * A main query for a guest author by numeric ID via `/?author=<guest ID>`
+	 * must remain a 404 with no posts, rather than rendering an incomplete archive.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/pull/1498
+	 */
+	public function test_main_query_author_id_for_guest_author_is_404(): void {
+		$author   = $this->create_author( 'main_single_owner' );
+		$guest_id = $this->create_guest_author( 'main_single_guest' );
+		$post     = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( 'main_single_guest' ) );
+
+		$this->go_to( home_url( '/?author=' . $guest_id ) );
+
+		$this->assertQueryTrue( 'is_404', 'Main query for /?author=<guest ID> must be a 404.' );
+		$this->assertSame( 0, $GLOBALS['wp_query']->post_count, 'Main query for /?author=<guest ID> must return no posts.' );
+	}
+
+	/**
+	 * A main query with a comma-separated author list containing a guest author ID
+	 * must not resolve the guest author by ID into the archive.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/pull/1498
+	 */
+	public function test_main_query_author_comma_string_with_guest_author_id_excludes_guest_posts(): void {
+		$author   = $this->create_author( 'main_comma_user' );
+		$guest_id = $this->create_guest_author( 'main_comma_guest' );
+
+		$post1 = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post1->ID, array( $author->user_login ) );
+
+		$other_author = $this->create_author( 'main_comma_other' );
+		$post2        = $this->create_post( $other_author );
+		$this->_cap->add_coauthors( $post2->ID, array( 'main_comma_guest' ) );
+
+		$this->go_to( home_url( '/?author=' . $guest_id . ',' . $author->ID ) );
+
+		$actual_ids = wp_list_pluck( $GLOBALS['wp_query']->posts, 'ID' );
+		$this->assertContains( $post1->ID, $actual_ids, 'Main query should include the WP user post.' );
+		$this->assertNotContains( $post2->ID, $actual_ids, 'Main query must not include posts co-authored by the guest author.' );
 	}
 
 	// -- late author vars via pre_get_posts, issue #1056 ---------------------

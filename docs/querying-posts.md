@@ -80,7 +80,9 @@ This uses Elementor's custom query integration and Co-Authors Plus' normal `WP_Q
 
 ## Guest authors and supported post types
 
-`author` and `author__in` expect WordPress user IDs. Guest authors are Co-Authors Plus taxonomy terms and do not always have a matching WordPress user ID. Query a guest author with `author_name` and the guest-author slug where supported, or use a taxonomy query with the `author` taxonomy term.
+`author` and `author__in` queries in secondary `WP_Query` instances also accept guest author custom post type post IDs. When queried by numeric ID, Co-Authors Plus resolves WordPress users first; if a WordPress user shares the same numeric ID as a guest author, the user takes precedence and only the user's posts are returned. For that reason, `author_name` with the guest author slug remains the most reliable route when querying for a guest author, or you can use a taxonomy query with the `author` taxonomy term.
+
+In the main query (such as standard URL requests like `/?author=<id>`), single and multi-author ID queries remain restricted to WordPress user IDs so that invalid author IDs return a 404 rather than rendering an incomplete archive.
 
 The post type must be supported by Co-Authors Plus and registered with the `author` taxonomy. Queries for unsupported post types keep normal WordPress `post_author` behavior.
 

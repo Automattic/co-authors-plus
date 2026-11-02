@@ -1203,11 +1203,11 @@ class CoAuthors_Plus {
 				$author_data = get_userdata( $author_id );
 				if ( is_object( $author_data ) ) {
 					$coauthor = $this->get_coauthor_by( 'user_nicename', $author_data->user_nicename );
-				} else {
+				} elseif ( ! $query->is_main_query() ) {
 					$coauthor = $this->get_coauthor_by( 'id', $author_id );
 				}
 
-				if ( ! is_object( $coauthor ) ) {
+				if ( ! isset( $coauthor ) || ! is_object( $coauthor ) ) {
 					return $where;
 				}
 			}
@@ -1374,8 +1374,10 @@ class CoAuthors_Plus {
 			$author_data = get_userdata( $author_id );
 			if ( $author_data ) {
 				$coauthor = $this->get_coauthor_by( 'user_nicename', $author_data->user_nicename );
-			} else {
+			} elseif ( ! $query->is_main_query() ) {
 				$coauthor = $this->get_coauthor_by( 'id', $author_id );
+			} else {
+				$coauthor = false;
 			}
 
 			if ( ! $coauthor ) {
