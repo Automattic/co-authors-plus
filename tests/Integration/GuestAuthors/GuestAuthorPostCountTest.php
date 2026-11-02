@@ -65,7 +65,7 @@ class GuestAuthorPostCountTest extends TestCase {
 		);
 
 		$guest_author_id = $coauthors_plus->guest_authors->create_guest_author_from_user_id( $author->ID );
-		$guest_author    = $coauthors_plus->get_coauthor_by( 'id', $guest_author_id );
+		$guest_author    = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $guest_author_id );
 
 		// Precondition for this scenario: the linked guest profile shares the
 		// WP user's own nicename/term, rather than having a distinct identity.
@@ -75,6 +75,49 @@ class GuestAuthorPostCountTest extends TestCase {
 		$post_ids = $this->factory()->post->create_many( 2, array( 'post_status' => 'publish' ) );
 		foreach ( $post_ids as $post_id ) {
 			$coauthors_plus->add_coauthors( $post_id, array( $guest_author->user_login ), true );
+		}
+
+		$this->assertSame( 5, $coauthors_plus->get_guest_author_post_count( $guest_author ) );
+	}
+
+	/**
+	 * Checks that a guest author profile linked to a WP user with its own slug,
+	 * and so its own term, doesn't count posts bylined to the guest author twice.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/928
+	 *
+	 * @covers ::get_guest_author_post_count
+	 */
+	public function test_get_guest_author_post_count_with_linked_account_using_own_slug(): void {
+		global $coauthors_plus;
+
+		$author = $this->factory()->user->create_and_get(
+			array(
+				'role'         => 'author',
+				'user_login'   => 'ownslug',
+				'display_name' => 'Own Slug Author',
+			)
+		);
+
+		// Posts authored directly by the WP user.
+		$this->factory()->post->create_many(
+			3,
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+			)
+		);
+
+		$guest_author_id = $coauthors_plus->guest_authors->create_guest_author_from_user_id( $author->ID );
+		$guest_author    = $coauthors_plus->guest_authors->get_guest_author_by( 'ID', $guest_author_id );
+
+		// Precondition for this scenario: the pair has two different terms.
+		$this->assertNotSame( $author->user_nicename, $guest_author->user_nicename );
+
+		// More posts authored via the guest byline.
+		$post_ids = $this->factory()->post->create_many( 2, array( 'post_status' => 'publish' ) );
+		foreach ( $post_ids as $post_id ) {
+			$coauthors_plus->add_coauthors( $post_id, array( $guest_author->user_login ) );
 		}
 
 		$this->assertSame( 5, $coauthors_plus->get_guest_author_post_count( $guest_author ) );

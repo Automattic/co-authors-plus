@@ -75,7 +75,6 @@ A user should have only one guest author. The **WordPress User Mapping** dropdow
 A few things don't follow this yet:
 
 - `get_coauthors()` returns the user instead of the guest author for a post with no author terms. See [#114](https://github.com/Automattic/co-authors-plus/issues/114).
-- `count_user_posts()` counts a linked user's posts twice. See [#928](https://github.com/Automattic/co-authors-plus/issues/928).
 - The user's archive only redirects to the guest author's when the user's login and nicename match.
 
 ## Same name, different meaning
