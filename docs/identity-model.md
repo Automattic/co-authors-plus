@@ -130,6 +130,8 @@ Some keys look interchangeable but aren't:
 
 Prefer `user_nicename` for a slug and `user_login` for a login. If you hold a guest author's post ID, use `CoAuthors_Guest_Authors::get_guest_author_by( 'ID', $id )`. Avoid `id`.
 
+The `email` and `post_name` keys are deprecated since 4.3.0. They still work, with a notice when `WP_DEBUG` is on. Use core's `get_user_by( 'email', $email )`, then [look up the link](#writing-code-that-uses-co-authors) if the user might have a guest author, or `CoAuthors_Guest_Authors::get_guest_author_by( 'post_name', $slug )`.
+
 ## What a number means to each function
 
 User IDs and guest author post IDs come from different tables, so one number can be both. There's no single rule for a bare number. Each function has its own long-standing behavior, so check before you pass one.

@@ -532,6 +532,7 @@ function get_the_coauthor_meta( $field, $user_id = false ) { // phpcs:ignore Wor
 	if ( ! $user_id ) {
 		$coauthors = get_coauthors();
 	} else {
+		// This tag accepts either kind of ID, so it keeps checking guest authors first. See docs/identity-model.md.
 		$coauthor_data = $coauthors_plus->get_coauthor_by( 'id', $user_id );
 		$coauthors     = array();
 		if ( ! empty( $coauthor_data ) ) {

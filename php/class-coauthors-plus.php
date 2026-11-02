@@ -467,13 +467,24 @@ class CoAuthors_Plus {
 	}
 
 	/**
-	 * Get a guest author object by a specific type of key
+	 * Get a co-author by a specific type of key
 	 *
-	 * @param string $key Key to search by (slug,email)
+	 * Checks guest authors first, then users, and returns a user's linked guest
+	 * author if they have one. See docs/identity-model.md for what each key checks.
+	 *
+	 * @param string $key Key to search by. Use `user_nicename` for a slug or `user_login` for a login. Avoid `id`,
+	 *                    because the same number can be a guest author's post ID and a user's ID. The `email` and
+	 *                    `post_name` keys are deprecated since 4.3.0.
 	 * @param string $value Value to search for
 	 * @return object|false The co-author on success, false on failure
 	 */
 	public function get_coauthor_by( $key, $value, $force = false ) {
+
+		if ( 'email' === $key ) {
+			_deprecated_argument( __METHOD__, '4.3.0', esc_html__( 'The email key is deprecated. Use get_user_by() instead.', 'co-authors-plus' ) );
+		} elseif ( 'post_name' === $key ) {
+			_deprecated_argument( __METHOD__, '4.3.0', esc_html__( 'The post_name key is deprecated. Use CoAuthors_Guest_Authors::get_guest_author_by() instead.', 'co-authors-plus' ) );
+		}
 
 		// If Guest Authors are enabled, prioritize those profiles
 		if ( $this->is_guest_authors_enabled() && isset( $this->guest_authors ) ) {
