@@ -2072,6 +2072,7 @@ class CoAuthors_Plus {
 	 *
 	 * @since 2.6.4
 	 * @since 3.6.3 Added support for custom post types via $post_type parameter.
+	 * @since 4.2.1 Counts a linked user and guest author's posts once each.
 	 *
 	 * @param int          $count       Post count.
 	 * @param int          $user_id     WP user ID.
@@ -2093,9 +2094,10 @@ class CoAuthors_Plus {
 			return $count;
 		}
 
-		$term = $this->get_author_term( $coauthor );
+		// A linked user and guest author are one person, who may have one term or two.
+		$terms = $this->collect_coauthor_terms( $coauthor );
 
-		if ( ! is_object( $term ) ) {
+		if ( ! $terms ) {
 			return $count;
 		}
 
@@ -2108,24 +2110,19 @@ class CoAuthors_Plus {
 		}
 
 		// Query actual post count for the specified post types.
-		$coauthor_count = $this->get_post_count_for_author_term( $term, $post_type, $public_only );
-
-		// If account is linked, add the original count (which covers post_author field).
-		if ( ! empty( $coauthor->linked_account ) && strlen( $coauthor->linked_account ) > 2 ) {
-			return $count + $coauthor_count;
-		}
-
-		return $coauthor_count;
+		return $this->get_post_count_for_author_term( $terms, $post_type, $public_only );
 	}
 
 	/**
-	 * Get the post count for an author term with specific post types.
+	 * Get the post count for one or more author terms with specific post types.
+	 *
+	 * A post on more than one of the terms counts once.
 	 *
 	 * @since 3.6.3
 	 *
-	 * @param WP_Term      $term        Author term object.
-	 * @param string|array $post_type   Post type(s) to count.
-	 * @param bool         $public_only Whether to only count public posts.
+	 * @param WP_Term|WP_Term[] $term        Author term object or objects.
+	 * @param string|array      $post_type   Post type(s) to count.
+	 * @param bool              $public_only Whether to only count public posts.
 	 * @return int Post count.
 	 */
 	private function get_post_count_for_author_term( $term, $post_type = 'post', $public_only = false ): int {
@@ -2136,7 +2133,7 @@ class CoAuthors_Plus {
 				array(
 					'taxonomy' => $this->coauthor_taxonomy,
 					'field'    => 'term_id',
-					'terms'    => $term->term_id,
+					'terms'    => wp_list_pluck( is_array( $term ) ? $term : array( $term ), 'term_id' ),
 				),
 			),
 			'post_type'              => $post_types,
