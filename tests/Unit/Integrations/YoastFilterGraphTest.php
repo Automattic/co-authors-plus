@@ -192,8 +192,8 @@ final class YoastFilterGraphTest extends TestCase {
 	public function test_filter_graph_reindexes_the_graph_when_a_person_node_is_removed(): void {
 		$this->stub_resolved_author();
 
-		$data       = $this->graph_with_person_node();
-		$data[5]    = array(
+		$data    = $this->graph_with_person_node();
+		$data[5] = array(
 			'@type' => array( 'Person', 'Organization' ),
 			'@id'   => self::PERSON_ID . '7',
 		);
@@ -215,7 +215,7 @@ final class YoastFilterGraphTest extends TestCase {
 
 	/**
 	 * Every co-author must get their own Person node, and Yoast's own author
-	 * node, which it types as [ 'Person' ], must be removed.
+	 * node must be removed.
 	 *
 	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
 	 */
@@ -403,37 +403,29 @@ final class YoastFilterGraphTest extends TestCase {
 	}
 
 	/**
-	 * Older Yoast versions type the article and the author with plain strings.
+	 * An article node can carry several types, which Yoast leaves as an array, and
+	 * must still have its author reference replaced.
 	 *
 	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
 	 */
-	public function test_filter_graph_handles_string_types(): void {
-		$this->stub_coauthors( array( $this->user( 7 ), $this->user( 9 ) ) );
+	public function test_filter_graph_handles_an_article_with_several_types(): void {
+		$this->stub_resolved_author();
 
-		$data = array(
-			array(
-				'@type'  => 'Article',
-				'@id'    => 'https://example.com/#article',
-				'author' => array( '@id' => self::PERSON_ID . 'post-author' ),
-			),
-			array(
-				'@type' => 'Person',
-				'@id'   => self::PERSON_ID . 'post-author',
-			),
-		);
+		$data             = $this->yoast_graph( false );
+		$data[0]['@type'] = array( 'Article', 'Report' );
 
 		$result = Yoast::filter_graph( $data, $this->context_for_site( 'company', 0 ) );
 
 		$this->assertSame(
-			array( array( '@id' => self::PERSON_ID . '7' ), array( '@id' => self::PERSON_ID . '9' ) ),
+			array( array( '@id' => self::PERSON_ID . '7' ) ),
 			$result[0]['author'],
-			'The string-typed article node must reference every co-author.'
+			'The article node must reference the co-author.'
 		);
 
 		$this->assertSame(
-			array( self::PERSON_ID . '7', self::PERSON_ID . '9' ),
+			array( self::PERSON_ID . '7' ),
 			$this->person_ids( $result ),
-			'The string-typed author node must be replaced by the co-author nodes.'
+			'The co-author node must replace Yoast\'s author node.'
 		);
 	}
 
@@ -455,10 +447,9 @@ final class YoastFilterGraphTest extends TestCase {
 	}
 
 	/**
-	 * A graph shaped like Yoast's own output: the article node has an array
-	 *
-	 * @type, the post author is typed [ 'Person' ], and the site person is typed
-	 * [ 'Person', 'Organization' ].
+	 * A graph shaped like the one Yoast passes to its wpseo_schema_graph filter.
+	 * Yoast has already flattened single-item types to strings by then, so only the
+	 * site person, typed [ 'Person', 'Organization' ], still has an array.
 	 *
 	 * @param bool $site_is_person Whether the site represents user 9.
 	 * @return array
@@ -466,7 +457,7 @@ final class YoastFilterGraphTest extends TestCase {
 	private function yoast_graph( bool $site_is_person ): array {
 		$graph = array(
 			array(
-				'@type'  => array( 'Article' ),
+				'@type'  => 'Article',
 				'@id'    => 'https://example.com/#article',
 				'author' => array( '@id' => self::PERSON_ID . 'post-author' ),
 			),
@@ -484,7 +475,7 @@ final class YoastFilterGraphTest extends TestCase {
 		}
 
 		$graph[] = array(
-			'@type' => array( 'Person' ),
+			'@type' => 'Person',
 			'@id'   => self::PERSON_ID . 'post-author',
 		);
 
