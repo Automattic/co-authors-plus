@@ -1032,6 +1032,8 @@ class CoAuthors_Plus {
 	 * - Standard single-author archive queries ($query->is_author()).
 	 * - Programmatic queries using `author__in` (array of IDs).
 	 *
+	 * Returns false when `author__not_in` leaves the query with no author clause.
+	 *
 	 * Note: WordPress sets is_author = true for any non-empty `author` value,
 	 * including comma-separated strings, so the comma-separated case is already
 	 * covered by the is_author() check. Multi-author dispatch is handled in
@@ -1043,6 +1045,14 @@ class CoAuthors_Plus {
 	 * @return bool
 	 */
 	protected function is_author_query( WP_Query $query ): bool {
+		// WP_Query drops author__in when author__not_in is set, so unless author_name
+		// adds a clause there is no author clause to rewrite, and the first post_author
+		// match would belong to a different part of the query. This runs ahead of the
+		// filter below so that no callback can opt such a query back in.
+		if ( ! empty( $query->get( 'author__not_in' ) ) && '' === $query->get( 'author_name' ) ) {
+			return false;
+		}
+
 		if ( $query->is_author() ) {
 			$is_author = true;
 		} else {
