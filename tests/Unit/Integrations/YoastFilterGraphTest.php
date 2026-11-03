@@ -65,6 +65,8 @@ final class YoastFilterGraphTest extends TestCase {
 
 	const PRESENTATION_CLASS = 'Yoast\\WP\\SEO\\Presentations\\Indexable_Author_Archive_Presentation';
 
+	const PERSON_ID = 'https://example.com/#/schema/person/';
+
 	/**
 	 * Regression coverage for issue #1113.
 	 *
@@ -181,19 +183,22 @@ final class YoastFilterGraphTest extends TestCase {
 	 * consumers expanding that object discarded every node. The filtered graph
 	 * must come back as a contiguous list instead.
 	 *
-	 * The merge at the end of filter_graph() re-indexes as a side effect, but it is
-	 * skipped when the author is the person the site represents, which is the path
-	 * this test drives.
+	 * The merge at the end of filter_graph() re-indexes as a side effect, but it
+	 * adds nothing when the author is the person the site represents and Yoast
+	 * already output their node, which is the path this test drives.
 	 *
 	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
 	 */
 	public function test_filter_graph_reindexes_the_graph_when_a_person_node_is_removed(): void {
 		$this->stub_resolved_author();
 
-		$result = Yoast::filter_graph(
-			$this->graph_with_person_node(),
-			$this->context_for_site( 'person', 7 )
+		$data       = $this->graph_with_person_node();
+		$data[5]    = array(
+			'@type' => array( 'Person', 'Organization' ),
+			'@id'   => self::PERSON_ID . '7',
 		);
+
+		$result = Yoast::filter_graph( $data, $this->context_for_site( 'person', 7 ) );
 
 		$this->assertSame(
 			array_values( $result ),
@@ -202,10 +207,288 @@ final class YoastFilterGraphTest extends TestCase {
 		);
 
 		$this->assertSame(
-			array( 'Article', 'WebPage', 'ImageObject', 'BreadcrumbList', 'WebSite', 'Organization', 'HowTo' ),
+			array( 'Article', 'WebPage', 'ImageObject', 'BreadcrumbList', 'WebSite', array( 'Person', 'Organization' ), 'HowTo' ),
 			array_column( $result, '@type' ),
 			'The Person node must be removed and every other node kept, in order.'
 		);
+	}
+
+	/**
+	 * Every co-author must get their own Person node, and Yoast's own author
+	 * node, which it types as [ 'Person' ], must be removed.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_adds_a_person_node_for_every_co_author(): void {
+		$this->stub_coauthors( array( $this->user( 7 ), $this->user( 9 ) ) );
+
+		$result = Yoast::filter_graph( $this->yoast_graph( false ), $this->context_for_site( 'company', 0 ) );
+
+		$this->assertSame(
+			array( array( '@id' => self::PERSON_ID . '7' ), array( '@id' => self::PERSON_ID . '9' ) ),
+			$result[0]['author'],
+			'The article node must reference every co-author.'
+		);
+
+		$this->assertSame(
+			array( self::PERSON_ID . '7', self::PERSON_ID . '9' ),
+			$this->person_ids( $result ),
+			'Each co-author must have one Person node, and Yoast\'s author node must be gone.'
+		);
+	}
+
+	/**
+	 * Regression coverage for issue #1562.
+	 *
+	 * When the site person is the last co-author, the other co-authors must still
+	 * get their Person nodes. The site person keeps Yoast's own node.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_keeps_other_co_authors_when_site_person_is_last(): void {
+		$this->stub_coauthors( array( $this->user( 7 ), $this->user( 9 ) ) );
+
+		$result = Yoast::filter_graph( $this->yoast_graph( true ), $this->context_for_site( 'person', 9 ) );
+
+		$this->assertSame(
+			array( array( '@id' => self::PERSON_ID . '7' ), array( '@id' => self::PERSON_ID . '9' ) ),
+			$result[0]['author'],
+			'The article node must reference every co-author, the site person included.'
+		);
+
+		$this->assertSame(
+			array( self::PERSON_ID . '9', self::PERSON_ID . '7' ),
+			$this->person_ids( $result ),
+			'The site person node must be kept and the other co-author added once.'
+		);
+	}
+
+	/**
+	 * Regression coverage for issue #1562.
+	 *
+	 * When the site person is not the last co-author, no second Person node may
+	 * be added for them.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_skips_site_person_node_when_site_person_is_first(): void {
+		$this->stub_coauthors( array( $this->user( 9 ), $this->user( 7 ) ) );
+
+		$result = Yoast::filter_graph( $this->yoast_graph( true ), $this->context_for_site( 'person', 9 ) );
+
+		$this->assertSame(
+			array( self::PERSON_ID . '9', self::PERSON_ID . '7' ),
+			$this->person_ids( $result ),
+			'The site person must not get a second Person node.'
+		);
+	}
+
+	/**
+	 * Regression coverage for issue #1562.
+	 *
+	 * A guest author post ID is not a user ID, so a guest author whose ID equals
+	 * the site user ID is not the site person.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_does_not_treat_a_guest_author_as_the_site_person(): void {
+		$this->stub_coauthors( array( $this->guest_author( 9 ) ) );
+
+		$result = Yoast::filter_graph( $this->yoast_graph( true ), $this->context_for_site( 'person', 9 ) );
+
+		$guest_id = 'https://example.com/#/schema/person/image/guest-99guest';
+
+		$this->assertSame(
+			array( array( '@id' => $guest_id ) ),
+			$result[0]['author'],
+			'The article node must reference the guest author.'
+		);
+
+		$this->assertSame(
+			array( self::PERSON_ID . '9', $guest_id ),
+			$this->person_ids( $result ),
+			'The guest author must get their own Person node.'
+		);
+	}
+
+	/**
+	 * Regression coverage for issue #1562.
+	 *
+	 * A last co-author that produces no Person node must not drop the nodes of
+	 * the co-authors before it.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_keeps_earlier_co_authors_when_last_one_generates_nothing(): void {
+		$this->stub_coauthors( array( $this->user( 7 ), $this->user( 0 ) ) );
+
+		$result = Yoast::filter_graph( $this->yoast_graph( false ), $this->context_for_site( 'company', 0 ) );
+
+		$this->assertSame(
+			array( array( '@id' => self::PERSON_ID . '7' ) ),
+			$result[0]['author'],
+			'Only the co-author with a Person node may be referenced.'
+		);
+
+		$this->assertSame(
+			array( self::PERSON_ID . '7' ),
+			$this->person_ids( $result ),
+			'The earlier co-author must keep their Person node.'
+		);
+	}
+
+	/**
+	 * Regression coverage for issue #1562.
+	 *
+	 * An object that is neither a user nor a guest author must not repeat the
+	 * previous co-author's Person node.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_does_not_repeat_a_person_node_for_an_unknown_object(): void {
+		$this->stub_coauthors( array( $this->user( 7 ), (object) array( 'ID' => 11 ) ) );
+
+		$result = Yoast::filter_graph( $this->yoast_graph( false ), $this->context_for_site( 'company', 0 ) );
+
+		$this->assertSame(
+			array( array( '@id' => self::PERSON_ID . '7' ) ),
+			$result[0]['author'],
+			'The unknown object must not add a reference.'
+		);
+
+		$this->assertSame(
+			array( self::PERSON_ID . '7' ),
+			$this->person_ids( $result ),
+			'The previous co-author\'s Person node must not be added twice.'
+		);
+	}
+
+	/**
+	 * A graph node without an @type must not raise a warning and must be kept.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_handles_a_node_without_a_type(): void {
+		$this->stub_resolved_author();
+
+		$data = $this->yoast_graph( false );
+		array_unshift( $data, array( '@id' => 'https://example.com/#untyped' ) );
+
+		$result = Yoast::filter_graph( $data, $this->context_for_site( 'company', 0 ) );
+
+		$this->assertSame( 'https://example.com/#untyped', $result[0]['@id'], 'The node without an @type must be kept.' );
+		$this->assertSame(
+			array( array( '@id' => self::PERSON_ID . '7' ) ),
+			$result[1]['author'],
+			'The article node must still reference the co-author.'
+		);
+	}
+
+	/**
+	 * If the graph has no node for the site person, their own Person node must be
+	 * added so the article reference does not dangle.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_adds_site_person_node_when_graph_has_none(): void {
+		$this->stub_coauthors( array( $this->user( 9 ) ) );
+
+		$result = Yoast::filter_graph( $this->yoast_graph( false ), $this->context_for_site( 'person', 9 ) );
+
+		$this->assertSame(
+			array( self::PERSON_ID . '9' ),
+			$this->person_ids( $result ),
+			'The site person must get a Person node when Yoast did not output one.'
+		);
+	}
+
+	/**
+	 * Older Yoast versions type the article and the author with plain strings.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_handles_string_types(): void {
+		$this->stub_coauthors( array( $this->user( 7 ), $this->user( 9 ) ) );
+
+		$data = array(
+			array(
+				'@type'  => 'Article',
+				'@id'    => 'https://example.com/#article',
+				'author' => array( '@id' => self::PERSON_ID . 'post-author' ),
+			),
+			array(
+				'@type' => 'Person',
+				'@id'   => self::PERSON_ID . 'post-author',
+			),
+		);
+
+		$result = Yoast::filter_graph( $data, $this->context_for_site( 'company', 0 ) );
+
+		$this->assertSame(
+			array( array( '@id' => self::PERSON_ID . '7' ), array( '@id' => self::PERSON_ID . '9' ) ),
+			$result[0]['author'],
+			'The string-typed article node must reference every co-author.'
+		);
+
+		$this->assertSame(
+			array( self::PERSON_ID . '7', self::PERSON_ID . '9' ),
+			$this->person_ids( $result ),
+			'The string-typed author node must be replaced by the co-author nodes.'
+		);
+	}
+
+	/**
+	 * Person @ids from a graph, in order.
+	 *
+	 * @param array $graph The schema graph.
+	 * @return string[]
+	 */
+	private function person_ids( array $graph ): array {
+		$ids = array();
+		foreach ( $graph as $piece ) {
+			if ( ! empty( $piece['@type'] ) && in_array( 'Person', (array) $piece['@type'], true ) ) {
+				$ids[] = $piece['@id'];
+			}
+		}
+
+		return $ids;
+	}
+
+	/**
+	 * A graph shaped like Yoast's own output: the article node has an array
+	 *
+	 * @type, the post author is typed [ 'Person' ], and the site person is typed
+	 * [ 'Person', 'Organization' ].
+	 *
+	 * @param bool $site_is_person Whether the site represents user 9.
+	 * @return array
+	 */
+	private function yoast_graph( bool $site_is_person ): array {
+		$graph = array(
+			array(
+				'@type'  => array( 'Article' ),
+				'@id'    => 'https://example.com/#article',
+				'author' => array( '@id' => self::PERSON_ID . 'post-author' ),
+			),
+			array(
+				'@type' => 'WebPage',
+				'@id'   => 'https://example.com/#webpage',
+			),
+		);
+
+		if ( $site_is_person ) {
+			$graph[] = array(
+				'@type' => array( 'Person', 'Organization' ),
+				'@id'   => self::PERSON_ID . '9',
+			);
+		}
+
+		$graph[] = array(
+			'@type' => array( 'Person' ),
+			'@id'   => self::PERSON_ID . 'post-author',
+		);
+
+		return $graph;
 	}
 
 	/**
@@ -264,6 +547,7 @@ final class YoastFilterGraphTest extends TestCase {
 		$context->post->ID        = 42;
 		$context->site_represents = $site_represents;
 		$context->site_user_id    = $site_user_id;
+		$context->site_url        = 'https://example.com/';
 
 		return $context;
 	}
@@ -273,26 +557,77 @@ final class YoastFilterGraphTest extends TestCase {
 	 * generator build their Person node.
 	 */
 	private function stub_resolved_author(): void {
+		$this->stub_coauthors( array( $this->user( 7 ) ) );
+	}
+
+	/**
+	 * Make get_coauthors() resolve the given co-authors, and let the real CoAuthor
+	 * generator build their Person nodes.
+	 *
+	 * @param array $authors The co-author objects get_coauthors() returns.
+	 */
+	private function stub_coauthors( array $authors ): void {
 		Functions\when( 'is_singular' )->justReturn( true );
+		Functions\when( 'wp_hash' )->returnArg();
+		Functions\when( 'get_post_thumbnail_id' )->justReturn( 0 );
+		Functions\when( 'wp_get_attachment_image_src' )->justReturn( false );
 
 		$this->stub_get_coauthors_dependencies();
 
-		$author = new class() extends \WP_User {
+		Filters\expectApplied( 'get_coauthors' )->andReturn( $authors );
+
+		$options = \Mockery::mock();
+		$options->shouldReceive( 'get' )->with( 'disable-author' )->andReturn( true );
+
+		$html = \Mockery::mock();
+		$html->shouldReceive( 'smart_strip_tags' )->andReturnUsing(
+			static function ( $text ) {
+				return $text;
+			}
+		);
+
+		Functions\when( 'YoastSEO' )->justReturn(
+			(object) array(
+				'helpers' => (object) array(
+					'options' => $options,
+					'schema'  => (object) array( 'html' => $html ),
+				),
+			)
+		);
+	}
+
+	/**
+	 * Build a WordPress user co-author.
+	 *
+	 * @param int $id The user ID.
+	 */
+	private function user( int $id ): \WP_User {
+		$user = new class() extends \WP_User {
 			/**
 			 * The user ID.
 			 *
 			 * @var int
 			 */
-			public $ID = 7;
+			public $ID = 0;
 		};
 
-		Filters\expectApplied( 'get_coauthors' )->andReturn( array( $author ) );
+		$user->ID = $id;
 
-		$options = \Mockery::mock();
-		$options->shouldReceive( 'get' )->with( 'disable-author' )->andReturn( true );
+		return $user;
+	}
 
-		Functions\when( 'YoastSEO' )->justReturn(
-			(object) array( 'helpers' => (object) array( 'options' => $options ) )
+	/**
+	 * Build a guest author co-author.
+	 *
+	 * @param int $id The guest author post ID.
+	 */
+	private function guest_author( int $id ): \stdClass {
+		return (object) array(
+			'ID'            => $id,
+			'type'          => 'guest-author',
+			'user_login'    => 'guest-' . $id,
+			'user_nicename' => 'guest-' . $id,
+			'display_name'  => 'Guest ' . $id,
 		);
 	}
 

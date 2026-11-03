@@ -188,16 +188,20 @@ class Yoast {
 			$author_generator->context = $context;
 			$author_generator->helpers = YoastSEO()->helpers;
 
+			$author_data = false;
+
 			if ( $author instanceof WP_User ) {
 				$author_data = $author_generator->generate_from_user_id( $author->ID );
 			} elseif ( ! empty( $author->type ) && $author->type === 'guest-author' ) {
 				$author_data = $author_generator->generate_from_guest_author( $author );
 			}
 
-			if ( ! empty( $author_data ) ) {
-				$ids[]     = [ '@id' => $author_data['@id'] ];
-				$authors[] = $author_data;
+			if ( empty( $author_data ) ) {
+				continue;
 			}
+
+			$ids[]     = [ '@id' => $author_data['@id'] ];
+			$authors[] = $author_data;
 		}
 
 		// Fallback in case of error. With no author to swap in, keep Yoast's own author reference and Person node rather than leave them dangling.
@@ -211,7 +215,7 @@ class Yoast {
 		// Change the author reference to reference our multiple authors.
 		$add_to_graph = false;
 		foreach ( $data as $key => $piece ) {
-			if ( in_array( $piece['@type'], $article_types, true ) ) {
+			if ( ! empty( $piece['@type'] ) && array_intersect( (array) $piece['@type'], $article_types ) ) {
 				$data[ $key ]['author'] = $ids;
 				$add_to_graph           = true;
 				break;
@@ -220,21 +224,27 @@ class Yoast {
 
 		if ( $add_to_graph ) {
 			// Clean all Persons from the schema, as the user stored as post owner might be incorrectly added if the post has only guest authors as authors.
+			// Yoast emits the author as [ 'Person' ], but the site person as [ 'Person', 'Organization' ], which must stay.
 			// Re-index the result so json_encode() keeps @graph as a JSON array even when a Person node is removed from the middle. See #1360.
 			$data = array_values(
 				array_filter(
 					$data,
 					function( $piece ) {
-						return empty( $piece['@type'] ) || $piece['@type'] !== 'Person';
+						return empty( $piece['@type'] ) || (array) $piece['@type'] !== [ 'Person' ];
 					}
 				)
 			);
 
-			if ( ! empty( $author_data ) ) {
-				if ( $context->site_represents !== 'person' || $author->ID !== $context->site_user_id ) {
-					$data = array_merge( $data, $authors );
+			// The site person keeps Yoast's own node, so only add authors whose node is not already in the graph.
+			$graph_ids = array_column( $data, '@id' );
+			$authors   = array_filter(
+				$authors,
+				function( $author_data ) use ( $graph_ids ) {
+					return ! in_array( $author_data['@id'], $graph_ids, true );
 				}
-			}
+			);
+
+			$data = array_merge( $data, $authors );
 		}
 
 		return $data;
