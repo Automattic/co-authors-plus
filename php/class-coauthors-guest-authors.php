@@ -1194,7 +1194,8 @@ class CoAuthors_Guest_Authors {
 				if ( 'user_login' == $key ) {
 					$value = preg_replace( '#^cap\-#', '', sanitize_title_for_query( $value ) );
 				}
-				$query   = $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key=%s AND meta_value=%s;", $this->get_post_meta_key( $key ), $value );
+				// Ordered so a user linked to more than one guest author always gets the oldest.
+				$query   = $wpdb->prepare( "SELECT pm.post_id FROM $wpdb->postmeta pm INNER JOIN $wpdb->posts p ON p.ID = pm.post_id WHERE pm.meta_key=%s AND pm.meta_value=%s AND p.post_type = %s ORDER BY pm.post_id ASC LIMIT 1;", $this->get_post_meta_key( $key ), $value, $this->post_type );
 				$post_id = $wpdb->get_var( $query ); // phpcs:ignore
 				if ( empty( $post_id ) ) {
 					if ( 'user_login' == $key ) {
@@ -1401,6 +1402,29 @@ class CoAuthors_Guest_Authors {
 	}
 
 	/**
+	 * Get the IDs of every guest author linked to a user, oldest first.
+	 *
+	 * A user should have only one, but create() and direct meta writes don't
+	 * stop a second link.
+	 *
+	 * @since 4.2.1
+	 *
+	 * @param string $user_login Login of the linked user.
+	 * @return int[] Guest author IDs.
+	 */
+	public function get_guest_author_ids_by_linked_account( $user_login ) {
+		global $wpdb;
+
+		if ( '' === (string) $user_login ) {
+			return array();
+		}
+
+		$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT pm.post_id FROM $wpdb->postmeta pm INNER JOIN $wpdb->posts p ON p.ID = pm.post_id WHERE pm.meta_key = %s AND pm.meta_value = %s AND p.post_type = %s ORDER BY pm.post_id ASC", $this->get_post_meta_key( 'linked_account' ), $user_login, $this->post_type ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Only used when creating a guest author or deleting a user, where the result must be fresh.
+
+		return array_map( 'intval', $post_ids );
+	}
+
+	/**
 	 * Get all the user accounts that have been linked.
 	 *
 	 * @since 3.0
@@ -1577,6 +1601,20 @@ class CoAuthors_Guest_Authors {
 				}//end if
 			}
 		}//end foreach
+
+		// A linked pair is one person, so a second guest author for the same user is a mistake.
+		// It is still created for now, as refusing it would break callers that succeed today.
+		if ( ! empty( $args['linked_account'] ) && $this->get_guest_author_ids_by_linked_account( $args['linked_account'] ) ) {
+			_doing_it_wrong(
+				__METHOD__,
+				sprintf(
+					/* translators: %s: Login of the linked user. */
+					esc_html__( 'The user %s is already linked to a guest author. A user should be linked to only one guest author.', 'co-authors-plus' ),
+					esc_html( $args['linked_account'] )
+				),
+				'4.2.1'
+			);
+		}
 
 		// Create the primary post object
 		// wp_insert_post() and update_post_meta() both unslash, so slash the plain
