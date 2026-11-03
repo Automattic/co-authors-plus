@@ -22,15 +22,16 @@ jobs:
   unit:
     name: Unit Tests (PHP ${{ matrix.php }})
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.php == 'nightly' }}
     permissions:
       contents: read
 
     strategy:
       fail-fast: false
       matrix:
-        # Lowest and highest supported PHP. The unit suite needs no WordPress,
-        # so it runs fast on every PR without wp-env.
-        php: ['7.4', 'latest']
+        # Lowest and highest supported PHP, plus the next PHP (allowed to fail).
+        # The unit suite needs no WordPress, so it runs fast on every PR without wp-env.
+        php: ['7.4', 'latest', 'nightly']
 
     steps:
       - name: Checkout code
@@ -42,6 +43,8 @@ jobs:
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: ${{ matrix.php }}
+          # setup-php's default production ini hides deprecations from PHPUnit.
+          ini-values: error_reporting=E_ALL
           coverage: none
 
       - name: Install Composer dependencies

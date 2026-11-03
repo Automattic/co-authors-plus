@@ -205,7 +205,10 @@ class CountUserPostsTest extends TestCase {
 		// Use the private method to count posts.
 		$reflection = new \ReflectionClass( $coauthors_plus );
 		$method     = $reflection->getMethod( 'get_post_count_for_author_term' );
-		$method->setAccessible( true );
+		// Needed before PHP 8.1, and deprecated since PHP 8.5.
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible( true );
+		}
 
 		// Count only 'post' type.
 		$post_count = $method->invoke( $coauthors_plus, $term, 'post', false );
