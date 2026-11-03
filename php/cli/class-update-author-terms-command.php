@@ -75,7 +75,7 @@ class Update_Author_Terms_Command {
 		);
 		foreach ( $author_terms as $author_term ) {
 			$old_count = $author_term->count;
-			$coauthor  = $coauthors_plus->get_coauthor_by( 'user_nicename', $author_term->slug );
+			$coauthor  = $coauthors_plus->get_coauthor_by_term( $author_term );
 			$coauthors_plus->update_author_term( $coauthor );
 			$coauthors_plus->update_author_term_post_count( $author_term );
 			clean_term_cache( $author_term->term_id, $coauthors_plus->coauthor_taxonomy );

@@ -88,7 +88,7 @@ A few things don't follow this yet:
 | Prefixed slug | None | `post_name` | The slug |
 | Display name | `display_name` | `post_title` and `cap-display_name` meta | Only in the search text |
 
-A user's login and nicename can differ, for example the login `john.doe` and the nicename `john-doe`. `get_author_term()` also accepts a term whose slug has no prefix.
+A user's login and nicename can differ, for example the login `john.doe` and the nicename `john-doe`. `get_author_term()` also accepts a term whose slug has no prefix. A slug starting with `cap-` could be another author's prefixed term, so it's only accepted when the term name is the co-author's login.
 
 The `cap-` prefix is used on post meta keys too, under different rules. See `php/class-prefix.php`.
 

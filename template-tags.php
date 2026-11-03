@@ -77,6 +77,10 @@ function is_coauthor_for_post( $user, $post_id = 0 ) { // phpcs:ignore WordPress
 	}
 
 	$coauthors = get_coauthors( $post_id );
+
+	// A user only counts as a guest author through its linked account.
+	$is_user = is_numeric( $user ) || $user instanceof WP_User;
+
 	if ( is_numeric( $user ) ) {
 		$user = get_userdata( $user );
 		if ( isset( $user->user_login ) ) {
@@ -91,8 +95,10 @@ function is_coauthor_for_post( $user, $post_id = 0 ) { // phpcs:ignore WordPress
 	}
 
 	foreach ( $coauthors as $coauthor ) {
-		if ( ( isset( $coauthor->user_login ) && $user == $coauthor->user_login )
-			|| ( isset( $coauthor->linked_account ) && $user == $coauthor->linked_account ) ) {
+		$is_guest_author = isset( $coauthor->type ) && 'guest-author' === $coauthor->type;
+
+		if ( ( ! ( $is_user && $is_guest_author ) && isset( $coauthor->user_login ) && $user === $coauthor->user_login )
+			|| ( isset( $coauthor->linked_account ) && $user === $coauthor->linked_account ) ) {
 			return true;
 		}
 	}

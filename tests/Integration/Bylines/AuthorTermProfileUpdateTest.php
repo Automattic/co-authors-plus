@@ -81,4 +81,47 @@ class AuthorTermProfileUpdateTest extends TestCase {
 			'A profile update must not create an author term for a user who is not a co-author.'
 		);
 	}
+
+	/**
+	 * A user and a guest author with the same nicename share a term.
+	 */
+	public function test_profile_update_leaves_the_term_of_an_unlinked_guest_author(): void {
+		$guest_id    = $this->create_guest_author( 'penname' );
+		$guest       = $this->_cap->guest_authors->get_guest_author_by( 'ID', $guest_id );
+		$description = $this->_cap->update_author_term( $guest )->description;
+		$user        = $this->create_author( 'penname' );
+
+		wp_update_user(
+			array(
+				'ID'           => $user->ID,
+				'display_name' => 'Someone Else',
+			)
+		);
+
+		$this->assertSame( $description, get_term_by( 'slug', 'cap-penname', $this->_cap->coauthor_taxonomy )->description );
+	}
+
+	/**
+	 * A linked pair with the same nicename is one person, so the refresh still runs.
+	 */
+	public function test_profile_update_refreshes_the_term_of_a_linked_pair(): void {
+		$user = $this->create_author( 'samepair' );
+		$this->_cap->guest_authors->create(
+			array(
+				'display_name'   => 'samepair',
+				'user_login'     => 'samepair',
+				'linked_account' => 'samepair',
+			)
+		);
+		$this->_cap->update_author_term( $user );
+
+		wp_update_user(
+			array(
+				'ID'           => $user->ID,
+				'display_name' => 'Someone Else',
+			)
+		);
+
+		$this->assertStringContainsString( 'Someone Else', get_term_by( 'slug', 'cap-samepair', $this->_cap->coauthor_taxonomy )->description );
+	}
 }
