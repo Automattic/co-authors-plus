@@ -3208,7 +3208,7 @@ class CoAuthors_Plus {
 			return $title;
 		}
 
-		$author_slug = sanitize_user( $author_name_var );
+		$author_slug = sanitize_title( $author_name_var );
 		$author      = $this->get_coauthor_by( 'user_nicename', $author_slug );
 
 		if ( ! is_object( $author ) || empty( $author->display_name ) ) {
