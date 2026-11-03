@@ -146,6 +146,60 @@ class GetCoauthorsTest extends TestCase {
 	}
 
 	/**
+	 * Checks that the fallback path doesn't resolve through the colliding ID
+	 * of an unrelated guest author post when post_author has no coauthor
+	 * terms (e.g. created before the plugin was active).
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/pull/1446#pullrequestreview-5734897575
+	 */
+	public function test_get_coauthors_does_not_match_unrelated_guest_author_post_with_colliding_id(): void {
+
+		global $coauthors_plus;
+
+		$post_author = $this->create_author( 'post-author' );
+		$linked_user = $this->create_author( 'linked-user' );
+
+		$post_id = $this->factory()->post->create( array( 'post_author' => $post_author->ID ) );
+
+		// Remove the co-author term CAP auto-assigns on save, simulating a post
+		// created before CAP was active (i.e. no coauthor terms at all).
+		wp_delete_object_term_relationships( $post_id, $coauthors_plus->coauthor_taxonomy );
+		$this->assertFalse( $coauthors_plus->has_author_terms( $post_id ) );
+
+		// Create a guest author post whose ID collides with $post_author's
+		// *user* ID (an unrelated table), linked to a different user.
+		$colliding_post_id = wp_insert_post(
+			array(
+				'post_type'   => $coauthors_plus->guest_authors->post_type,
+				'post_status' => 'publish',
+				'post_title'  => 'Linked Guest',
+				'post_name'   => sanitize_title( $coauthors_plus->guest_authors->get_post_meta_key( 'linked-guest' ) ),
+				'import_id'   => $post_author->ID,
+			),
+			true
+		);
+		$this->assertEquals(
+			$post_author->ID,
+			$colliding_post_id,
+			'Test setup assumption violated: could not create a guest author post colliding with the post author user ID.'
+		);
+		update_post_meta( $colliding_post_id, $coauthors_plus->guest_authors->get_post_meta_key( 'display_name' ), 'Linked Guest' );
+		update_post_meta( $colliding_post_id, $coauthors_plus->guest_authors->get_post_meta_key( 'user_login' ), 'linked-guest' );
+		update_post_meta( $colliding_post_id, $coauthors_plus->guest_authors->get_post_meta_key( 'linked_account' ), $linked_user->user_login );
+
+		$coauthors = get_coauthors( $post_id );
+
+		// The real post author is returned, not the unrelated guest author
+		// whose post ID happens to collide with the post author's user ID.
+		$this->assertCount( 1, $coauthors );
+		$this->assertEquals( $post_author->ID, $coauthors[0]->ID );
+		$this->assertEquals( $post_author->user_login, $coauthors[0]->user_login );
+
+		// The unrelated linked user must not inherit edit access to the post.
+		$this->assertFalse( user_can( $linked_user, 'edit_post', $post_id ) );
+	}
+
+	/**
 	 * Checks coauthors order.
 	 */
 	public function test_coauthors_order(): void {
