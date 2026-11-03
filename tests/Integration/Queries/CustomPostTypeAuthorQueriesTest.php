@@ -26,6 +26,19 @@ use WP_Query;
 class CustomPostTypeAuthorQueriesTest extends TestCase {
 
 	/**
+	 * Remove what the tests registered, as it would otherwise outlive them and
+	 * reach later tests that read the registered post types.
+	 */
+	public function tear_down() {
+		unregister_taxonomy( 'genre' );
+		unregister_taxonomy( 'book_visibility' );
+		unregister_post_type( 'book_variation' );
+		unregister_post_type( 'book' );
+
+		parent::tear_down();
+	}
+
+	/**
 	 * Register a custom post type with author support, attached to the author
 	 * taxonomy exactly as CoAuthors_Plus::action_init_late() would have done had
 	 * the post type existed when the plugin booted.
