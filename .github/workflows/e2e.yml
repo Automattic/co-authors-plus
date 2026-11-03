@@ -37,10 +37,20 @@ concurrency:
 
 jobs:
   e2e:
-    name: Playwright E2E (block editor)
+    name: Playwright E2E (block editor, WP ${{ matrix.wordpress }})
     runs-on: ubuntu-latest
     permissions:
       contents: read
+
+    strategy:
+      matrix:
+        include:
+          - wordpress: 'stable'
+          # Check lowest supported WP version, with the lowest supported PHP.
+          - wordpress: '6.4'
+            core: 'WordPress/WordPress#6.4'
+            php: '7.4'
+      fail-fast: false
 
     steps:
       - name: Checkout code
@@ -68,8 +78,11 @@ jobs:
 
       - name: Start wp-env
         run: wp-env start
+        env:
+          WP_ENV_CORE: ${{ matrix.core }}
+          WP_ENV_PHP_VERSION: ${{ matrix.php }}
 
-      # E2E runs against the dev environment (a stable WordPress release), not the
+      # E2E runs against the dev environment (the matrix's WordPress release), not the
       # tests environment (which tracks trunk and can drift ahead of the editor
       # utilities). In CI the dev site is served on the default port 8888.
       - name: Run E2E tests
