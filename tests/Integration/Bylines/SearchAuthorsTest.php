@@ -194,4 +194,26 @@ class SearchAuthorsTest extends TestCase {
 		$this->assertArrayHasKey( 'johndoe', $authors );
 		$this->assertSame( $author->ID, $authors['johndoe']->ID );
 	}
+
+	/**
+	 * Checks that a linked profile makes a user without the author capability searchable.
+	 *
+	 * @covers ::search_authors
+	 */
+	public function test_search_authors_finds_subscriber_with_linked_guest_author(): void {
+
+		global $coauthors_plus;
+
+		$subscriber = $this->create_subscriber( 'linkedsubscriber' );
+
+		$this->assertEmpty( $coauthors_plus->search_authors( 'linkedsubscriber' ) );
+
+		$coauthors_plus->guest_authors->create_guest_author_from_user_id( $subscriber->ID );
+
+		$authors = $coauthors_plus->search_authors( 'linkedsubscriber' );
+
+		$this->assertArrayHasKey( 'linkedsubscriber', $authors );
+		$this->assertSame( 'guest-author', $authors['linkedsubscriber']->type );
+		$this->assertSame( 'linkedsubscriber', $authors['linkedsubscriber']->linked_account );
+	}
 }

@@ -192,7 +192,7 @@ To keep a linked guest author, remove the link before you delete the user. See [
 wp co-authors-plus create-guest-authors
 ```
 
-Because each profile is linked, the user's posts show the guest author profile straight away. If the users are staying, you can stop here.
+Because each profile is linked, the user's posts show the guest author profile straight away. If the users are staying, you can stop here. This includes Subscribers, who can then be chosen as co-authors; add `--capability=edit_posts` to [leave them out](./wp-cli.md#create-guest-authors).
 
 If you also want to delete the user accounts, move the bylines from each user to their guest author first, or the bylines and the linked profiles are deleted with the users. For each user:
 

@@ -168,6 +168,24 @@ Feature: Guest authors can be created
       cap-bob
       """
 
+	Scenario: Process only users with a given capability
+		Given I run `wp user create alice alice@example.com --role=contributor --porcelain`
+		And I run `wp user create bob bob@example.com --role=subscriber --porcelain`
+		When I run `wp co-authors-plus create-guest-authors --capability=edit_posts`
+		Then STDOUT should be:
+      """
+      Attempting to create guest author profiles for 2 users.
+      All done! Here are your results:
+      - 2 guest author profiles were created
+      - 0 users already had guest author profiles
+      """
+		When I run `wp post list --post_type=guest-author --field=post_name --orderby=name --order=ASC`
+		Then STDOUT should be:
+      """
+      cap-admin
+      cap-alice
+      """
+
 	Scenario: A --fields argument does not change what the command reads
 		Given I run `wp user create alice alice@example.com --role=author --porcelain`
 		When I run `wp co-authors-plus create-guest-authors --fields=ID`
