@@ -430,6 +430,48 @@ final class YoastFilterGraphTest extends TestCase {
 	}
 
 	/**
+	 * With no site representation, Yoast's WebPage node also references the post
+	 * owner. Once the owner's node is removed, that reference must follow the
+	 * article to the co-authors rather than point at a node that isn't there.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_repoints_a_webpage_author_whose_node_was_removed(): void {
+		$this->stub_coauthors( array( $this->guest_author( 9 ) ) );
+
+		$data              = $this->yoast_graph( false );
+		$data[1]['author'] = array( '@id' => self::PERSON_ID . 'post-author' );
+
+		$result = Yoast::filter_graph( $data, $this->context_for_site( 'company', 0 ) );
+
+		$this->assertSame(
+			array( array( '@id' => 'https://example.com/#/schema/person/image/guest-99guest' ) ),
+			$result[1]['author'],
+			'The WebPage node must reference the co-author.'
+		);
+	}
+
+	/**
+	 * A WebPage author who is still in the graph must be left as Yoast set it.
+	 *
+	 * @covers \CoAuthors\Integrations\Yoast::filter_graph
+	 */
+	public function test_filter_graph_keeps_a_webpage_author_who_is_a_co_author(): void {
+		$this->stub_coauthors( array( $this->guest_author( 9 ), $this->user( 7 ) ) );
+
+		$data              = $this->yoast_graph( false );
+		$data[1]['author'] = array( '@id' => self::PERSON_ID . '7' );
+
+		$result = Yoast::filter_graph( $data, $this->context_for_site( 'company', 0 ) );
+
+		$this->assertSame(
+			array( '@id' => self::PERSON_ID . '7' ),
+			$result[1]['author'],
+			'The WebPage node must keep its author.'
+		);
+	}
+
+	/**
 	 * Person @ids from a graph, in order.
 	 *
 	 * @param array $graph The schema graph.
