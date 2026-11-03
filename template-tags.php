@@ -45,9 +45,13 @@ function get_coauthors( $post_id = 0 ) { // phpcs:ignore WordPress.NamingConvent
 			} else {
 				$post_author_id = $wpdb->get_var( $wpdb->prepare( "SELECT post_author FROM $wpdb->posts WHERE ID = %d", $post_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fallback when coauthor terms are empty, result is stable per post.
 			}
-			// Resolve through get_coauthor_by() so a WP user with a mapped guest author
-			// profile resolves to that profile, matching how coauthor terms are resolved above.
-			$post_author = $coauthors_plus->get_coauthor_by( 'id', $post_author_id );
+			// Not get_coauthor_by( 'id' ): it checks guest author post IDs first, and
+			// this is a user ID, so it can collide with an unrelated guest author post.
+			// Resolve the user first, then look up by user_nicename like the term path above.
+			$post_author = get_userdata( $post_author_id );
+			if ( $post_author ) {
+				$post_author = $coauthors_plus->get_coauthor_by( 'user_nicename', $post_author->user_nicename );
+			}
 			if ( ! empty( $post_author ) ) {
 				$coauthors[] = $post_author;
 			}
