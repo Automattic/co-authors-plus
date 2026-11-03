@@ -68,8 +68,8 @@ class Create_Guest_Authors_Command {
 	 *     # Work through the list a thousand at a time.
 	 *     $ wp co-authors-plus create-guest-authors --offset=1000 --number=1000
 	 *
-	 *     # Create profiles only for administrators, editors and authors.
-	 *     $ wp co-authors-plus create-guest-authors --role__in=administrator,editor,author
+	 *     # Create profiles only for users who can edit posts, leaving out subscribers.
+	 *     $ wp co-authors-plus create-guest-authors --capability=edit_posts
 	 *
 	 * @when after_wp_load
 	 *
