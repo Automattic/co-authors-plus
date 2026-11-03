@@ -75,6 +75,8 @@ class CoAuthors_Plus {
 	 */
 	public function register_hooks(): void {
 
+		add_action( 'init', array( $this, 'register_react_jsx_runtime_fallback' ), 0 );
+
 		// Register our models
 		add_action( 'init', array( $this, 'action_init' ) );
 		add_action( 'init', array( $this, 'action_init_late' ), 100 );
@@ -165,6 +167,40 @@ class CoAuthors_Plus {
 
 		// Update Co-Authors when bulk editing posts.
 		add_action( 'bulk_edit_posts', array( $this, 'action_bulk_edit_update_coauthors' ), 10, 2 );
+	}
+
+	/**
+	 * Register the react-jsx-runtime script on WordPress versions without it.
+	 *
+	 * The built block editor scripts depend on this handle, which core registers
+	 * from WordPress 6.6. A script with an unregistered dependency is never printed,
+	 * so on older versions the Authors panel and the blocks would not load.
+	 *
+	 * Remove this once the plugin requires WordPress 6.6 or later.
+	 */
+	public function register_react_jsx_runtime_fallback(): void {
+		if ( wp_script_is( 'react-jsx-runtime', 'registered' ) ) {
+			return;
+		}
+
+		wp_register_script( 'react-jsx-runtime', false, array( 'react' ), COAUTHORS_PLUS_VERSION, true );
+		wp_add_inline_script(
+			'react-jsx-runtime',
+			'window.ReactJSXRuntime = ( function ( React ) {
+				function withKey( props, key ) {
+					return undefined === key ? props : Object.assign( {}, props, { key: key } );
+				}
+				return {
+					Fragment: React.Fragment,
+					jsx: function ( type, props, key ) {
+						return React.createElement( type, withKey( props, key ) );
+					},
+					jsxs: function ( type, props, key ) {
+						return React.createElement.apply( null, [ type, withKey( props, key ) ].concat( props.children ) );
+					},
+				};
+			}( window.React ) );'
+		);
 	}
 
 	/**
