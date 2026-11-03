@@ -120,7 +120,7 @@ foreach ( get_coauthors() as $coauthor ) {
 is_coauthor_for_post( $user, $post_id = 0 );
 ```
 
-Returns `true` if `$user` is a co-author of the post, either directly or through a linked guest author. `$user` is a user ID or a co-author object. With no `$post_id`, it uses the current post.
+Returns `true` if `$user` is a co-author of the post, either directly or through a linked guest author. `$user` is a user ID or a co-author object. A user ID or `WP_User` only matches a guest author through its link. With no `$post_id`, it uses the current post.
 
 ### `get_the_coauthor_meta()` and `the_coauthor_meta()`
 

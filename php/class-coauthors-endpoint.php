@@ -229,7 +229,7 @@ class Endpoints {
 				continue;
 			}
 
-			$author = $this->coauthors->get_coauthor_by( 'user_nicename', $term->slug );
+			$author = $this->coauthors->get_coauthor_by_term( $term );
 
 			if ( ! $author ) {
 				continue;

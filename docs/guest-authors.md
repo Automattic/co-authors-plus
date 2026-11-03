@@ -41,7 +41,7 @@ wp user list --network --login=<slug> --fields=ID,user_login,user_nicename
 wp user list --network --nicename=<slug> --fields=ID,user_login,user_nicename
 ```
 
-If they're the same person, link the profile to the user:
+If they're the same person, link the profile to the user. The user only counts as a co-author of the guest author's posts once they're linked. See [Editing posts you co-author](./roles-and-capabilities.md#editing-posts-you-co-author).
 
 ```sh
 wp post meta update <guest-author-id> cap-linked_account <user-login>
@@ -174,7 +174,7 @@ Delete guest authors from this screen, not by trashing the `guest-author` post e
 
 ## Deleting a WordPress user
 
-When you delete a user, Co-Authors Plus deletes the user's author term, which removes them from every byline. Then:
+When you delete a user, Co-Authors Plus deletes the user's author term, which removes them from every byline. If they share that term with a guest author who isn't linked to them, the term stays, along with the guest author's bylines. See [When a slug matches a user](#when-a-slug-matches-a-user). Then:
 
 - If you attribute the user's content to another user, that user is added to the byline of each post whose `post_author` was the deleted user. Posts where the deleted user was a co-author but not the `post_author` aren't given a replacement; the deleted user is just removed.
 - If you delete the content instead, WordPress moves the user's posts to the trash.

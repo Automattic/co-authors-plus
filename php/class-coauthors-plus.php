@@ -977,7 +977,7 @@ class CoAuthors_Plus {
 		$term_id = $wpdb->get_results( $wpdb->prepare( "SELECT term_id FROM $wpdb->term_taxonomy WHERE term_taxonomy_id = %d ", $tt_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Single term lookup for post count update, result changes frequently.
 
 		$term     = get_term_by( 'id', $term_id[0]->term_id, $taxonomy );
-		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+		$coauthor = $this->get_coauthor_by_term( $term );
 		if ( ! $coauthor ) {
 			return new WP_Error( 'missing-coauthor', __( 'No co-author exists for that term', 'co-authors-plus' ) );
 		}
@@ -995,7 +995,7 @@ class CoAuthors_Plus {
 	public function update_author_term_post_count( $term ) {
 		global $wpdb;
 
-		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+		$coauthor = $this->get_coauthor_by_term( $term );
 		if ( ! $coauthor ) {
 			return new WP_Error( 'missing-coauthor', __( 'No co-author exists for that term', 'co-authors-plus' ) );
 		}
@@ -1294,8 +1294,14 @@ class CoAuthors_Plus {
 					is_author() &&
 					get_queried_object_id() !== get_current_user_id()
 				) {
-					$current_coauthor      = $this->get_coauthor_by( 'user_nicename', wp_get_current_user()->user_nicename );
-					$current_coauthor_term = $this->get_author_term( $current_coauthor );
+					$current_user     = wp_get_current_user();
+					$current_coauthor = $this->get_coauthor_by( 'user_nicename', $current_user->user_nicename );
+
+					// A guest author can match this nicename without being this user's profile.
+					$is_other_guest_author = isset( $current_coauthor->type )
+						&& 'guest-author' === $current_coauthor->type
+						&& ( $current_coauthor->linked_account ?? '' ) !== $current_user->user_login;
+					$current_coauthor_term = $is_other_guest_author ? false : $this->get_author_term( $current_coauthor );
 
 					if ( $current_coauthor_term instanceof \WP_Term ) {
 						$current_user_query  = $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $current_coauthor_term->term_id . '\'';
@@ -1628,7 +1634,7 @@ class CoAuthors_Plus {
 				continue;
 			}
 
-			$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+			$coauthor = $this->get_coauthor_by_term( $term );
 			if ( $coauthor ) {
 				$coauthor_objects[] = $coauthor;
 			}
@@ -1709,7 +1715,7 @@ class CoAuthors_Plus {
 		}
 
 		foreach ( $terms as $term ) {
-			$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+			$coauthor = $this->get_coauthor_by_term( $term );
 			if ( $coauthor ) {
 				$user_id = $this->extract_wp_user_id( $coauthor );
 				if ( $user_id ) {
@@ -1775,7 +1781,8 @@ class CoAuthors_Plus {
 			} else {
 				$coauthor_nicenames = array();
 				foreach ( $terms as $term ) {
-					$coauthor_nicenames[] = $term->slug;
+					$coauthor             = $this->get_coauthor_by_term( $term );
+					$coauthor_nicenames[] = $coauthor instanceof WP_User ? $coauthor->user_nicename : $term->slug;
 				}
 				$this->add_coauthors( $post->ID, $coauthor_nicenames );
 			}
@@ -1982,7 +1989,7 @@ class CoAuthors_Plus {
 		}
 
 		$delete_user = get_user_by( 'id', $delete_id );
-		if ( is_object( $delete_user ) ) {
+		if ( is_object( $delete_user ) && ! $this->shares_term_with_unlinked_guest_author( $delete_user ) ) {
 			// Delete term
 			$term = $this->get_author_term( $delete_user );
 			if ( $term ) {
@@ -2001,6 +2008,37 @@ class CoAuthors_Plus {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Whether a user's author term is also the term of a guest author not linked to them.
+	 *
+	 * A term slug comes from a nicename, so a user and a guest author with the same
+	 * nicename share a term.
+	 *
+	 * @param WP_User $user The user.
+	 * @return bool Whether the term belongs to that guest author.
+	 */
+	private function shares_term_with_unlinked_guest_author( WP_User $user ): bool {
+		if ( ! $this->is_guest_authors_enabled() ) {
+			return false;
+		}
+
+		// A guest author whose nicename starts with 'cap-' can have either post_name,
+		// and the two share a cache key with the nicename lookup, so skip the cache.
+		foreach ( array( Prefix::prefix_slug( $user->user_nicename ), $user->user_nicename ) as $post_name ) {
+			$guest_author = $this->guest_authors->get_guest_author_by( 'post_name', $post_name, true );
+
+			if (
+				is_object( $guest_author )
+				&& $guest_author->user_nicename === $user->user_nicename
+				&& ( $guest_author->linked_account ?? '' ) !== $user->user_login
+			) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -2454,13 +2492,7 @@ class CoAuthors_Plus {
 		// Get the guest author objects
 		$found_users = array();
 		foreach ( $found_terms as $found_term ) {
-			$found_user = $this->get_coauthor_by( 'user_nicename', $found_term->slug );
-			$unprefixed = Prefix::strip_slug_prefix( $found_term->slug );
-			if ( ! $found_user && Prefix::slug_has_prefix( $unprefixed ) ) {
-				// A doubled prefix means the guest author's own user_nicename
-				// starts with 'cap-'. e.g. "Cap Ri" -> "cap-cap-ri".
-				$found_user = $this->get_coauthor_by( 'user_nicename', $unprefixed );
-			}
+			$found_user = $this->get_coauthor_by_term( $found_term );
 			if ( ! empty( $found_user ) ) {
 				$found_users[ $found_user->user_login ] = $found_user;
 			}
@@ -2826,17 +2858,57 @@ class CoAuthors_Plus {
 		}
 
 		$cache_key = 'author-term-' . $coauthor->user_nicename;
-		if ( false !== ( $term = wp_cache_get( $cache_key, 'co-authors-plus' ) ) ) {
-			return $term;
+		$term      = wp_cache_get( $cache_key, 'co-authors-plus' );
+
+		if ( false === $term ) {
+			// See if the prefixed term is available, otherwise default to just the nicename
+			$term = get_term_by( 'slug', Prefix::prefix_slug( $coauthor->user_nicename ), $this->coauthor_taxonomy );
+			if ( ! $term ) {
+				$term = get_term_by( 'slug', $coauthor->user_nicename, $this->coauthor_taxonomy );
+			}
+			wp_cache_set( $cache_key, $term, 'co-authors-plus' );
 		}
 
-		// See if the prefixed term is available, otherwise default to just the nicename
-		$term = get_term_by( 'slug', Prefix::prefix_slug( $coauthor->user_nicename ), $this->coauthor_taxonomy );
-		if ( ! $term ) {
-			$term = get_term_by( 'slug', $coauthor->user_nicename, $this->coauthor_taxonomy );
+		// The slug cap-foo is foo's prefixed term, not cap-foo's, unless the term holds cap-foo's login.
+		if (
+			$term
+			&& $term->slug === $coauthor->user_nicename
+			&& Prefix::slug_has_prefix( $term->slug )
+			&& $term->name !== $coauthor->user_login
+		) {
+			return false;
 		}
-		wp_cache_set( $cache_key, $term, 'co-authors-plus' );
+
 		return $term;
+	}
+
+	/**
+	 * Get the co-author an author term belongs to.
+	 *
+	 * A term slug isn't a nicename. cap-foo is foo's term even if a user's nicename
+	 * is cap-foo, so a user found by the whole slug has to own the term.
+	 *
+	 * @since 4.2.1
+	 * @internal
+	 *
+	 * @param WP_Term $term The author term.
+	 * @return object|false The co-author on success.
+	 */
+	public function get_coauthor_by_term( $term ) {
+		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+
+		if ( $coauthor instanceof WP_User ) {
+			$own_term = $this->get_author_term( $coauthor );
+			if ( $own_term && $own_term->term_id === $term->term_id ) {
+				return $coauthor;
+			}
+		} elseif ( $coauthor ) {
+			return $coauthor;
+		}
+
+		// A doubled prefix means the co-author's own user_nicename starts with
+		// 'cap-'. e.g. "Cap Ri" -> "cap-cap-ri".
+		return $this->get_coauthor_by( 'user_nicename', Prefix::strip_slug_prefix( $term->slug ) );
 	}
 
 	/**
@@ -2902,7 +2974,7 @@ class CoAuthors_Plus {
 		if ( ! $user ) {
 			return;
 		}
-		if ( $this->get_author_term( $user ) ) {
+		if ( $this->get_author_term( $user ) && ! $this->shares_term_with_unlinked_guest_author( $user ) ) {
 			$this->update_author_term( $user );
 		}
 	}

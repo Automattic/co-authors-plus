@@ -68,7 +68,7 @@ So being a co-author never gives a user more than they would have as the post's 
 | Contributor | Edit and delete | Neither |
 | Subscriber | Neither | Neither |
 
-This applies to post types Co-Authors Plus is enabled for. A user linked to a guest author counts as a co-author of posts bylined to that guest author.
+This applies to post types Co-Authors Plus is enabled for. A user linked to a guest author counts as a co-author of posts bylined to that guest author. The link is what counts, so a login or nicename that matches the guest author's slug isn't enough. See [When a slug matches a user](./guest-authors.md#when-a-slug-matches-a-user).
 
 Being a co-author doesn't let a user change the byline. That still needs [Assigning co-authors](#assigning-co-authors). In the classic editor and Quick Edit, a co-author who isn't the `post_author` can save the post as long as they don't change its `post_author`.
 
