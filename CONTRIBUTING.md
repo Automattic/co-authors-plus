@@ -161,8 +161,8 @@ GitHub Actions runs these workflows on pull requests. Most only run when the pul
 | Workflow | What it runs |
 | -------- | ------------ |
 | `cs-lint.yml` | `composer validate`, PHP lint, XML lint of the PHPUnit and PHPCS configs, and PHPCS, on PHP 7.4. |
-| `unit.yml` | PHP unit tests on PHP 7.4 and the latest PHP. Runs on every pull request. |
-| `integration.yml` | Integration tests, single site and multisite, on WordPress 6.4 with PHP 7.4, and on WordPress trunk with the latest PHP. |
+| `unit.yml` | PHP unit tests on PHP 7.4, the latest PHP, and the next PHP (allowed to fail). Runs on every pull request. |
+| `integration.yml` | Integration tests, single site and multisite, on WordPress 6.4 with PHP 7.4, and on WordPress trunk with PHP 8.5. |
 | `behat.yml` | Behat on WordPress trunk with PHP 8.4. |
 | `js-test.yml` | JavaScript unit tests. |
 | `lint.yml` | ESLint and Stylelint. |
