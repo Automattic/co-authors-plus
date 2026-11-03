@@ -89,6 +89,25 @@ class FilterAuthorArchiveTitleTest extends TestCase {
 	}
 
 	/**
+	 * A guest author's nicename can hold percent-encoded characters, which
+	 * sanitize_user() strips, leaving nothing to look the author up by.
+	 */
+	public function test_guest_author_with_non_ascii_slug_keeps_their_name(): void {
+		global $coauthors_plus;
+
+		$coauthors_plus->guest_authors->create(
+			array(
+				'user_login'   => 'иван-петров',
+				'display_name' => 'Иван Петров',
+			)
+		);
+
+		$this->go_to( home_url( '/?author_name=' . rawurlencode( 'иван-петров' ) ) );
+
+		$this->assertSame( 'Author: Иван Петров', get_the_archive_title() );
+	}
+
+	/**
 	 * Outside an author archive, the filter must be a no-op.
 	 */
 	public function test_non_author_archive_is_untouched(): void {
