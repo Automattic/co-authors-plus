@@ -245,6 +245,14 @@ class Yoast {
 			);
 
 			$data = array_merge( $data, $authors );
+
+			// Without a site representation, Yoast's WebPage also references the post owner, whose node may have just been removed.
+			$graph_ids = array_column( $data, '@id' );
+			foreach ( $data as $key => $piece ) {
+				if ( isset( $piece['author']['@id'] ) && ! in_array( $piece['author']['@id'], $graph_ids, true ) ) {
+					$data[ $key ]['author'] = $ids;
+				}
+			}
 		}
 
 		return $data;
