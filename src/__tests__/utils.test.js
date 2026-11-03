@@ -130,12 +130,16 @@ describe( 'Utility - addItemByValue', () => {
 		).toStrictEqual( [ ...selectedAuthors, dropdownOptions[ 1 ] ] );
 	} );
 
-	it( 'should append undefined when the value is not in the dropdown', () => {
-		// Characterisation, not endorsement: an unmatched value has always
-		// appended undefined, which buildCoauthorTermIds() then discards.
+	it( 'should return the existing array when the value is not in the dropdown', () => {
 		expect(
 			addItemByValue( 'nobody', selectedAuthors, dropdownOptions )
-		).toStrictEqual( [ ...selectedAuthors, undefined ] );
+		).toBe( selectedAuthors );
+	} );
+
+	it( 'should return the existing array when the dropdown is empty', () => {
+		expect( addItemByValue( newAuthorValue, selectedAuthors, [] ) ).toBe(
+			selectedAuthors
+		);
 	} );
 } );
 

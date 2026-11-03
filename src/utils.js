@@ -102,7 +102,7 @@ export const removeItem = ( targetItem, itemsArr ) => {
  * @param {string} newAuthorValue
  * @param {Array}  currAuthors
  * @param {Array}  dropDownAuthors
- * @return {Array} Author objects including the new author.
+ * @return {Array} Author objects including the new author, or unchanged if not found.
  */
 export const addItemByValue = (
 	newAuthorValue,
@@ -112,7 +112,7 @@ export const addItemByValue = (
 	const newAuthorObj = dropDownAuthors.find(
 		( item ) => item.value === newAuthorValue
 	);
-	return [ ...currAuthors, newAuthorObj ];
+	return newAuthorObj ? [ ...currAuthors, newAuthorObj ] : currAuthors;
 };
 
 /**
