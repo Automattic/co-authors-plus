@@ -65,14 +65,14 @@ class Import_Coauthors_Command {
 	 * ## EXAMPLES
 	 *
 	 *     # See what would happen.
-	 *     $ wp co-authors-plus import-coauthors --file=/tmp/authors.json --dry-run
+	 *     $ wp co-authors-plus import-coauthors --file="$HOME/authors.json" --dry-run
 	 *
 	 *     # Do it.
-	 *     $ wp co-authors-plus import-coauthors --file=/tmp/authors.json
+	 *     $ wp co-authors-plus import-coauthors --file="$HOME/authors.json"
 	 *     Success: Created 12 profiles and linked 84 posts.
 	 *
 	 *     # Only re-link, because the profiles came over with a WordPress import.
-	 *     $ wp co-authors-plus import-coauthors --file=/tmp/authors.json --skip-create
+	 *     $ wp co-authors-plus import-coauthors --file="$HOME/authors.json" --skip-create
 	 *
 	 * @when after_wp_load
 	 *
