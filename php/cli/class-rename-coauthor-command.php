@@ -100,7 +100,7 @@ class Rename_Coauthor_Command {
 		wp_update_term( $orig_term->term_id, $coauthors_plus->coauthor_taxonomy, $rename_args );
 
 		if ( 'guest-author' == $orig_coauthor->type ) {
-			$wpdb->update( $wpdb->posts, array( 'post_name' => $to_userlogin_prefixed ), array( 'ID' => $orig_coauthor->ID ) );
+			$wpdb->update( $wpdb->posts, array( 'post_name' => $to_userlogin_prefixed ), array( 'ID' => $orig_coauthor->ID ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- wp_update_post() would run the guest author save hooks; the cache is cleaned below.
 			clean_post_cache( $orig_coauthor->ID );
 			update_post_meta( $orig_coauthor->ID, Prefix::ensure_meta_key_prefix( 'user_login' ), $to_userlogin );
 			$coauthors_plus->guest_authors->delete_guest_author_cache( $orig_coauthor->ID );

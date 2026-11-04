@@ -11,7 +11,7 @@ Multiple byline management for WordPress, supporting both WordPress users and gu
 | **Class prefix** | `CoAuthors_` (legacy), `CoAuthors\` / `Automattic\CoAuthorsPlus\` (namespaced) |
 | **Function prefix** | `cap_` (helpers), `coauthors*` (template tags) |
 | **Source directory** | `php/` (PHP classes), `src/` (JS/blocks) |
-| **Version** | 4.2.0 |
+| **Version** | 4.2.1 |
 | **Requires PHP** | 7.4+ |
 | **Requires WP** | 6.4+ |
 
@@ -57,6 +57,8 @@ co-authors-plus/
 - `php/cli/` — WP-CLI commands, one class per subcommand, registered in `register-commands.php`
 - `php/services/` — Domain services the commands and other entry points can share
 - `php/integrations/` — Integrations with AMP, Yoast SEO, WordPress Importer, Jetpack
+
+Read `docs/identity-model.md` before changing how co-authors are looked up or matched to users: `$coauthor->ID` is a user ID or a post ID, and login, nicename and slug are different values. Don't change a function's lookup order. See `docs/identity-model.md#changing-how-co-authors-are-found`.
 
 ### Dependencies
 

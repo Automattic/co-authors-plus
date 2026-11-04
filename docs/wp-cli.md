@@ -266,11 +266,15 @@ If a guest author with the same email address, or failing that the same login, a
 Creates a guest author profile, linked to the account, for each WordPress user on the site.
 
 ```sh
-wp co-authors-plus create-guest-authors [--offset=<offset>] [--number=<number>]
+wp co-authors-plus create-guest-authors [--offset=<offset>] [--number=<number>] [--role=<role>] [--<field>=<value>]
 ```
 
 - `--offset`: how many users to skip before starting. Defaults to 0.
 - `--number`: how many users to process. Defaults to all of them.
+- `--role`: only process users with this role.
+- `--<field>`: only process the users matched by any other [`WP_User_Query`](https://developer.wordpress.org/reference/classes/wp_user_query/prepare_query/) argument, such as `--include=12,34`. As with `wp user list`, the value of an argument whose name contains `__` is split on commas, so `--role__in=editor,author` matches both roles. `--fields` is ignored.
+
+Without a filter, the command includes Subscribers, and a user with a linked profile can be chosen as a co-author whatever their role. To leave them out, use `--capability=edit_posts`, or the capability you've set with the [`coauthors_edit_author_cap`](./filters.md#coauthors_edit_author_cap) filter. That's the capability the author search looks for, and unlike a list of roles it includes Contributors and custom roles.
 
 Users are taken in `user_login` order, so `--offset` and `--number` let you work through a large user list in chunks. Users that already have a linked profile are skipped, even if their display name has changed since, so an interrupted run can be repeated. The command shows a progress bar, then the number of profiles created and skipped. A user whose profile can't be created, for example because an unlinked guest author already has the login, gets a warning with the reason. A user that fails doesn't stop the run. The command reports how many users failed, and exits with 0.
 
@@ -313,15 +317,17 @@ It creates profiles only. It doesn't import posts or assign bylines. Existing pr
 Writes the site's guest authors, and the posts each is assigned to, to a JSON file for `import-coauthors`.
 
 ```sh
-wp co-authors-plus export-coauthors [--file=<path>] [--post-types=<post-types>]
+wp co-authors-plus export-coauthors --file=<path> [--post-types=<post-types>]
 ```
 
-- `--file`: where to write the file. Defaults to `cap-coauthors-export.json` in the `wp-content` directory. An existing file is overwritten.
+- `--file`: where to write the file. Required. An existing file is replaced. Keep it outside the web root, because it holds guest author email addresses and the slugs of unpublished posts, and delete it once you have imported it. Only the user who ran the command can read the file. If the file ends up inside the web root, the command warns you and prints the command to delete it.
 - `--post-types`: comma-separated post types to record assignments for. Defaults to the post types Co-Authors Plus is enabled for.
 
 Each post is recorded by its slug and post type, with the guest author's position in the byline, rather than by post ID. That keeps the file valid after a WordPress export and import has renumbered the posts. Posts in any status except trash are included.
 
 Only guest authors are exported. Co-authors who are WordPress users are not, since user accounts move by other means.
+
+In 4.2.0, `--file` was optional and the command wrote to `wp-content/cap-coauthors-export.json` by default, where it may be publicly downloadable. If you ran it without `--file` on 4.2.0, delete that file.
 
 ### `import-coauthors`
 

@@ -161,8 +161,8 @@ GitHub Actions runs these workflows on pull requests. Most only run when the pul
 | Workflow | What it runs |
 | -------- | ------------ |
 | `cs-lint.yml` | `composer validate`, PHP lint, XML lint of the PHPUnit and PHPCS configs, and PHPCS, on PHP 7.4. |
-| `unit.yml` | PHP unit tests on PHP 7.4 and the latest PHP. Runs on every pull request. |
-| `integration.yml` | Integration tests, single site and multisite, on WordPress 6.4 with PHP 7.4, and on WordPress trunk with the latest PHP. |
+| `unit.yml` | PHP unit tests on PHP 7.4, the latest PHP, and the next PHP (allowed to fail). Runs on every pull request. |
+| `integration.yml` | Integration tests, single site and multisite, on WordPress 6.4 with PHP 7.4, and on WordPress trunk with PHP 8.5. |
 | `behat.yml` | Behat on WordPress trunk with PHP 8.4. |
 | `js-test.yml` | JavaScript unit tests. |
 | `lint.yml` | ESLint and Stylelint. |
@@ -196,7 +196,7 @@ The unit suite includes `tests/Unit/Foundation/DistributionManifestTest.php`, wh
 
 The plugin has no runtime autoloader: the Composer classmap is only used by the tests. A new file in `php/` needs a `require_once` where it's used.
 
-For the data model (users, guest authors, and author terms), see [Concepts](./docs/README.md#concepts). Hooks are listed in [Filters and actions](./docs/filters.md).
+For the data model (users, guest authors, and author terms), see [Concepts](./docs/README.md#concepts) and [How co-authors are identified](./docs/identity-model.md). Hooks are listed in [Filters and actions](./docs/filters.md).
 
 ## Pull Requests
 

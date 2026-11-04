@@ -362,8 +362,14 @@ Fires while rendering a custom column for a guest author row.
 
 ### `coauthors_post_list_pluck_field`
 
-Deprecated in 4.0 when triggered from a REST save. Use the `set_object_terms` action on the `author` taxonomy instead. See [Upgrading to 4.0](./upgrading-to-4.0.md).
+The field used to compare existing co-authors when new ones are added to a post. Defaults to `user_login`. Deprecated in 4.0 when used during a REST save, although REST saves replace co-authors rather than adding to them, so it doesn't run there. Other save paths aren't affected. See [Upgrading to 4.0](./upgrading-to-4.0.md#filters-deprecated-on-rest-saves).
+
+- **Parameters:** `string $field`
+- **File:** `php/class-coauthors-plus.php`
 
 ### `coauthors_post_get_coauthor_by_field`
 
-Deprecated in 4.0 when triggered from a REST save. Same replacement as above.
+The field used to look up each co-author passed to `add_coauthors()`. Defaults to the function's `$query_type` argument, `user_nicename` unless the caller passes another. Deprecated in 4.0 when used during a REST save, where co-authors are always passed as author term slugs. Other save paths aren't affected. See [Upgrading to 4.0](./upgrading-to-4.0.md#filters-deprecated-on-rest-saves).
+
+- **Parameters:** `string $field`, `string $author_name`
+- **File:** `php/class-coauthors-plus.php`

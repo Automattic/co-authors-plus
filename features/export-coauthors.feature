@@ -4,6 +4,103 @@ Feature: Guest authors and their post assignments can be exported
 		Given a WP installation with the Co-Authors Plus plugin
 		And I run `wp eval 'foreach ( get_terms( array( "taxonomy" => "author", "hide_empty" => false ) ) as $t ) { wp_delete_term( $t->term_id, "author" ); }'`
 
+	Scenario: Error when no file is given
+		When I try `wp co-authors-plus export-coauthors`
+		Then STDERR should be:
+		"""
+		Error: Parameter errors:
+		 missing --file parameter (Where to write the file. Keep it outside the web root.)
+		"""
+		And the return code should be 1
+
+	Scenario: Error when the file is empty
+		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ) );'`
+		And I try `wp co-authors-plus export-coauthors --file=`
+		Then STDERR should be:
+		"""
+		Error: Pass --file=<path> with the path to write the export to.
+		"""
+		And the return code should be 1
+
+	Scenario: Error when the file is only whitespace
+		When I try `wp co-authors-plus export-coauthors --file=" "`
+		Then STDERR should be:
+		"""
+		Error: Pass --file=<path> with the path to write the export to.
+		"""
+		And the return code should be 1
+
+	Scenario: Only the user who ran the export can read the file
+		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ) );'`
+		And I run `wp eval '@unlink( "/tmp/cap-export-private.json" );'`
+		And I run `wp co-authors-plus export-coauthors --file=/tmp/cap-export-private.json`
+		And I run `wp eval 'echo substr( sprintf( "%o", fileperms( "/tmp/cap-export-private.json" ) ), -4 );'`
+		Then STDOUT should be:
+		"""
+		0600
+		"""
+
+		# Overwriting keeps a file's mode, so an older world-readable export has to be tightened too.
+		When I run `wp eval 'chmod( "/tmp/cap-export-private.json", 0644 );'`
+		And I run `wp co-authors-plus export-coauthors --file=/tmp/cap-export-private.json`
+		And I run `wp eval 'echo substr( sprintf( "%o", fileperms( "/tmp/cap-export-private.json" ) ), -4 );'`
+		Then STDOUT should be:
+		"""
+		0600
+		"""
+
+	Scenario: Replace a symlink at the path rather than writing through it
+		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ) );'`
+		And I run `wp eval '@unlink( "/tmp/cap-export-link.json" ); file_put_contents( "/tmp/cap-export-target.txt", "untouched" ); symlink( "/tmp/cap-export-target.txt", "/tmp/cap-export-link.json" );'`
+		And I run `wp co-authors-plus export-coauthors --file=/tmp/cap-export-link.json`
+		And I run `wp eval 'echo file_get_contents( "/tmp/cap-export-target.txt" ), " ", is_link( "/tmp/cap-export-link.json" ) ? "link" : "file", " ", substr( sprintf( "%o", fileperms( "/tmp/cap-export-link.json" ) ), -4 );'`
+		Then STDOUT should be:
+		"""
+		untouched file 0600
+		"""
+
+	Scenario: Error when the path is a directory, leaving nothing behind
+		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ) );'`
+		And I run `wp eval 'array_map( "unlink", glob( "/tmp/cap-export-??????" ) ); @mkdir( "/tmp/cap-export-dir" );'`
+		And I try `wp co-authors-plus export-coauthors --file=/tmp/cap-export-dir`
+		Then the return code should be 1
+		And STDERR should contain:
+		"""
+		Error: Could not write to /tmp/cap-export-dir. Check the path exists and is writable.
+		"""
+
+		When I run `wp eval 'echo count( glob( "/tmp/cap-export-??????" ) );'`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+
+	Scenario: Warn when the file is inside the web root
+		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ) );'`
+		And I run `wp eval 'echo untrailingslashit( realpath( ABSPATH ) );'`
+		And save STDOUT as {ROOT}
+		And I try `wp co-authors-plus export-coauthors --file={ROOT}/cap-export-webroot.json`
+		Then STDERR should be:
+		"""
+		Warning: {ROOT}/cap-export-webroot.json is inside the web root, so anyone may be able to download it. Move it somewhere private, or delete it with: rm '{ROOT}/cap-export-webroot.json'
+		"""
+		And the return code should be 0
+
+		When I run `wp eval 'unlink( ABSPATH . "cap-export-webroot.json" );'`
+		And I run `wp eval 'echo untrailingslashit( realpath( WP_CONTENT_DIR ) );'`
+		And save STDOUT as {CONTENT}
+		# wp runs from the plugin directory, so this resolves to wp-content.
+		And I try `wp co-authors-plus export-coauthors --file=../../cap-export-relative.json`
+		Then STDERR should be:
+		"""
+		Warning: {CONTENT}/cap-export-relative.json is inside the web root, so anyone may be able to download it. Move it somewhere private, or delete it with: rm '{CONTENT}/cap-export-relative.json'
+		"""
+
+		When I run `wp eval 'unlink( WP_CONTENT_DIR . "/cap-export-relative.json" );'`
+		And I try `wp co-authors-plus export-coauthors --file=/tmp/cap-export-outside.json`
+		Then STDERR should be empty
+		And the return code should be 0
+
 	Scenario: Warn when there is nothing to export
 		When I run `wp co-authors-plus export-coauthors --file=/tmp/cap-export-empty.json`
 		Then STDOUT should be:

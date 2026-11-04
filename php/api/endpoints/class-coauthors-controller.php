@@ -225,7 +225,7 @@ class CoAuthors_Controller extends WP_REST_Controller {
 				'no_found_rows'          => true,
 				'update_post_meta_cache' => false,
 				'update_post_term_cache' => false,
-				'tax_query'              => array(
+				'tax_query'              => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Co-authors are stored as taxonomy terms.
 					array(
 						'taxonomy' => $this->coauthors_plus->coauthor_taxonomy,
 						'field'    => 'term_id',
@@ -325,7 +325,7 @@ class CoAuthors_Controller extends WP_REST_Controller {
 		 * @param int             $post_id   Post ID from the request.
 		 * @param WP_REST_Request $request   The current REST request.
 		 */
-		$coauthors = apply_filters( 'rest_coauthors_prepare_items', $coauthors, (int) $request->get_param( 'post_id' ), $request );
+		$coauthors = apply_filters( 'rest_coauthors_prepare_items', $coauthors, (int) $request->get_param( 'post_id' ), $request ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public filter; renaming would break existing callbacks.
 
 		if ( ! is_array( $coauthors ) ) {
 			$coauthors = array();
@@ -434,7 +434,7 @@ class CoAuthors_Controller extends WP_REST_Controller {
 		// Take a snapshot of which fields are in the schema pre-filtering.
 		$schema_fields = array_keys( $schema['properties'] );
 
-		$schema = apply_filters( 'rest_coauthors_item_schema', $schema );
+		$schema = apply_filters( 'rest_coauthors_item_schema', $schema ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public filter; renaming would break existing callbacks.
 
 		// Emit a _doing_it_wrong warning if user tries to add new properties using this filter.
 		$new_fields = array_diff( array_keys( $schema['properties'] ), $schema_fields );
@@ -541,6 +541,6 @@ class CoAuthors_Controller extends WP_REST_Controller {
 		 *                                   `description` added, or the guest author object.
 		 * @param WP_REST_Request  $request  Request object.
 		 */
-		return apply_filters( 'rest_prepare_coauthor', $response, $author, $request );
+		return apply_filters( 'rest_prepare_coauthor', $response, $author, $request ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public filter; renaming would break existing callbacks.
 	}
 }

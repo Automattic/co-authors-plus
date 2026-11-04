@@ -171,4 +171,49 @@ class SearchAuthorsTest extends TestCase {
 		$this->assertArrayNotHasKey( $this->author1->user_login, $authors );
 		$this->assertArrayHasKey( $author2->user_login, $authors );
 	}
+
+	/**
+	 * Checks that a user whose user_nicename is changed by sanitize_title() is still found.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/142
+	 *
+	 * @covers ::search_authors
+	 */
+	public function test_search_authors_finds_user_with_unsanitized_nicename(): void {
+
+		global $coauthors_plus;
+
+		// Core sanitizes nicenames before this filter runs, so a filter can still save a raw value.
+		$raw_nicename = static fn() => 'john doe';
+		add_filter( 'pre_user_nicename', $raw_nicename );
+		$author = $this->create_author( 'johndoe' );
+		remove_filter( 'pre_user_nicename', $raw_nicename );
+
+		$authors = $coauthors_plus->search_authors( 'johndoe' );
+
+		$this->assertArrayHasKey( 'johndoe', $authors );
+		$this->assertSame( $author->ID, $authors['johndoe']->ID );
+	}
+
+	/**
+	 * Checks that a linked profile makes a user without the author capability searchable.
+	 *
+	 * @covers ::search_authors
+	 */
+	public function test_search_authors_finds_subscriber_with_linked_guest_author(): void {
+
+		global $coauthors_plus;
+
+		$subscriber = $this->create_subscriber( 'linkedsubscriber' );
+
+		$this->assertEmpty( $coauthors_plus->search_authors( 'linkedsubscriber' ) );
+
+		$coauthors_plus->guest_authors->create_guest_author_from_user_id( $subscriber->ID );
+
+		$authors = $coauthors_plus->search_authors( 'linkedsubscriber' );
+
+		$this->assertArrayHasKey( 'linkedsubscriber', $authors );
+		$this->assertSame( 'guest-author', $authors['linkedsubscriber']->type );
+		$this->assertSame( 'linkedsubscriber', $authors['linkedsubscriber']->linked_account );
+	}
 }

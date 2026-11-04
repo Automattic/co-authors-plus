@@ -239,4 +239,73 @@ class GetCoauthorByTest extends TestCase {
 
 		$this->assertFalse( $eigth_author_retrieval );
 	}
+
+	/**
+	 * Checks that the author term slug resolves a user whose user_nicename is changed by sanitize_title().
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/142
+	 *
+	 * @covers ::get_coauthor_by
+	 */
+	public function test_get_coauthor_by_term_slug_when_nicename_is_unsanitized(): void {
+
+		// Core sanitizes nicenames before this filter runs, so a filter can still save a raw value.
+		$raw_nicename = static fn() => 'john doe';
+		add_filter( 'pre_user_nicename', $raw_nicename );
+		$author = $this->create_author( 'johndoe' );
+		remove_filter( 'pre_user_nicename', $raw_nicename );
+
+		$term = $this->_cap->update_author_term( get_user_by( 'id', $author->ID ) );
+		$this->assertSame( 'cap-john-doe', $term->slug );
+
+		// Prefixed slug, as search_authors() passes it, and unprefixed, as get_coauthors() passes it.
+		foreach ( array( $term->slug, 'john-doe' ) as $slug ) {
+			$coauthor = $this->_cap->get_coauthor_by( 'user_nicename', $slug );
+			$this->assertInstanceOf( WP_User::class, $coauthor );
+			$this->assertSame( $author->ID, $coauthor->ID );
+		}
+
+		$post_id = $this->factory()->post->create();
+		$this->_cap->add_coauthors( $post_id, array( 'john doe' ) );
+
+		$this->assertSame( array( $author->ID ), wp_list_pluck( get_coauthors( $post_id ), 'ID' ) );
+	}
+
+	/**
+	 * Checks that a login can't reach another user through the term name fallback, by sanitizing to their nicename.
+	 *
+	 * @covers ::get_coauthor_by
+	 */
+	public function test_get_coauthor_by_nicename_ignores_login_that_sanitizes_to_other_nicename(): void {
+
+		$other = $this->factory()->user->create_and_get( array( 'user_login' => 'john-smith' ) );
+		$this->_cap->update_author_term( $other );
+
+		$author = $this->factory()->user->create_and_get( array( 'user_login' => 'john.smith' ) );
+		$this->assertSame( 'john-smith-2', $author->user_nicename );
+
+		$this->assertFalse( $this->_cap->get_coauthor_by( 'user_nicename', $author->user_login ) );
+
+		// Appending looks up the post's existing co-authors by login.
+		$post_id = $this->factory()->post->create();
+		$this->_cap->add_coauthors( $post_id, array( $author->user_nicename ) );
+		$this->_cap->add_coauthors( $post_id, array( $this->author1->user_nicename ), true );
+
+		$this->assertSame(
+			array( $author->ID, $this->author1->ID ),
+			wp_list_pluck( get_coauthors( $post_id ), 'ID' )
+		);
+	}
+
+	/**
+	 * Checks that the term name fallback doesn't return a user whose nicename doesn't match the slug.
+	 *
+	 * @covers ::get_coauthor_by
+	 */
+	public function test_get_coauthor_by_term_slug_ignores_login_with_other_nicename(): void {
+
+		wp_insert_term( $this->author1->user_login, $this->_cap->coauthor_taxonomy, array( 'slug' => 'cap-someone-else' ) );
+
+		$this->assertFalse( $this->_cap->get_coauthor_by( 'user_nicename', 'cap-someone-else' ) );
+	}
 }

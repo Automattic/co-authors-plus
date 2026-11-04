@@ -4,12 +4,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 add_action( 'pre_amp_render_post', 'cap_add_amp_actions' );
-function cap_add_amp_actions() {
+function cap_add_amp_actions() { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Legacy cap_ prefix; renaming would break existing callers.
 	add_filter( 'amp_post_template_metadata', 'cap_update_amp_json_metadata', 10, 2 );
 	add_filter( 'amp_post_template_file', 'cap_set_amp_author_meta_template', 10, 3 );
 }
 
-function cap_update_amp_json_metadata( $metadata, $post ) {
+function cap_update_amp_json_metadata( $metadata, $post ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Legacy cap_ prefix; renaming would break existing callers.
 	$authors = get_coauthors( $post->ID );
 
 	$authors_json = array();
@@ -24,7 +24,7 @@ function cap_update_amp_json_metadata( $metadata, $post ) {
 	return $metadata;
 }
 
-function cap_set_amp_author_meta_template( $file, $type, $post ) {
+function cap_set_amp_author_meta_template( $file, $type, $post ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Legacy cap_ prefix; renaming would break existing callers.
 	if ( 'meta-author' === $type ) {
 		$file = __DIR__ . '/amp/meta-author.php';
 	}

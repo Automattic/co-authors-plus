@@ -8,6 +8,9 @@
 	"description": "Displays a co-author's display name and optionally links to their author archive.",
 	"keywords": [ "coauthors" ],
 	"supports": {
+		"interactivity": {
+			"clientNavigation": true
+		},
 		"html": false,
 		"color": {
 			"link": true,

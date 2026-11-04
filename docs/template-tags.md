@@ -120,7 +120,7 @@ foreach ( get_coauthors() as $coauthor ) {
 is_coauthor_for_post( $user, $post_id = 0 );
 ```
 
-Returns `true` if `$user` is a co-author of the post, either directly or through a linked guest author. `$user` is a user ID or a co-author object. With no `$post_id`, it uses the current post.
+Returns `true` if `$user` is a co-author of the post, either directly or through a linked guest author. `$user` is a user ID or a co-author object. A user ID or `WP_User` only matches a guest author through its link. With no `$post_id`, it uses the current post.
 
 ### `get_the_coauthor_meta()` and `the_coauthor_meta()`
 
@@ -129,7 +129,7 @@ get_the_coauthor_meta( $field, $user_id = false );
 the_coauthor_meta( $field, $user_id = 0 );
 ```
 
-`get_the_coauthor_meta()` returns an array of the field's value for each co-author of the current post, keyed by co-author ID. Pass `$user_id` to look up a single co-author instead. The short names `login`, `pass`, `nicename`, `email`, `url`, `registered`, `activation_key` and `status` map to the matching `user_` field. `url` returns a guest author's Website field.
+`get_the_coauthor_meta()` returns an array of the field's value for each co-author of the current post, keyed by co-author ID. Pass `$user_id` to look up a single co-author instead. The number is checked as a guest author's post ID first, then as a user ID. See [What a number means to each function](./identity-model.md#what-a-number-means-to-each-function). The short names `login`, `pass`, `nicename`, `email`, `url`, `registered`, `activation_key` and `status` map to the matching `user_` field. `url` returns a guest author's Website field.
 
 `the_coauthor_meta()` echoes each value, escaped, with no separator between them.
 

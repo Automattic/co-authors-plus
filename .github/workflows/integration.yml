@@ -42,8 +42,9 @@ jobs:
             php: '7.4'
             allowed_failure: false
           # Check latest WP with the latest PHP (may fail due to bleeding edge changes).
+          # A version number, not 'latest': wp-env uses it to pick the Docker image.
           - wordpress: 'master'
-            php: 'latest'
+            php: '8.5'
             allowed_failure: true
       fail-fast: false
 
@@ -84,6 +85,7 @@ jobs:
         run: wp-env start
         env:
           WP_ENV_CORE: WordPress/WordPress#${{ matrix.wordpress }}
+          WP_ENV_PHP_VERSION: ${{ matrix.php }}
 
       - name: Run integration tests (single site)
         run: composer test:integration

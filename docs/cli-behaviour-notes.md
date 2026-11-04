@@ -1164,6 +1164,15 @@ writes the marker.)
   user's display name, so after a rename the second run no longer collided and
   created another profile linked to the same account. That user is now counted as
   already having one. Both are pinned in features/create-guest-author.feature.
+- ~~Only `--offset` and `--number` were accepted. The `## OPTIONS` block that
+  replaced the old `@synopsis` made WP-CLI reject every other flag, so
+  `--role=subscriber` and the WP_User_Query arguments that 4.0 passed through to
+  `get_users()` failed with "unknown parameter".~~ **FIXED.** `--role` and a
+  generic `--<field>=<value>` are back. Values of `__in`/`__not_in` arguments are
+  split on commas as `wp user list` does, because WP_User_Query casts a string
+  `role__in` to a one-item array and matches nothing. `fields` is forced to `all`,
+  since `--fields=ID` returned ID strings and the loop read properties off them.
+  `count_total` needs no guard: `get_users()` always sets it to false.
 
 ## create-guest-authors-from-csv
 

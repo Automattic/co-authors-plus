@@ -121,7 +121,7 @@ class Create_Guest_Authors_From_Csv_Command {
 
 			$authors[] = $author_data;
 		}
-		fclose( $file );
+		fclose( $file ); // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- Closes the native handle fgetcsv() needed.
 
 		WP_CLI::log(
 			sprintf(

@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @param int $post_id Optional. Post ID to fetch co-authors for. Defaults to the current post in the loop.
  * @return array List of co-author objects, filtered through the `get_coauthors` filter.
  */
-function get_coauthors( $post_id = 0 ) {
+function get_coauthors( $post_id = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	global $post, $post_ID, $coauthors_plus, $wpdb;
 
 	$coauthors = array();
@@ -51,7 +51,7 @@ function get_coauthors( $post_id = 0 ) {
 	}
 	// remove duplicate $coauthors objects from mapping user accounts to guest authors accounts
 	$coauthors = array_unique( $coauthors, SORT_REGULAR );
-	$coauthors = apply_filters( 'get_coauthors', $coauthors, $post_id );
+	$coauthors = apply_filters( 'get_coauthors', $coauthors, $post_id ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Public filter; renaming would break existing callbacks.
 	return $coauthors;
 }
 
@@ -61,7 +61,7 @@ function get_coauthors( $post_id = 0 ) {
  * @param object|int $user
  * @param int        $post_id
  */
-function is_coauthor_for_post( $user, $post_id = 0 ) {
+function is_coauthor_for_post( $user, $post_id = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	global $post;
 
 	if ( ! $post_id && $post ) {
@@ -77,6 +77,10 @@ function is_coauthor_for_post( $user, $post_id = 0 ) {
 	}
 
 	$coauthors = get_coauthors( $post_id );
+
+	// A user only counts as a guest author through its linked account.
+	$is_user = is_numeric( $user ) || $user instanceof WP_User;
+
 	if ( is_numeric( $user ) ) {
 		$user = get_userdata( $user );
 		if ( isset( $user->user_login ) ) {
@@ -91,8 +95,10 @@ function is_coauthor_for_post( $user, $post_id = 0 ) {
 	}
 
 	foreach ( $coauthors as $coauthor ) {
-		if ( ( isset( $coauthor->user_login ) && $user == $coauthor->user_login )
-			|| ( isset( $coauthor->linked_account ) && $user == $coauthor->linked_account ) ) {
+		$is_guest_author = isset( $coauthor->type ) && 'guest-author' === $coauthor->type;
+
+		if ( ( ! ( $is_user && $is_guest_author ) && isset( $coauthor->user_login ) && $user === $coauthor->user_login )
+			|| ( isset( $coauthor->linked_account ) && $user === $coauthor->linked_account ) ) {
 			return true;
 		}
 	}
@@ -281,7 +287,7 @@ function coauthors_posts_links_single( $author ) {
 		remove_filter( 'the_author', $the_author_filter, $priority );
 	}
 
-	$display_name = apply_filters( 'the_author', $author->display_name );
+	$display_name = apply_filters( 'the_author', $author->display_name ); // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Core hook, applied as get_the_author() does.
 	$args         = array(
 		'before_html' => '',
 		'href'        => get_author_posts_url( $author->ID, $author->user_nicename ),
@@ -526,7 +532,7 @@ function coauthors_ids( $between = null, $betweenLast = null, $before = null, $a
  *
  * @return array $meta Value of the user field
  */
-function get_the_coauthor_meta( $field, $user_id = false ) {
+function get_the_coauthor_meta( $field, $user_id = false ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	global $coauthors_plus;
 
 	if ( ! $user_id ) {
@@ -575,7 +581,7 @@ function get_the_coauthor_meta( $field, $user_id = false ) {
  * @param string $field   The user field to retrieve. See get_the_coauthor_meta() for accepted values.
  * @param int    $user_id Optional. Restrict output to a single co-author by ID. Default 0 (all co-authors).
  */
-function the_coauthor_meta( $field, $user_id = 0 ) {
+function the_coauthor_meta( $field, $user_id = 0 ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Public template tag; renaming would break themes.
 	// TODO: need before after options
 	$coauthor_meta = get_the_coauthor_meta( $field, $user_id );
 	foreach ( $coauthor_meta as $meta ) {
@@ -635,10 +641,18 @@ function coauthors_get_users( $args = array() ) {
 	}
 	$authors = apply_filters( 'coauthors_wp_list_authors_array', $authors );
 
-	// remove duplicates from linked accounts
-	$linked_accounts = array_unique( array_column( $authors, 'linked_account' ) );
-	foreach ( $linked_accounts as $linked_account ) {
-		unset( $authors[ $linked_account ] );
+	// Remove duplicates from linked accounts. A guest author sharing their user's term is the only entry for that person.
+	foreach ( array_count_values( array_column( $authors, 'linked_account' ) ) as $linked_account => $entries ) {
+		if ( $entries > 1 ) {
+			unset( $authors[ $linked_account ] );
+		}
+	}
+
+	// A linked guest author with their own slug has a term each with their user, and a post can be on both.
+	foreach ( $authors as $author ) {
+		if ( isset( $author->wp_user ) && $author->wp_user->user_nicename !== $author->user_nicename ) {
+			$author->post_count = count_user_posts( $author->wp_user->ID, 'post', true ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.count_user_posts_count_user_posts -- Term counts can't tell if a post is on both terms.
+		}
 	}
 
 	return $authors;

@@ -75,6 +75,8 @@ class CoAuthors_Plus {
 	 */
 	public function register_hooks(): void {
 
+		add_action( 'init', array( $this, 'register_react_jsx_runtime_fallback' ), 0 );
+
 		// Register our models
 		add_action( 'init', array( $this, 'action_init' ) );
 		add_action( 'init', array( $this, 'action_init_late' ), 100 );
@@ -165,6 +167,40 @@ class CoAuthors_Plus {
 
 		// Update Co-Authors when bulk editing posts.
 		add_action( 'bulk_edit_posts', array( $this, 'action_bulk_edit_update_coauthors' ), 10, 2 );
+	}
+
+	/**
+	 * Register the react-jsx-runtime script on WordPress versions without it.
+	 *
+	 * The built block editor scripts depend on this handle, which core registers
+	 * from WordPress 6.6. A script with an unregistered dependency is never printed,
+	 * so on older versions the Authors panel and the blocks would not load.
+	 *
+	 * Remove this once the plugin requires WordPress 6.6 or later.
+	 */
+	public function register_react_jsx_runtime_fallback(): void {
+		if ( wp_script_is( 'react-jsx-runtime', 'registered' ) ) {
+			return;
+		}
+
+		wp_register_script( 'react-jsx-runtime', false, array( 'react' ), COAUTHORS_PLUS_VERSION, true );
+		wp_add_inline_script(
+			'react-jsx-runtime',
+			'window.ReactJSXRuntime = ( function ( React ) {
+				function withKey( props, key ) {
+					return undefined === key ? props : Object.assign( {}, props, { key: key } );
+				}
+				return {
+					Fragment: React.Fragment,
+					jsx: function ( type, props, key ) {
+						return React.createElement( type, withKey( props, key ) );
+					},
+					jsxs: function ( type, props, key ) {
+						return React.createElement.apply( null, [ type, withKey( props, key ) ].concat( props.children ) );
+					},
+				};
+			}( window.React ) );'
+		);
 	}
 
 	/**
@@ -553,8 +589,49 @@ class CoAuthors_Plus {
 			$user  = get_user_by( $key, $value );
 		}
 
+		if ( ! $user && 'slug' === $key ) {
+			$user = $this->get_user_by_author_term_name( $value );
+		}
+
 		if ( false === $user ) {
 			return null;
+		}
+
+		return $user;
+	}
+
+	/**
+	 * Find a WP user through the name of their author term.
+	 *
+	 * The term slug is a sanitize_title() copy of the user_nicename, so a
+	 * nicename that sanitize_title() changes (e.g. "john doe" from a direct
+	 * DB write or the pre_user_nicename filter) can't be found by slug. The
+	 * term name holds the user_login, so use that instead.
+	 *
+	 * @since 4.2.1
+	 * @see https://github.com/Automattic/co-authors-plus/issues/142
+	 *
+	 * @param string $slug Unprefixed author term slug.
+	 * @return WP_User|false
+	 */
+	private function get_user_by_author_term_name( string $slug ) {
+		if ( sanitize_title( $slug ) !== $slug ) {
+			return false;
+		}
+
+		$term = get_term_by( 'slug', Prefix::prefix_slug( $slug ), $this->coauthor_taxonomy );
+		if ( ! $term ) {
+			$term = get_term_by( 'slug', $slug, $this->coauthor_taxonomy );
+		}
+		if ( ! $term ) {
+			return false;
+		}
+
+		$user = get_user_by( 'login', $term->name );
+
+		// The login could belong to someone else, so the nicename must match too.
+		if ( ! $user || sanitize_title( $user->user_nicename ) !== $slug ) {
+			return false;
 		}
 
 		return $user;
@@ -869,8 +946,10 @@ class CoAuthors_Plus {
 	 * @param int $user_id ID of the currently-listed user.
 	 */
 	private function render_users_linked_author_column( $user_id ): string {
-		$author_info = $this->get_coauthor_by( 'id', $user_id, false );
-		if ( ! $author_info || 'guest-author' !== $author_info->type ) {
+		// Not get_coauthor_by( 'id' ): it checks guest author post IDs first, and this is a user ID.
+		$user        = get_userdata( $user_id );
+		$author_info = $user ? $this->get_coauthor_by( 'linked_account', $user->user_login ) : false;
+		if ( ! $author_info ) {
 			return '';
 		}
 
@@ -934,7 +1013,7 @@ class CoAuthors_Plus {
 		$term_id = $wpdb->get_results( $wpdb->prepare( "SELECT term_id FROM $wpdb->term_taxonomy WHERE term_taxonomy_id = %d ", $tt_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Single term lookup for post count update, result changes frequently.
 
 		$term     = get_term_by( 'id', $term_id[0]->term_id, $taxonomy );
-		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+		$coauthor = $this->get_coauthor_by_term( $term );
 		if ( ! $coauthor ) {
 			return new WP_Error( 'missing-coauthor', __( 'No co-author exists for that term', 'co-authors-plus' ) );
 		}
@@ -952,7 +1031,7 @@ class CoAuthors_Plus {
 	public function update_author_term_post_count( $term ) {
 		global $wpdb;
 
-		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+		$coauthor = $this->get_coauthor_by_term( $term );
 		if ( ! $coauthor ) {
 			return new WP_Error( 'missing-coauthor', __( 'No co-author exists for that term', 'co-authors-plus' ) );
 		}
@@ -976,7 +1055,7 @@ class CoAuthors_Plus {
 		$query .= $wpdb->prepare( " GROUP BY {$wpdb->posts}.ID HAVING MAX( IF ( {$wpdb->term_taxonomy}.taxonomy = '%s', IF ( {$having_terms},2,1 ),0 ) ) <> 1 ", $this->coauthor_taxonomy ); //phpcs:ignore
 
 		$count = $wpdb->query( $query ); // phpcs:ignore
-		$wpdb->update( $wpdb->term_taxonomy, array( 'count' => $count ), array( 'term_taxonomy_id' => $term->term_taxonomy_id ) );
+		$wpdb->update( $wpdb->term_taxonomy, array( 'count' => $count ), array( 'term_taxonomy_id' => $term->term_taxonomy_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Core has no API to set a term count directly.
 
 		wp_cache_delete( 'author-term-' . $coauthor->user_nicename, 'co-authors-plus' );
 	}
@@ -989,6 +1068,8 @@ class CoAuthors_Plus {
 	 * - Standard single-author archive queries ($query->is_author()).
 	 * - Programmatic queries using `author__in` (array of IDs).
 	 *
+	 * Returns false when `author__not_in` leaves the query with no author clause.
+	 *
 	 * Note: WordPress sets is_author = true for any non-empty `author` value,
 	 * including comma-separated strings, so the comma-separated case is already
 	 * covered by the is_author() check. Multi-author dispatch is handled in
@@ -1000,6 +1081,14 @@ class CoAuthors_Plus {
 	 * @return bool
 	 */
 	protected function is_author_query( WP_Query $query ): bool {
+		// WP_Query drops author__in when author__not_in is set, so unless author_name
+		// adds a clause there is no author clause to rewrite, and the first post_author
+		// match would belong to a different part of the query. This runs ahead of the
+		// filter below so that no callback can opt such a query back in.
+		if ( ! empty( $query->get( 'author__not_in' ) ) && '' === $query->get( 'author_name' ) ) {
+			return false;
+		}
+
 		if ( $query->is_author() ) {
 			$is_author = true;
 		} else {
@@ -1251,8 +1340,14 @@ class CoAuthors_Plus {
 					is_author() &&
 					get_queried_object_id() !== get_current_user_id()
 				) {
-					$current_coauthor      = $this->get_coauthor_by( 'user_nicename', wp_get_current_user()->user_nicename );
-					$current_coauthor_term = $this->get_author_term( $current_coauthor );
+					$current_user     = wp_get_current_user();
+					$current_coauthor = $this->get_coauthor_by( 'user_nicename', $current_user->user_nicename );
+
+					// A guest author can match this nicename without being this user's profile.
+					$is_other_guest_author = isset( $current_coauthor->type )
+						&& 'guest-author' === $current_coauthor->type
+						&& ( $current_coauthor->linked_account ?? '' ) !== $current_user->user_login;
+					$current_coauthor_term = $is_other_guest_author ? false : $this->get_author_term( $current_coauthor );
 
 					if ( $current_coauthor_term instanceof \WP_Term ) {
 						$current_user_query  = $wpdb->term_taxonomy . '.taxonomy = \'' . $this->coauthor_taxonomy . '\' AND ' . $wpdb->term_taxonomy . '.term_id = \'' . $current_coauthor_term->term_id . '\'';
@@ -1585,7 +1680,7 @@ class CoAuthors_Plus {
 				continue;
 			}
 
-			$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+			$coauthor = $this->get_coauthor_by_term( $term );
 			if ( $coauthor ) {
 				$coauthor_objects[] = $coauthor;
 			}
@@ -1666,7 +1761,7 @@ class CoAuthors_Plus {
 		}
 
 		foreach ( $terms as $term ) {
-			$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+			$coauthor = $this->get_coauthor_by_term( $term );
 			if ( $coauthor ) {
 				$user_id = $this->extract_wp_user_id( $coauthor );
 				if ( $user_id ) {
@@ -1732,7 +1827,8 @@ class CoAuthors_Plus {
 			} else {
 				$coauthor_nicenames = array();
 				foreach ( $terms as $term ) {
-					$coauthor_nicenames[] = $term->slug;
+					$coauthor             = $this->get_coauthor_by_term( $term );
+					$coauthor_nicenames[] = $coauthor instanceof WP_User ? $coauthor->user_nicename : $term->slug;
 				}
 				$this->add_coauthors( $post->ID, $coauthor_nicenames );
 			}
@@ -1770,8 +1866,7 @@ class CoAuthors_Plus {
 			// if current_user_can_set_authors and nonce valid
 			check_admin_referer( 'coauthors-edit', 'coauthors-nonce' );
 
-			$coauthors = (array) wp_unslash( $_POST['coauthors'] );
-			$coauthors = array_map( 'sanitize_title', $coauthors );
+			$coauthors = array_map( 'sanitize_title', (array) wp_unslash( $_POST['coauthors'] ) );
 			$this->add_coauthors( $post_id, $coauthors );
 		} else {
 			// If a co-author isn't currently set, we need to explicitly set one.
@@ -1898,7 +1993,7 @@ class CoAuthors_Plus {
 		}
 
 		if ( ! empty( $new_author ) ) {
-			$update = $wpdb->update( $wpdb->posts, array( 'post_author' => $new_author->ID ), array( 'ID' => $post_id ) );
+			$update = $wpdb->update( $wpdb->posts, array( 'post_author' => $new_author->ID ), array( 'ID' => $post_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Runs inside save_post, where wp_update_post() would recurse.
 			clean_post_cache( $post_id );
 
 			if ( is_bool( $update ) ) {
@@ -1940,7 +2035,7 @@ class CoAuthors_Plus {
 		}
 
 		$delete_user = get_user_by( 'id', $delete_id );
-		if ( is_object( $delete_user ) ) {
+		if ( is_object( $delete_user ) && ! $this->shares_term_with_unlinked_guest_author( $delete_user ) ) {
 			// Delete term
 			$term = $this->get_author_term( $delete_user );
 			if ( $term ) {
@@ -1959,6 +2054,37 @@ class CoAuthors_Plus {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Whether a user's author term is also the term of a guest author not linked to them.
+	 *
+	 * A term slug comes from a nicename, so a user and a guest author with the same
+	 * nicename share a term.
+	 *
+	 * @param WP_User $user The user.
+	 * @return bool Whether the term belongs to that guest author.
+	 */
+	private function shares_term_with_unlinked_guest_author( WP_User $user ): bool {
+		if ( ! $this->is_guest_authors_enabled() ) {
+			return false;
+		}
+
+		// A guest author whose nicename starts with 'cap-' can have either post_name,
+		// and the two share a cache key with the nicename lookup, so skip the cache.
+		foreach ( array( Prefix::prefix_slug( $user->user_nicename ), $user->user_nicename ) as $post_name ) {
+			$guest_author = $this->guest_authors->get_guest_author_by( 'post_name', $post_name, true );
+
+			if (
+				is_object( $guest_author )
+				&& $guest_author->user_nicename === $user->user_nicename
+				&& ( $guest_author->linked_account ?? '' ) !== $user->user_login
+			) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**
@@ -1991,7 +2117,7 @@ class CoAuthors_Plus {
 	 * @props kingkool68, http://wordpress.org/support/topic/plugin-co-authors-plus-making-authors-sortable
 	 */
 	public function filter_wp_get_object_terms( $terms, $object_ids, $taxonomies, $args ) {
-		if ( ! isset( $_REQUEST['bulk_edit'] ) || $this->coauthor_taxonomy !== $taxonomies ) {
+		if ( ! isset( $_REQUEST['bulk_edit'] ) || $this->coauthor_taxonomy !== $taxonomies ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only detects a bulk edit; core verifies its nonce.
 			return $terms;
 		}
 
@@ -2033,6 +2159,7 @@ class CoAuthors_Plus {
 	 *
 	 * @since 2.6.4
 	 * @since 3.6.3 Added support for custom post types via $post_type parameter.
+	 * @since 4.2.1 Counts a linked user and guest author's posts once each.
 	 *
 	 * @param int          $count       Post count.
 	 * @param int          $user_id     WP user ID.
@@ -2054,9 +2181,10 @@ class CoAuthors_Plus {
 			return $count;
 		}
 
-		$term = $this->get_author_term( $coauthor );
+		// A linked user and guest author are one person, who may have one term or two.
+		$terms = $this->collect_coauthor_terms( $coauthor );
 
-		if ( ! is_object( $term ) ) {
+		if ( ! $terms ) {
 			return $count;
 		}
 
@@ -2069,35 +2197,30 @@ class CoAuthors_Plus {
 		}
 
 		// Query actual post count for the specified post types.
-		$coauthor_count = $this->get_post_count_for_author_term( $term, $post_type, $public_only );
-
-		// If account is linked, add the original count (which covers post_author field).
-		if ( ! empty( $coauthor->linked_account ) && strlen( $coauthor->linked_account ) > 2 ) {
-			return $count + $coauthor_count;
-		}
-
-		return $coauthor_count;
+		return $this->get_post_count_for_author_term( $terms, $post_type, $public_only );
 	}
 
 	/**
-	 * Get the post count for an author term with specific post types.
+	 * Get the post count for one or more author terms with specific post types.
+	 *
+	 * A post on more than one of the terms counts once.
 	 *
 	 * @since 3.6.3
 	 *
-	 * @param WP_Term      $term        Author term object.
-	 * @param string|array $post_type   Post type(s) to count.
-	 * @param bool         $public_only Whether to only count public posts.
+	 * @param WP_Term|WP_Term[] $term        Author term object or objects.
+	 * @param string|array      $post_type   Post type(s) to count.
+	 * @param bool              $public_only Whether to only count public posts.
 	 * @return int Post count.
 	 */
 	private function get_post_count_for_author_term( $term, $post_type = 'post', $public_only = false ): int {
 		$post_types = (array) $post_type;
 
 		$args = array(
-			'tax_query'              => array(
+			'tax_query'              => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Co-authors are stored as taxonomy terms.
 				array(
 					'taxonomy' => $this->coauthor_taxonomy,
 					'field'    => 'term_id',
-					'terms'    => $term->term_id,
+					'terms'    => wp_list_pluck( is_array( $term ) ? $term : array( $term ), 'term_id' ),
 				),
 			),
 			'post_type'              => $post_types,
@@ -2247,8 +2370,35 @@ class CoAuthors_Plus {
 		} else {
 			$wp_query->queried_object = $wp_query->queried_object_id = null;
 			$wp_query->is_author      = $wp_query->is_archive = false;
-			$wp_query->is_404         = false;
+
+			// Core queries an unknown author_name as post_author = 0, which matches
+			// posts bylined only by guest authors. Without this, every slug renders
+			// those posts as a paginated archive and feed. With no posts, core sends
+			// the 404 itself. Leave wp-admin, where author_name filters the posts list.
+			if ( ! is_admin() ) {
+				add_filter( 'posts_pre_query', array( $this, 'empty_unknown_author_query' ), 10, 2 );
+			}
 		}
+	}
+
+	/**
+	 * Return no posts for an author archive whose slug matches no user or guest author.
+	 *
+	 * Hooked to `posts_pre_query` by fix_author_page(), and removed once it has run
+	 * for the main query.
+	 *
+	 * @param WP_Post[]|int[]|null $posts Posts to return instead of querying, or null to query.
+	 * @param WP_Query             $query The query.
+	 * @return WP_Post[]|int[]|null
+	 */
+	public function empty_unknown_author_query( $posts, $query ): ?array {
+		if ( ! $query->is_main_query() ) {
+			return $posts;
+		}
+
+		remove_filter( 'posts_pre_query', array( $this, 'empty_unknown_author_query' ), 10 );
+
+		return array();
 	}
 
 	/**
@@ -2282,19 +2432,19 @@ class CoAuthors_Plus {
 	 */
 	public function ajax_suggest(): void {
 
-		if ( ! isset( $_REQUEST['_wpnonce'] ) || ! wp_verify_nonce( $_REQUEST['_wpnonce'], 'coauthors-search' ) ) {
+		if ( ! isset( $_REQUEST['_wpnonce'] ) || ! wp_verify_nonce( sanitize_key( wp_unslash( $_REQUEST['_wpnonce'] ) ), 'coauthors-search' ) ) {
 			wp_send_json( array() );
 		}
 
 		// jQuery UI autocomplete uses 'term' parameter.
-		$search = isset( $_REQUEST['term'] ) ? sanitize_text_field( strtolower( wp_unslash( $_REQUEST['term'] ) ) ) : '';
+		$search = isset( $_REQUEST['term'] ) ? strtolower( sanitize_text_field( wp_unslash( $_REQUEST['term'] ) ) ) : '';
 		if ( empty( $search ) ) {
 			wp_send_json( array() );
 		}
 
 		$ignore = array();
 		if ( ! empty( $_REQUEST['existing_authors'] ) ) {
-			$ignore = array_map( 'sanitize_text_field', explode( ',', wp_unslash( $_REQUEST['existing_authors'] ) ) );
+			$ignore = array_map( 'sanitize_text_field', explode( ',', wp_unslash( $_REQUEST['existing_authors'] ) ) ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Each item is sanitized by array_map().
 		}
 
 		$authors = $this->search_authors( $search, $ignore );
@@ -2388,13 +2538,7 @@ class CoAuthors_Plus {
 		// Get the guest author objects
 		$found_users = array();
 		foreach ( $found_terms as $found_term ) {
-			$found_user = $this->get_coauthor_by( 'user_nicename', $found_term->slug );
-			$unprefixed = Prefix::strip_slug_prefix( $found_term->slug );
-			if ( ! $found_user && Prefix::slug_has_prefix( $unprefixed ) ) {
-				// A doubled prefix means the guest author's own user_nicename
-				// starts with 'cap-'. e.g. "Cap Ri" -> "cap-cap-ri".
-				$found_user = $this->get_coauthor_by( 'user_nicename', $unprefixed );
-			}
+			$found_user = $this->get_coauthor_by_term( $found_term );
 			if ( ! empty( $found_user ) ) {
 				$found_users[ $found_user->user_login ] = $found_user;
 			}
@@ -2484,7 +2628,7 @@ class CoAuthors_Plus {
 		if ( 'post' !== get_post_type() ) {
 			$mine_args['post_type'] = get_current_screen()->post_type;
 		}
-		if ( ! empty( $_REQUEST['author_name'] ) && wp_get_current_user()->user_nicename == $_REQUEST['author_name'] ) {
+		if ( ! empty( $_REQUEST['author_name'] ) && wp_get_current_user()->user_nicename == $_REQUEST['author_name'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Only highlights the current view.
 			$class = ' class="current"';
 		} else {
 			$class = '';
@@ -2760,17 +2904,57 @@ class CoAuthors_Plus {
 		}
 
 		$cache_key = 'author-term-' . $coauthor->user_nicename;
-		if ( false !== ( $term = wp_cache_get( $cache_key, 'co-authors-plus' ) ) ) {
-			return $term;
+		$term      = wp_cache_get( $cache_key, 'co-authors-plus' );
+
+		if ( false === $term ) {
+			// See if the prefixed term is available, otherwise default to just the nicename
+			$term = get_term_by( 'slug', Prefix::prefix_slug( $coauthor->user_nicename ), $this->coauthor_taxonomy );
+			if ( ! $term ) {
+				$term = get_term_by( 'slug', $coauthor->user_nicename, $this->coauthor_taxonomy );
+			}
+			wp_cache_set( $cache_key, $term, 'co-authors-plus' );
 		}
 
-		// See if the prefixed term is available, otherwise default to just the nicename
-		$term = get_term_by( 'slug', Prefix::prefix_slug( $coauthor->user_nicename ), $this->coauthor_taxonomy );
-		if ( ! $term ) {
-			$term = get_term_by( 'slug', $coauthor->user_nicename, $this->coauthor_taxonomy );
+		// The slug cap-foo is foo's prefixed term, not cap-foo's, unless the term holds cap-foo's login.
+		if (
+			$term
+			&& $term->slug === $coauthor->user_nicename
+			&& Prefix::slug_has_prefix( $term->slug )
+			&& $term->name !== $coauthor->user_login
+		) {
+			return false;
 		}
-		wp_cache_set( $cache_key, $term, 'co-authors-plus' );
+
 		return $term;
+	}
+
+	/**
+	 * Get the co-author an author term belongs to.
+	 *
+	 * A term slug isn't a nicename. cap-foo is foo's term even if a user's nicename
+	 * is cap-foo, so a user found by the whole slug has to own the term.
+	 *
+	 * @since 4.2.1
+	 * @internal
+	 *
+	 * @param WP_Term $term The author term.
+	 * @return object|false The co-author on success.
+	 */
+	public function get_coauthor_by_term( $term ) {
+		$coauthor = $this->get_coauthor_by( 'user_nicename', $term->slug );
+
+		if ( $coauthor instanceof WP_User ) {
+			$own_term = $this->get_author_term( $coauthor );
+			if ( $own_term && $own_term->term_id === $term->term_id ) {
+				return $coauthor;
+			}
+		} elseif ( $coauthor ) {
+			return $coauthor;
+		}
+
+		// A doubled prefix means the co-author's own user_nicename starts with
+		// 'cap-'. e.g. "Cap Ri" -> "cap-cap-ri".
+		return $this->get_coauthor_by( 'user_nicename', Prefix::strip_slug_prefix( $term->slug ) );
 	}
 
 	/**
@@ -2836,7 +3020,7 @@ class CoAuthors_Plus {
 		if ( ! $user ) {
 			return;
 		}
-		if ( $this->get_author_term( $user ) ) {
+		if ( $this->get_author_term( $user ) && ! $this->shares_term_with_unlinked_guest_author( $user ) ) {
 			$this->update_author_term( $user );
 		}
 	}
@@ -2900,10 +3084,10 @@ class CoAuthors_Plus {
 	 * @since 3.1
 	 *
 	 * @param array $og_tags Required. Array of Open Graph Tags.
-	 * @param array $image_dimensions Required. Dimensions for images used.
+	 * @param array $image_dimensions Optional. Dimensions for images used.
 	 * @return array Open Graph Tags either as they were passed or updated.
 	 */
-	public function filter_jetpack_open_graph_tags( $og_tags, $image_dimensions ): array {
+	public function filter_jetpack_open_graph_tags( $og_tags, $image_dimensions = array() ): array {
 
 		if ( is_author() ) {
 			$author = get_queried_object();
@@ -3024,7 +3208,7 @@ class CoAuthors_Plus {
 			return $title;
 		}
 
-		$author_slug = sanitize_user( $author_name_var );
+		$author_slug = sanitize_title( $author_name_var );
 		$author      = $this->get_coauthor_by( 'user_nicename', $author_slug );
 
 		if ( ! is_object( $author ) || empty( $author->display_name ) ) {
@@ -3043,6 +3227,10 @@ class CoAuthors_Plus {
 	/**
 	 * Get the post count for the guest author
 	 *
+	 * For a linked guest author, this includes the linked user's posts.
+	 *
+	 * @since 4.2.1 Includes the linked user's posts when the guest author's own term has none.
+	 *
 	 * @param object $guest_author guest-author object.
 	 * @return int post count for the guest author
 	 */
@@ -3051,21 +3239,16 @@ class CoAuthors_Plus {
 			return 0;
 		}
 
-		$term       = $this->get_author_term( $guest_author );
-		$guest_term = get_term_by( 'slug', Prefix::prefix_slug( $guest_author->user_nicename ), $this->coauthor_taxonomy );
-
-		if ( is_object( $guest_term )
-			&& ! empty( $guest_author->linked_account )
-			&& $guest_term->count ) {
+		if ( ! empty( $guest_author->linked_account ) ) {
 			$user = get_user_by( 'login', $guest_author->linked_account );
 			if ( is_object( $user ) ) {
 				return count_user_posts( $user->ID ); // phpcs:ignore
 			}
-		} elseif ( $term ) {
-			return $term->count;
 		}
 
-		return 0;
+		$term = $this->get_author_term( $guest_author );
+
+		return $term ? $term->count : 0;
 	}
 
 	/**
