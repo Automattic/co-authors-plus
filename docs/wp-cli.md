@@ -317,15 +317,17 @@ It creates profiles only. It doesn't import posts or assign bylines. Existing pr
 Writes the site's guest authors, and the posts each is assigned to, to a JSON file for `import-coauthors`.
 
 ```sh
-wp co-authors-plus export-coauthors [--file=<path>] [--post-types=<post-types>]
+wp co-authors-plus export-coauthors --file=<path> [--post-types=<post-types>]
 ```
 
-- `--file`: where to write the file. Defaults to `cap-coauthors-export.json` in the `wp-content` directory. An existing file is overwritten.
+- `--file`: where to write the file. Required. An existing file is replaced. Keep it outside the web root, because it holds guest author email addresses and the slugs of unpublished posts, and delete it once you have imported it. Only the user who ran the command can read the file. If the file ends up inside the web root, the command warns you and prints the command to delete it.
 - `--post-types`: comma-separated post types to record assignments for. Defaults to the post types Co-Authors Plus is enabled for.
 
 Each post is recorded by its slug and post type, with the guest author's position in the byline, rather than by post ID. That keeps the file valid after a WordPress export and import has renumbered the posts. Posts in any status except trash are included.
 
 Only guest authors are exported. Co-authors who are WordPress users are not, since user accounts move by other means.
+
+In 4.2.0, `--file` was optional and the command wrote to `wp-content/cap-coauthors-export.json` by default, where it may be publicly downloadable. If you ran it without `--file` on 4.2.0, delete that file.
 
 ### `import-coauthors`
 
