@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.1] - 2026-11-04
+
+**`wp co-authors-plus export-coauthors` now requires `--file`. If you ran it without `--file` on 4.2.0, delete `wp-content/cap-coauthors-export.json`.**
+
+### Changed
+
+* Co-Authors Plus blocks declare client-side navigation support, so a Query Loop containing them no longer forces "Reload full page" on WordPress 6.5 and later by @faisalahammad in https://github.com/Automattic/Co-Authors-Plus/pull/1559
+
+### Fixed
+
+* An author archive for a slug that matches no user or guest author now returns a 404, instead of listing posts with no WordPress author on every possible URL. Its feed is empty by @adekbadek and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1548
+* Load the block editor scripts on WordPress 6.4 and 6.5, where the Authors panel was missing and the blocks weren't registered by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1579
+* `count_user_posts()` counts a linked user and guest author's posts once, across both of their author terms. A post with a `post_author` but no author term is no longer counted for a linked user, and `wp co-authors-plus create-author-terms-for-posts` repairs those posts by @miyanialkesh7 and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1447
+* The guest authors list shows the right post count for linked guest authors, and the delete screen only reports posts on the guest author's own term by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1567
+* `coauthors_get_users()` and `coauthors_wp_list_authors()` list a linked user and guest author once with all of their posts, so guest authors who share their user's term no longer go missing. Their count is set after the `coauthors_wp_list_authors_array` filter runs by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1568
+* Find authors whose nicename isn't a clean slug, such as one written directly by an SSO or sync plugin, in the author search and in bylines by @faisalahammad and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1528 and https://github.com/Automattic/Co-Authors-Plus/pull/1566
+* The Users list's Linked Guest Author column no longer shows an unrelated guest author whose post ID matches the user's ID by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1561
+* Keep Yoast SEO's schema graph valid on posts with co-authors: `@graph` stays a list, a post with no resolvable co-author keeps Yoast's author, each co-author gets their own Person node, and a WebPage author reference no longer points at a removed node by @faisalahammad and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1432, https://github.com/Automattic/Co-Authors-Plus/pull/1560, https://github.com/Automattic/Co-Authors-Plus/pull/1572, and https://github.com/Automattic/Co-Authors-Plus/pull/1584
+* `get_author_posts_url()` called with only a user ID keeps its working link on plain permalinks, rather than losing the author or linking to the current archive's author by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1569
+* The archive of a guest author with a non-ASCII slug keeps its title by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1583
+* Stop a fatal error when `jetpack_open_graph_tags` is applied with one argument, as older Jetpack Social releases do by @noruzzamans and @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1499
+* `wp co-authors-plus create-guest-authors` accepts `--role` and other `WP_User_Query` arguments again, including comma-separated lists such as `--role__in` by @GaryJones and @montchr in https://github.com/Automattic/Co-Authors-Plus/pull/1554
+* Selecting an author that isn't in the block editor's dropdown no longer adds `undefined` to the selected authors and crashes by @plell in https://github.com/Automattic/Co-Authors-Plus/pull/1557
+
+### Security
+
+* Match author terms to the co-author who owns them, so one co-author can't be mistaken for another. Responsibly disclosed by [0xdoubled](https://hackerone.com/0xdoubled) on HackerOne. Fixed by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1580
+* Leave author queries that exclude authors, such as those using `author__not_in`, to core. The `coauthors_plus_is_author_query` filter can't opt them back in. Responsibly disclosed by [naoki_kawahigashi](https://hackerone.com/naoki_kawahigashi) on HackerOne. Fixed by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1581
+* Require `--file` for `wp co-authors-plus export-coauthors`, warn when the path is inside the web root, and make exports readable only by the user who ran the command. Responsibly disclosed by [antaloaalonso](https://hackerone.com/antaloaalonso) on HackerOne. Fixed by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1586
+
+### Maintenance
+
+* Add a guide to how co-authors are identified, and show which queries find a guest author's posts by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1564
+* Add a page explaining what Co-Authors Plus adds to WordPress core by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1563
+* Correct the 4.0 upgrade guide by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1553
+* Recommend `--capability=edit_posts` when limiting `create-guest-authors`, and explain what an unfiltered run means for Subscribers by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1574
+* Pass the WordPress.org Plugin Check with no errors or warnings by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1555
+* Run CI tests on the PHP versions the jobs name, and surface deprecations in the unit tests by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1582
+* Update development dependencies by @dependabot
+
 ## [4.2.0] - 2026-10-30
 
 **This release changes several behaviors that sites and extensions may rely on:**
@@ -866,6 +906,7 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
+[4.2.1]: https://github.com/automattic/co-authors-plus/compare/4.2.0...4.2.1
 [4.2.0]: https://github.com/automattic/co-authors-plus/compare/4.1.3...4.2.0
 [4.1.3]: https://github.com/automattic/co-authors-plus/compare/4.1.2...4.1.3
 [4.1.2]: https://github.com/automattic/co-authors-plus/compare/4.1.1...4.1.2
