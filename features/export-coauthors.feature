@@ -49,6 +49,32 @@ Feature: Guest authors and their post assignments can be exported
 		0600
 		"""
 
+	Scenario: Replace a symlink at the path rather than writing through it
+		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ) );'`
+		And I run `wp eval '@unlink( "/tmp/cap-export-link.json" ); file_put_contents( "/tmp/cap-export-target.txt", "untouched" ); symlink( "/tmp/cap-export-target.txt", "/tmp/cap-export-link.json" );'`
+		And I run `wp co-authors-plus export-coauthors --file=/tmp/cap-export-link.json`
+		And I run `wp eval 'echo file_get_contents( "/tmp/cap-export-target.txt" ), " ", is_link( "/tmp/cap-export-link.json" ) ? "link" : "file", " ", substr( sprintf( "%o", fileperms( "/tmp/cap-export-link.json" ) ), -4 );'`
+		Then STDOUT should be:
+		"""
+		untouched file 0600
+		"""
+
+	Scenario: Error when the path is a directory, leaving nothing behind
+		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ) );'`
+		And I run `wp eval 'array_map( "unlink", glob( "/tmp/cap-export-??????" ) ); @mkdir( "/tmp/cap-export-dir" );'`
+		And I try `wp co-authors-plus export-coauthors --file=/tmp/cap-export-dir`
+		Then the return code should be 1
+		And STDERR should contain:
+		"""
+		Error: Could not write to /tmp/cap-export-dir. Check the path exists and is writable.
+		"""
+
+		When I run `wp eval 'echo count( glob( "/tmp/cap-export-??????" ) );'`
+		Then STDOUT should be:
+		"""
+		0
+		"""
+
 	Scenario: Warn when the file is inside the web root
 		When I run `wp eval 'echo $GLOBALS["coauthors_plus"]->guest_authors->create( array( "display_name" => "Jane Doe", "user_login" => "jane-doe" ) );'`
 		And I run `wp eval 'echo untrailingslashit( realpath( ABSPATH ) );'`

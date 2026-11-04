@@ -200,20 +200,18 @@ class Export_Coauthors_Command {
 			WP_CLI::error( 'Could not encode the export as JSON.' );
 		}
 
-		// A new file is private from the moment it exists. Overwriting keeps the
-		// old file's mode, so chmod() covers an existing file.
-		$umask = umask( 0077 );
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents -- Writing a file the operator named, outside the uploads directory.
-		$written = file_put_contents( $file, $json );
-		umask( $umask );
+		// tempnam() creates a file only its owner can read. Moving that into place
+		// means the export never sits under an existing file's mode, and a file or
+		// symlink already at the path is replaced rather than written through.
+		$temp = tempnam( dirname( $file ), 'cap-export-' );
 
-		if ( false === $written ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPress.WP.AlternativeFunctions.rename_rename, WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_rename -- Writing a file the operator named, outside the uploads directory.
+		if ( false === $temp || false === file_put_contents( $temp, $json ) || ! rename( $temp, $file ) ) {
+			if ( false !== $temp ) {
+				wp_delete_file( $temp );
+			}
+
 			WP_CLI::error( sprintf( 'Could not write to %s. Check the path exists and is writable.', $file ) );
-		}
-
-		// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.chmod_chmod -- Restricting a file the operator named, outside the uploads directory.
-		if ( ! chmod( $file, 0600 ) ) {
-			WP_CLI::warning( sprintf( 'Could not restrict %s to your own user, so others on this server may be able to read it.', $file ) );
 		}
 	}
 }

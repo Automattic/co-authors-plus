@@ -320,7 +320,7 @@ Writes the site's guest authors, and the posts each is assigned to, to a JSON fi
 wp co-authors-plus export-coauthors --file=<path> [--post-types=<post-types>]
 ```
 
-- `--file`: where to write the file. Required. An existing file is overwritten. Keep it outside the web root, because it holds guest author email addresses and the slugs of unpublished posts, and delete it once you have imported it. The file is created so that only the user who ran the command can read it, and an existing file is changed to match. If the file ends up inside the web root, the command warns you and prints the command to delete it.
+- `--file`: where to write the file. Required. An existing file is replaced. Keep it outside the web root, because it holds guest author email addresses and the slugs of unpublished posts, and delete it once you have imported it. Only the user who ran the command can read the file. If the file ends up inside the web root, the command warns you and prints the command to delete it.
 - `--post-types`: comma-separated post types to record assignments for. Defaults to the post types Co-Authors Plus is enabled for.
 
 Each post is recorded by its slug and post type, with the guest author's position in the byline, rather than by post ID. That keeps the file valid after a WordPress export and import has renumbered the posts. Posts in any status except trash are included.
