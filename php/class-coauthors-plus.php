@@ -1936,7 +1936,8 @@ class CoAuthors_Plus {
 		// Set the co-authors
 		$coauthors        = array_unique( array_merge( $existing_coauthors, $coauthors ) );
 		$coauthor_objects = array();
-		foreach ( $coauthors as &$author_name ) {
+		$unresolved_keys  = array();
+		foreach ( $coauthors as $key => &$author_name ) {
 			if ( $this->is_rest_save && has_filter( 'coauthors_post_get_coauthor_by_field' ) ) {
 				_deprecated_hook(
 					'coauthors_post_get_coauthor_by_field',
@@ -1947,9 +1948,47 @@ class CoAuthors_Plus {
 			}
 			$field = apply_filters( 'coauthors_post_get_coauthor_by_field', $query_type, $author_name );
 
-			$author             = $this->get_coauthor_by( $field, $author_name );
+			/*
+			 * The retries run in this order so existing input keeps reaching the
+			 * same person it did in 4.2.0 (see docs/identity-model.md). The login
+			 * is only tried last, where 4.2.0 would have lost the byline.
+			 */
+			$author = $this->get_coauthor_by( $field, $author_name );
+			if ( false === $author ) {
+				// Author terms are named after the login, and wp_set_post_terms() matches on that.
+				$named_term = get_term_by( 'name', $author_name, $this->coauthor_taxonomy );
+				if ( $named_term ) {
+					$author = $this->get_coauthor_by( 'user_nicename', $named_term->slug );
+				}
+			}
+			if ( false === $author ) {
+				$author = $this->get_coauthor_by( 'user_nicename', sanitize_title( $author_name ) );
+			}
+			if ( false === $author && 'user_login' !== $field ) {
+				// Callers such as the classic metabox pass user_login values regardless of the lookup field.
+				$author = $this->get_coauthor_by( 'user_login', $author_name );
+			}
 			$coauthor_objects[] = $author;
 			$term               = $this->update_author_term( $author );
+
+			if ( false === $author ) {
+				$unresolved_keys[] = $key;
+
+				/**
+				 * Fires when a co-author name cannot be resolved to a user or guest author.
+				 *
+				 * The name is not attached to the post, so it will not appear in
+				 * the post's byline.
+				 *
+				 * @since 4.3.0
+				 *
+				 * @param string $author_name The co-author name as passed by the caller.
+				 * @param string $field       The field used to look up the co-author.
+				 * @param int    $post_id     The post the co-author was assigned to.
+				 * @param bool   $append      Whether the name was appended to the existing bylines.
+				 */
+				do_action( 'coauthors_unresolved_coauthor', $author_name, $field, $post_id, $append );
+			}
 
 			// A WP_Error is an object too, and its ->slug would blank the author.
 			if ( is_object( $term ) && ! is_wp_error( $term ) ) {
@@ -1960,14 +1999,25 @@ class CoAuthors_Plus {
 		// Break the reference, so later writes cannot alias the last element.
 		unset( $author_name );
 
-		/*
-		 * The author taxonomy is registered with 'sort' => true (see
-		 * action_init_late()), and this is a non-append call, so
-		 * wp_set_object_terms() writes wp_term_relationships.term_order in the
-		 * order the slugs are passed here. That is what makes the byline order
-		 * round-trip: the read path orders by term_order ASC.
-		 */
-		wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
+		// Unresolved names would be stored as author terms without the cap-
+		// prefix, so archive queries and later lookups can never match them.
+		// Drop them from the term write instead of storing a dead term. When
+		// that empties the list, keep the post's existing terms rather than
+		// writing an empty set, which would leave the post termless.
+		if ( ! empty( $unresolved_keys ) ) {
+			$coauthors = array_diff_key( $coauthors, array_flip( $unresolved_keys ) );
+		}
+
+		if ( ! empty( $coauthors ) ) {
+			/*
+			 * The author taxonomy is registered with 'sort' => true (see
+			 * action_init_late()), and this is a non-append call, so
+			 * wp_set_object_terms() writes wp_term_relationships.term_order in the
+			 * order the slugs are passed here. That is what makes the byline order
+			 * round-trip: the read path orders by term_order ASC.
+			 */
+			wp_set_post_terms( $post_id, $coauthors, $this->coauthor_taxonomy );
+		}
 
 		// post_author is the first co-author with a WordPress account, the same
 		// rule the editors follow, so reordering the byline moves it.
