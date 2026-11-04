@@ -125,7 +125,7 @@ class CoAuthors_Plus {
 
 		// Make sure we've correctly set data on guest author pages
 		add_action( 'posts_selection', array( $this, 'fix_author_page' ) ); // Use posts_selection since it's after WP_Query has built the request, and before it's queried any posts.
-		add_action( 'the_post', array( $this, 'fix_author_page' ) );
+		add_action( 'the_post', array( $this, 'fix_author_page_for_main_query_post' ), 10, 2 );
 
 		// Support for Edit Flow's calendar and story budget
 		add_filter( 'ef_calendar_item_information_fields', array( $this, 'filter_ef_calendar_item_information_fields' ), 10, 2 );
@@ -2378,6 +2378,26 @@ class CoAuthors_Plus {
 			if ( ! is_admin() ) {
 				add_filter( 'posts_pre_query', array( $this, 'empty_unknown_author_query' ), 10, 2 );
 			}
+		}
+	}
+
+	/**
+	 * Keep the archive's author current while the main query sets up its posts.
+	 *
+	 * Other loops on the page, such as a Latest Posts block in a sidebar, need
+	 * $authordata to stay on each post's own author. setup_postdata() passes the
+	 * main query whichever post it's given, so also check the post belongs to it.
+	 *
+	 * @param WP_Post       $post  The post being set up.
+	 * @param WP_Query|null $query The query setting up the post.
+	 */
+	public function fix_author_page_for_main_query_post( $post, $query = null ): void {
+		if ( ! $query instanceof WP_Query || ! $query->is_main_query() || ! isset( $post->ID ) ) {
+			return;
+		}
+
+		if ( in_array( $post->ID, wp_list_pluck( (array) $query->posts, 'ID' ), true ) ) {
+			$this->fix_author_page( '' );
 		}
 	}
 
