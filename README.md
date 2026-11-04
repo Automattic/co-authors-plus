@@ -83,6 +83,18 @@ Yes. Many parts of Co-Authors Plus can be changed with a filter, for example mak
 
 The highlights of recent releases are below. Every change, including older releases, is listed in [CHANGELOG.md](https://github.com/Automattic/co-authors-plus/blob/main/CHANGELOG.md).
 
+### 4.2.1
+
+- **Changed:** `wp co-authors-plus export-coauthors` now requires `--file`. If you ran it without `--file` on 4.2.0, delete `wp-content/cap-coauthors-export.json`.
+- **Changed:** A Query Loop containing Co-Authors Plus blocks no longer forces "Reload full page".
+- **Fixed:** Author archive URLs for a slug that matches no one return a 404, instead of listing posts.
+- **Fixed:** The Authors panel and blocks load in the block editor on WordPress 6.4 and 6.5.
+- **Fixed:** Post counts and author lists treat a linked user and guest author as one person, so posts aren't counted twice and guest authors don't go missing from lists.
+- **Fixed:** Authors whose nicename isn't a clean slug, as some SSO and sync plugins write them, appear in the author search and in bylines.
+- **Fixed:** Yoast SEO's structured data stays valid on posts with co-authors.
+- **Fixed:** `wp co-authors-plus create-guest-authors` accepts `--role` and other user query arguments again.
+- **Security:** Tighten how co-authors and author queries are matched.
+
 ### 4.2.0
 
 - **Changed:** RSS feeds credit each item's co-authors on every site. To keep the old feed bylines, return `false` from the `coauthors_filter_feed_authors` filter.
@@ -103,11 +115,11 @@ The highlights of recent releases are below. Every change, including older relea
 - **Changed:** Only Administrators can link a guest author to a WordPress account by default. Change this with the `coauthors_guest_author_manage_cap` filter.
 - **Security:** Tighten permission checks when changing a post's co-authors, linking guest authors to accounts, and reading author details through the REST API.
 
-### 4.1.2
-
-- **Security:** Tighten permission checks when changing a post's co-authors. Thanks to Faisal Ahammad for responsibly disclosing the issue.
-
 ## Upgrade Notice
+
+### 4.2.1
+
+Security and bug fix release that tightens how co-authors and author queries are matched. export-coauthors now requires --file. If you ran it without --file on 4.2.0, delete wp-content/cap-coauthors-export.json. Update soon.
 
 ### 4.2.0
 
@@ -116,7 +128,3 @@ Includes behaviour changes: feeds now credit co-authors, managing guest authors 
 ### 4.1.3
 
 Security release that tightens several co-author permission checks. Co-authors now get the rights the post's author would have under their own role, and only Administrators can link guest authors to accounts by default. Updating is recommended.
-
-### 4.1.2
-
-Security release that tightens permission checks when changing a post's co-authors. Updating is recommended.
