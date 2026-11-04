@@ -71,7 +71,7 @@ Return `true` to make the core `the_author()` and `the_author_posts_link()` outp
 
 Post types that Co-Authors Plus attaches to. Defaults to every registered post type that supports `author`, minus `revision`, `attachment`, `customize_changeset`, `wp_template`, `wp_template_part` and `wp_block`. Note that this is not the same as the public post types: a post type is included on its `author` support alone, whether or not it is public, and a public post type registered without `author` support (WooCommerce's `product`, for example) is not included.
 
-The `author` taxonomy is registered for this list on `init` at priority 100, so a post type must have its `author` support in place by then — `add_post_type_support()` called later leaves the post type out of the taxonomy, and the plugin's author query filters will skip it.
+The `author` taxonomy is first registered on `init` at priority 0 for the post types that exist at that point, so code hooked to `init` can already use it for posts and pages. It is registered again for this list on `init` at priority 100, so a post type must have its `author` support in place by then — `add_post_type_support()` called later leaves the post type out of the taxonomy, and the plugin's author query filters will skip it.
 
 The list is recomputed on every call until `wp_loaded`, then memoised for the remainder of the request. A callback on this filter should therefore not depend on request context that is only settled later, such as the current query or screen.
 
