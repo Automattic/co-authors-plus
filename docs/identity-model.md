@@ -70,7 +70,7 @@ Link a guest author to a user when they're the same person. The guest author is 
 - Only the user can log in or hold capabilities. They can edit posts bylined to the guest author, as far as their role allows.
 - Deleting the user deletes the guest author too.
 
-A user should have only one guest author. The **WordPress User Mapping** dropdown enforces that, but `CoAuthors_Guest_Authors::create()` and direct meta writes don't. If two guest authors link to one user, lookups by that user return one of them, and deleting the user deletes only that one.
+A user can have more than one guest author. Each pairing is the same person, as above. The **WordPress User Mapping** dropdown only offers users who aren't linked yet, so a second link currently needs `CoAuthors_Guest_Authors::create()` or a direct meta write. Lookups by that user return the guest author linked first, and deleting the user deletes all of them.
 
 A few things don't follow this yet:
 

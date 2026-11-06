@@ -2048,11 +2048,9 @@ class CoAuthors_Plus {
 		if ( $this->is_guest_authors_enabled() ) {
 			// Get the associated user from the already fetched $delete_user object.
 			if ( $delete_user ) {
-				$associated_user = $this->guest_authors->get_guest_author_by( 'linked_account', $delete_user->user_login );
-
-				if ( isset( $associated_user->ID ) ) {
-					// Delete associated guest user.
-					$this->guest_authors->delete( $associated_user->ID );
+				// Delete every linked guest author, so none is left pointing at the deleted login.
+				foreach ( $this->guest_authors->get_guest_author_ids_by_linked_account( $delete_user->user_login ) as $guest_author_id ) {
+					$this->guest_authors->delete( $guest_author_id );
 				}
 			}
 		}
