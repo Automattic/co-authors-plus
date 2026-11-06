@@ -1721,10 +1721,12 @@ class CoAuthors_Plus {
 	 * exposed via $coauthor->wp_user, or guest authors with no linked user
 	 * (in which case there is no WP_User ID and we return 0).
 	 *
+	 * @internal
+	 *
 	 * @param object $coauthor A coauthor object as returned by get_coauthor_by().
 	 * @return int A WP_User ID, or 0 if the coauthor has no underlying user.
 	 */
-	private function extract_wp_user_id( $coauthor ): int {
+	public function extract_wp_user_id( $coauthor ): int {
 		if ( $coauthor instanceof WP_User ) {
 			return (int) $coauthor->ID;
 		}

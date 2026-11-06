@@ -10,7 +10,7 @@ WordPress core allows one author per post, and that author must be a user accoun
 | **Writers without logins** | Needs a user account | [Guest author](./guest-authors.md) profiles, which can be linked to a user |
 | **Archives and feeds** | Only that one author's posts | Includes co-authored posts on archives, in feeds, and in post counts |
 | **Editing rights** | Author, or someone with `edit_others_posts` | Co-authors get the same rights as the post author, and never more. See [roles and capabilities](./roles-and-capabilities.md) |
-| **Comment moderation emails** | Sent to the site admin and the post author | Also sent to every co-author who has an email address |
+| **Comment moderation emails** | Sent to the site admin and the post author | Also sent to every co-author who can moderate the comment |
 | **Editorial tools** | Single author picker | Search-as-you-type picker and Bulk Edit support |
 | **Developer tools** | None for co-authors | [Template tags](./template-tags.md), [five blocks](./blocks.md), a [REST API](./rest-api.md), and [many WP-CLI commands](./wp-cli.md) |
 | **Integrations** | None | Yoast SEO, AMP, Jetpack, and WordPress Importer |
