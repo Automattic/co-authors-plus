@@ -69,9 +69,10 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 	 * Notify a co-author of a comment/trackback/pingback to one of their posts.
 	 *
 	 * This mirrors the core function in wp-includes/pluggable.php but pre-populates
-	 * the recipient list with all co-authors of the post, so every co-author gets
-	 * notified. By running the recipients through the core `comment_notification_recipients`
-	 * filter, plugins and themes can still add or remove email addresses.
+	 * the recipient list with all co-authors of the post, so every co-author who can
+	 * read the post gets notified. By running the recipients through the core
+	 * `comment_notification_recipients` filter, plugins and themes can still add or
+	 * remove email addresses.
 	 *
 	 * @since 2.6.2
 	 *
@@ -80,6 +81,8 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 	 * @return bool True on completion, false if there are no email addresses to notify.
 	 */
 	function wp_notify_postauthor( $comment_id, $deprecated = null ) {
+		global $coauthors_plus;
+
 		if ( null !== $deprecated ) {
 			_deprecated_argument( __FUNCTION__, '3.8.0' );
 		}
@@ -148,6 +151,18 @@ if ( ! function_exists( 'wp_notify_postauthor' ) ) :
 			if ( ! $notify_author && get_current_user_id() === (int) $coauthor->ID ) {
 				unset( $emails[ $coauthor->user_email ] );
 			}
+
+			// The co-author can't read the post. Without an account, they can only read what's public.
+			$user_id  = $coauthors_plus->extract_wp_user_id( $coauthor );
+			$can_read = $user_id ? user_can( $user_id, 'read_post', $post->ID ) : is_post_publicly_viewable( $post );
+			if ( ! $notify_author && ! $can_read ) {
+				unset( $emails[ $coauthor->user_email ] );
+			}
+		}
+
+		// The post author is no longer a member of the blog.
+		if ( $author && ! $notify_author && ! user_can( $post->post_author, 'read_post', $post->ID ) ) {
+			unset( $emails[ $author->user_email ] );
 		}
 
 		// If there's no email to send the comment to, bail, otherwise flip array back around for use below.
@@ -301,11 +316,15 @@ endif;
 /**
  * Filter array of moderation notification email addresses
  *
+ * Adds the co-authors who can moderate the comment, which needs an account.
+ *
  * @param array $recipients
  * @param int   $comment_id
  * @return array
  */
 function cap_filter_comment_moderation_email_recipients( $recipients, $comment_id ) { // phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedFunctionFound -- Legacy cap_ prefix; renaming would break existing callers.
+	global $coauthors_plus;
+
 	$comment = get_comment( $comment_id );
 	$post_id = $comment->comment_post_ID;
 
@@ -313,7 +332,8 @@ function cap_filter_comment_moderation_email_recipients( $recipients, $comment_i
 		$coauthors        = get_coauthors( $post_id );
 		$extra_recipients = array();
 		foreach ( $coauthors as $user ) {
-			if ( ! empty( $user->user_email ) ) {
+			$user_id = $coauthors_plus->extract_wp_user_id( $user );
+			if ( ! empty( $user->user_email ) && $user_id && user_can( $user_id, 'edit_comment', $comment_id ) ) {
 				$extra_recipients[] = $user->user_email;
 			}
 		}
