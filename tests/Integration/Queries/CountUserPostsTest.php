@@ -150,6 +150,152 @@ class CountUserPostsTest extends TestCase {
 	}
 
 	/**
+	 * Test that a repeat count is served from the object cache without querying.
+	 *
+	 * @covers CoAuthors_Plus::filter_count_user_posts
+	 * @covers CoAuthors_Plus::get_post_count_for_author_term
+	 */
+	public function test_count_user_posts_is_cached(): void {
+		global $coauthors_plus, $wpdb;
+
+		$author = $this->create_author();
+
+		$this->factory()->post->create_many(
+			2,
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		$this->assertSame( 2, $coauthors_plus->filter_count_user_posts( 0, $author->ID ) );
+
+		// Call the filter directly, as older versions of count_user_posts() run their own query every time.
+		$queries = $wpdb->num_queries;
+
+		$this->assertSame( 2, $coauthors_plus->filter_count_user_posts( 0, $author->ID ) );
+		$this->assertSame( $queries, $wpdb->num_queries );
+	}
+
+	/**
+	 * Test that the cached count follows posts being published and unpublished.
+	 *
+	 * @covers CoAuthors_Plus::filter_count_user_posts
+	 * @covers CoAuthors_Plus::get_post_count_for_author_term
+	 */
+	public function test_count_user_posts_follows_post_changes(): void {
+		global $wpdb;
+
+		$author = $this->create_author();
+
+		$first_post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		$this->assertSame( 1, count_user_posts( $author->ID ) );
+
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		$this->assertSame( 2, count_user_posts( $author->ID ) );
+
+		wp_update_post(
+			array(
+				'ID'          => $post_id,
+				'post_status' => 'draft',
+			)
+		);
+
+		$this->assertSame( 1, count_user_posts( $author->ID ) );
+
+		// A status change that only marks posts as changed, leaving terms alone.
+		$wpdb->update( $wpdb->posts, array( 'post_status' => 'draft' ), array( 'ID' => $first_post_id ) );
+		wp_cache_set_posts_last_changed();
+
+		$this->assertSame( 0, count_user_posts( $author->ID ) );
+	}
+
+	/**
+	 * Test that the cached count follows a co-author being added and removed.
+	 *
+	 * @covers CoAuthors_Plus::filter_count_user_posts
+	 * @covers CoAuthors_Plus::get_post_count_for_author_term
+	 */
+	public function test_count_user_posts_follows_coauthor_changes(): void {
+		global $coauthors_plus;
+
+		$author   = $this->create_author();
+		$coauthor = $this->create_author( 'count-coauthor' );
+		$post_id  = $this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+
+		$this->assertSame( 0, count_user_posts( $coauthor->ID ) );
+
+		$coauthors_plus->add_coauthors( $post_id, array( $author->user_nicename, $coauthor->user_nicename ) );
+
+		$this->assertSame( 1, count_user_posts( $coauthor->ID ) );
+
+		$coauthors_plus->add_coauthors( $post_id, array( $author->user_nicename ) );
+
+		$this->assertSame( 0, count_user_posts( $coauthor->ID ) );
+
+		// A change to the term relationship alone, leaving the post untouched.
+		$term = $coauthors_plus->get_author_term( $coauthors_plus->get_coauthor_by( 'user_nicename', $coauthor->user_nicename ) );
+		wp_set_object_terms( $post_id, $term->term_id, $coauthors_plus->coauthor_taxonomy, true );
+
+		$this->assertSame( 1, count_user_posts( $coauthor->ID ) );
+	}
+
+	/**
+	 * Test that an empty list of post types counts posts, as WP_Query does.
+	 *
+	 * @covers CoAuthors_Plus::filter_count_user_posts
+	 * @covers CoAuthors_Plus::get_post_count_for_author_term
+	 */
+	public function test_count_user_posts_empty_post_types_counts_posts(): void {
+		$author = $this->create_author();
+
+		$this->factory()->post->create_many(
+			2,
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'post',
+			)
+		);
+		$this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'publish',
+				'post_type'   => 'page',
+			)
+		);
+
+		$this->assertSame( 2, count_user_posts( $author->ID, array() ) );
+
+		add_filter( 'coauthors_count_published_post_types', '__return_empty_array' );
+
+		$this->assertSame( 2, count_user_posts( $author->ID ) );
+
+		remove_filter( 'coauthors_count_published_post_types', '__return_empty_array' );
+	}
+
+	/**
 	 * Test count for guest authors with custom post types.
 	 *
 	 * @covers CoAuthors_Plus::filter_count_user_posts

@@ -214,11 +214,15 @@ class CoAuthors_Controller extends WP_REST_Controller {
 			return false;
 		}
 
-		$public_post_types = get_post_types( array( 'public' => true ) );
+		$public_post_types = array_values( get_post_types( array( 'public' => true ) ) );
+
+		if ( empty( $public_post_types ) ) {
+			return false;
+		}
 
 		$query = new \WP_Query(
 			array(
-				'post_type'              => array_values( $public_post_types ),
+				'post_type'              => $public_post_types,
 				'post_status'            => 'publish',
 				'posts_per_page'         => 1,
 				'fields'                 => 'ids',
