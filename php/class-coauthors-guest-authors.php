@@ -1194,7 +1194,8 @@ class CoAuthors_Guest_Authors {
 				if ( 'user_login' == $key ) {
 					$value = preg_replace( '#^cap\-#', '', sanitize_title_for_query( $value ) );
 				}
-				$query   = $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key=%s AND meta_value=%s;", $this->get_post_meta_key( $key ), $value );
+				// Join on the post type: anyone who can edit a post can add cap- meta to it.
+				$query   = $wpdb->prepare( "SELECT pm.post_id FROM $wpdb->postmeta pm INNER JOIN $wpdb->posts p ON p.ID = pm.post_id WHERE pm.meta_key=%s AND pm.meta_value=%s AND p.post_type = %s", $this->get_post_meta_key( $key ), $value, $this->post_type );
 				$post_id = $wpdb->get_var( $query ); // phpcs:ignore
 				if ( empty( $post_id ) ) {
 					if ( 'user_login' == $key ) {
@@ -1412,7 +1413,7 @@ class CoAuthors_Guest_Authors {
 		$retval    = wp_cache_get( $cache_key, self::$cache_group );
 
 		if ( true === $force || false === $retval ) {
-			$user_logins = $wpdb->get_col( $wpdb->prepare( "SELECT meta_value FROM $wpdb->postmeta WHERE meta_key=%s AND meta_value !=''", $this->get_post_meta_key( 'linked_account' ) ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- No core API lists distinct meta values; the result is cached.
+			$user_logins = $wpdb->get_col( $wpdb->prepare( "SELECT pm.meta_value FROM $wpdb->postmeta pm INNER JOIN $wpdb->posts p ON p.ID = pm.post_id WHERE pm.meta_key=%s AND pm.meta_value !='' AND p.post_type = %s", $this->get_post_meta_key( 'linked_account' ), $this->post_type ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- No core API lists distinct meta values; the result is cached.
 			$users       = array();
 			foreach ( $user_logins as $user_login ) {
 				$user = get_user_by( 'login', $user_login );
