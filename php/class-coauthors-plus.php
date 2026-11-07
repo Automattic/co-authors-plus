@@ -840,14 +840,17 @@ class CoAuthors_Plus {
 	 */
 	public function _filter_manage_posts_custom_column( $column_name, $post_id ): void {
 		if ( 'coauthors' === $column_name ) {
-			$authors = get_coauthors( $post_id );
+			$authors   = get_coauthors( $post_id );
+			$post_type = get_post_type( $post_id );
+
+			// Only quick edit reads the email and login, and only users who can set authors get it.
+			$can_set_authors = $this->current_user_can_set_authors( $post_type );
 
 			$count = 1;
 			foreach ( $authors as $author ) :
 				$args = array(
 					'author_name' => $author->user_nicename,
 				);
-				$post_type = get_post_type( $post_id );
 				if ( 'post' !== $post_type ) {
 					$args['post_type'] = $post_type;
 				}
@@ -856,9 +859,11 @@ class CoAuthors_Plus {
 				?>
 				<a href="<?php echo esc_url( $author_filter_url ); ?>"
 				data-user_nicename="<?php echo esc_attr( $author->user_nicename ); ?>"
+				<?php if ( $can_set_authors ) : ?>
 				data-user_email="<?php echo esc_attr( $author->user_email ); ?>"
-				data-display_name="<?php echo esc_attr( $author->display_name ); ?>"
 				data-user_login="<?php echo esc_attr( $author->user_login ); ?>"
+				<?php endif; ?>
+				data-display_name="<?php echo esc_attr( $author->display_name ); ?>"
 				data-avatar="<?php echo esc_attr( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ); ?>"
 				><?php echo esc_html( $author->display_name ); ?></a><?php echo ( $count < count( $authors ) ) ? ',' : ''; ?>
 				<?php
