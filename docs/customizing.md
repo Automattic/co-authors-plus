@@ -124,3 +124,17 @@ The block editor then shows only the display name. The email is what tells apart
 This is not a privacy or access-control setting. Editors can still see co-author email addresses in other places, like the classic editor Authors box and the posts list, and the search still matches on email addresses.
 
 See [`coauthors_rest_author_data`](./filters.md#coauthors_rest_author_data) and [`coauthors_ajax_suggest_author_data`](./filters.md#coauthors_ajax_suggest_author_data) in the reference.
+
+## Can I use a visual editor for the guest author bio?
+
+Yes. The Biographical Info field accepts the same HTML as post content, such as links and lists, but by default it's a plain text area. To edit it with the classic visual editor instead:
+
+```php
+add_filter( 'coauthors_name_field_type_cap-description', function () {
+	return 'editor';
+} );
+```
+
+The editor has a reduced toolbar and no Add Media button. What's saved doesn't change: the bio is still cleaned with `wp_kses_post()`, so markup that post content wouldn't allow is removed.
+
+The same works for any field you add to the `about` group. See [`coauthors_name_field_type_{$field}`](./filters.md#coauthors_name_field_type_field) in the reference.
