@@ -63,6 +63,17 @@ class CoAuthors_Plus {
 	private $coauthor_save_post_id = 0;
 
 	/**
+	 * Post type of the post being written, while wp_insert_post() runs.
+	 *
+	 * Core checks the author taxonomy's assign_terms cap for `tax_input` without
+	 * saying which post the terms are for, so filter_assign_author_terms_cap()
+	 * reads the post type from here. Set at wp_insert_post_data, cleared at wp_insert_post.
+	 *
+	 * @var string|null
+	 */
+	private $saving_post_type = null;
+
+	/**
 	 * @var CoAuthors_Guest_Authors
 	 */
 	public $guest_authors;
@@ -93,6 +104,7 @@ class CoAuthors_Plus {
 		add_action( 'save_post', array( $this, 'coauthors_update_post' ), 10, 2 );
 		// Filter to set the post_author field when wp_insert_post is called
 		add_filter( 'wp_insert_post_data', array( $this, 'coauthors_set_post_author_field' ), 10, 2 );
+		add_action( 'wp_insert_post', array( $this, 'clear_saving_post_type' ) );
 
 		// Action to reassign posts when a guest author is deleted
 		add_action( 'delete_user', array( $this, 'delete_user_action' ), 10, 2 );
@@ -1547,6 +1559,7 @@ class CoAuthors_Plus {
 	 * Filters post data before saving to db to set post_author
 	 */
 	public function coauthors_set_post_author_field( $data, $postarr ) {
+		$this->saving_post_type = $data['post_type'];
 
 		// Bail on autosave
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
@@ -1649,7 +1662,8 @@ class CoAuthors_Plus {
 	 * @return stdClass|WP_Error The (possibly modified) prepared post object, or an error.
 	 */
 	public function set_post_author_for_rest_save( $prepared_post, $request ) {
-		if ( null !== $request->get_param( 'coauthors' ) && ! $this->current_user_can_set_authors() ) {
+		$post_type = is_object( $prepared_post ) && ! empty( $prepared_post->post_type ) ? $prepared_post->post_type : null;
+		if ( null !== $request->get_param( 'coauthors' ) && ! $this->current_user_can_set_authors( $post_type ) ) {
 			return new WP_Error(
 				'rest_cannot_assign_term',
 				__( 'Sorry, you are not allowed to change the authors of this post.', 'co-authors-plus' ),
@@ -2326,13 +2340,22 @@ class CoAuthors_Plus {
 			return $caps;
 		}
 
+		$post_type_object = $this->saving_post_type ? get_post_type_object( $this->saving_post_type ) : null;
+
 		// current_user_can_set_authors() only answers for the current user, so check
 		// anyone else against its unfiltered default.
 		if ( get_current_user_id() !== (int) $user_id ) {
-			return array( 'edit_others_posts' );
+			return array( $post_type_object ? $post_type_object->cap->edit_others_posts : 'edit_others_posts' );
 		}
 
-		return $this->current_user_can_set_authors() ? array( 'exist' ) : array( 'do_not_allow' );
+		return $this->current_user_can_set_authors( $post_type_object ? $post_type_object->name : null ) ? array( 'exist' ) : array( 'do_not_allow' );
+	}
+
+	/**
+	 * Forget the post type of the post being written, once wp_insert_post() has set its terms.
+	 */
+	public function clear_saving_post_type(): void {
+		$this->saving_post_type = null;
 	}
 
 	/**
