@@ -1565,8 +1565,13 @@ class CoAuthors_Plus {
 		$processing_rest_save       = $this->processing_rest_save;
 		$this->processing_rest_save = false;
 
-		// Whether this save carries co-author data from the classic meta box form.
-		$has_coauthor_form_data = isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'][0] ) && is_array( $_POST['coauthors'] );
+		// Whether this save carries co-author data from the classic meta box form that
+		// this user may submit. Form fields that are refused must not stop the
+		// re-derivation below, or core's post_author from the request would stand.
+		$has_coauthor_form_data = isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'][0] )
+			&& is_array( $_POST['coauthors'] )
+			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
+			&& $this->current_user_can_set_authors( $data['post_type'] );
 
 		/*
 		 * Whether to re-derive post_author from the post's first co-author term.
@@ -1583,11 +1588,7 @@ class CoAuthors_Plus {
 			&& $this->has_author_terms( (int) $postarr['ID'] );
 
 		// This action happens when a post is saved while editing a post
-		if (
-			$has_coauthor_form_data
-			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
-			&& $this->current_user_can_set_authors( $data['post_type'] )
-		) {
+		if ( $has_coauthor_form_data ) {
 
 			// rawurlencode() is for encoding co-author name with special characters to compare names when getting co-author.
 			$author = rawurlencode( sanitize_text_field( wp_unslash( $_POST['coauthors'][0] ) ) );
@@ -1656,10 +1657,12 @@ class CoAuthors_Plus {
 			);
 		}
 
-		// Flag the REST save so coauthors_set_post_author_field() does not later
-		// re-derive post_author from author terms that have not yet been reordered.
+		// Flag a REST save that sets co-authors, so coauthors_set_post_author_field()
+		// does not re-derive post_author from author terms that have not yet been
+		// reordered. Any other REST save is re-derived, so an `author` sent by a
+		// co-author who can edit the post doesn't make them its owner.
 		// Reset in sync_coauthors_on_rest_save() (rest_after_insert_{post_type}).
-		$this->processing_rest_save = true;
+		$this->processing_rest_save = null !== $request->get_param( 'coauthors' );
 
 		if ( ! is_object( $prepared_post ) || empty( $prepared_post->post_type ) ) {
 			return $prepared_post;
