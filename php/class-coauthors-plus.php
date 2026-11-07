@@ -2204,7 +2204,7 @@ class CoAuthors_Plus {
 		}
 
 		// Query actual post count for the specified post types.
-		return $this->get_post_count_for_author_term( $terms, $post_type, $public_only );
+		return $this->get_post_count_for_author_term( $terms, $post_type, $public_only, $user_id );
 	}
 
 	/**
@@ -2217,9 +2217,10 @@ class CoAuthors_Plus {
 	 * @param WP_Term|WP_Term[] $term        Author term object or objects.
 	 * @param string|array      $post_type   Post type(s) to count.
 	 * @param bool              $public_only Whether to only count public posts.
+	 * @param int               $user_id     User whose posts are counted, if any.
 	 * @return int Post count.
 	 */
-	private function get_post_count_for_author_term( $term, $post_type = 'post', $public_only = false ): int {
+	private function get_post_count_for_author_term( $term, $post_type = 'post', $public_only = false, $user_id = 0 ): int {
 		$post_types = (array) $post_type;
 
 		$args = array(
@@ -2237,15 +2238,39 @@ class CoAuthors_Plus {
 			'update_post_term_cache' => false,
 		);
 
-		if ( $public_only ) {
-			$args['post_status'] = 'publish';
-		} else {
-			$args['post_status'] = array( 'publish', 'private' );
+		// Like core, count private posts only for the user themselves or a viewer who can
+		// read them: core's REST users route lets anyone read a user with a non-zero count.
+		$private_types = array();
+		if ( ! $public_only ) {
+			$private_types = ( $user_id && get_current_user_id() === (int) $user_id )
+				? $post_types
+				: array_values(
+					array_filter(
+						$post_types,
+						function ( $type ) {
+							$post_type_object = get_post_type_object( $type );
+							return $post_type_object && current_user_can( $post_type_object->cap->read_private_posts );
+						}
+					)
+				);
 		}
 
-		$query = new \WP_Query( $args );
+		if ( $private_types === $post_types ) {
+			$args['post_status'] = array( 'publish', 'private' );
 
-		return $query->found_posts;
+			return ( new \WP_Query( $args ) )->found_posts;
+		}
+
+		$args['post_status'] = 'publish';
+		$count               = ( new \WP_Query( $args ) )->found_posts;
+
+		if ( $private_types ) {
+			$args['post_type']   = $private_types;
+			$args['post_status'] = 'private';
+			$count              += ( new \WP_Query( $args ) )->found_posts;
+		}
+
+		return $count;
 	}
 
 	/**

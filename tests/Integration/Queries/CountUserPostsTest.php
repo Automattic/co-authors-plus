@@ -140,7 +140,8 @@ class CountUserPostsTest extends TestCase {
 			)
 		);
 
-		// Count all (public and private).
+		// Count all (public and private), as the author.
+		wp_set_current_user( $author->ID );
 		$all_count = count_user_posts( $author->ID, 'post', false );
 		$this->assertSame( 5, $all_count );
 
@@ -393,6 +394,81 @@ class CountUserPostsTest extends TestCase {
 		$this->assertSame( 2, count_user_posts( $author->ID ) );
 	}
 
+
+	/**
+	 * Like core, private posts count only for their author or a viewer who can read them.
+	 *
+	 * @covers CoAuthors_Plus::filter_count_user_posts
+	 * @covers CoAuthors_Plus::get_post_count_for_author_term
+	 */
+	public function test_count_user_posts_counts_private_posts_only_for_viewers_who_can_read_them(): void {
+		$author = $this->create_author();
+		$this->factory()->post->create( array( 'post_author' => $author->ID ) );
+		$this->factory()->post->create(
+			array(
+				'post_author' => $author->ID,
+				'post_status' => 'private',
+			)
+		);
+
+		wp_set_current_user( 0 );
+		$this->assertSame( 1, count_user_posts( $author->ID ), 'Logged out' );
+
+		wp_set_current_user( $this->create_subscriber()->ID );
+		$this->assertSame( 1, count_user_posts( $author->ID ), 'Subscriber' );
+
+		wp_set_current_user( $this->create_editor()->ID );
+		$this->assertSame( 2, count_user_posts( $author->ID ), 'Editor' );
+
+		wp_set_current_user( $author->ID );
+		$this->assertSame( 2, count_user_posts( $author->ID ), 'The author' );
+	}
+
+	/**
+	 * Private pages count only where the viewer can read private pages.
+	 *
+	 * @covers CoAuthors_Plus::get_post_count_for_author_term
+	 */
+	public function test_count_user_posts_checks_private_access_per_post_type(): void {
+		$author = $this->create_author();
+		foreach ( array( 'post', 'page' ) as $post_type ) {
+			$this->factory()->post->create(
+				array(
+					'post_author' => $author->ID,
+					'post_status' => 'private',
+					'post_type'   => $post_type,
+				)
+			);
+		}
+
+		$viewer = $this->create_author( 'viewer' );
+		$viewer->add_cap( 'read_private_posts' );
+		wp_set_current_user( $viewer->ID );
+
+		$this->assertSame( 1, count_user_posts( $author->ID, array( 'post', 'page' ) ) );
+	}
+
+	/**
+	 * Core's REST users route lets anyone read a user whose post count is not zero.
+	 *
+	 * @covers CoAuthors_Plus::filter_count_user_posts
+	 */
+	public function test_rest_does_not_expose_a_user_whose_only_posts_are_private(): void {
+		$author = $this->create_author();
+		$post   = $this->factory()->post->create(
+			array(
+				'post_author' => $this->create_editor()->ID,
+				'post_status' => 'private',
+			)
+		);
+		$this->_cap->add_coauthors( $post, array( $author->user_login ), true );
+
+		wp_set_current_user( 0 );
+
+		$response = rest_do_request( new \WP_REST_Request( 'GET', '/wp/v2/users/' . $author->ID ) );
+
+		$this->assertSame( 401, $response->get_status() );
+	}
 	/**
 	 * Creates an author whose display name differs from their login.
 	 *
