@@ -148,7 +148,8 @@ class Block_CoAuthors {
 		if ( empty( $prefix ) ) {
 			return $prefix;
 		}
-		return Templating::render_element( 'span', 'class="wp-block-co-authors-plus-coauthors__prefix"', $prefix );
+		// Rich text, so formatting is kept; kses on save only applies without unfiltered_html.
+		return Templating::render_element( 'span', 'class="wp-block-co-authors-plus-coauthors__prefix"', wp_kses_post( $prefix ) );
 	}
 
 	/**
@@ -162,7 +163,8 @@ class Block_CoAuthors {
 		if ( empty( $suffix ) ) {
 			return $suffix;
 		}
-		return Templating::render_element( 'span', 'class="wp-block-co-authors-plus-coauthors__suffix"', $suffix );
+		// Rich text, so formatting is kept; kses on save only applies without unfiltered_html.
+		return Templating::render_element( 'span', 'class="wp-block-co-authors-plus-coauthors__suffix"', wp_kses_post( $suffix ) );
 	}
 
 	/**

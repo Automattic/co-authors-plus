@@ -59,4 +59,43 @@ class PostsListTableColumnTest extends TestCase {
 
 		$this->assertSame( '', $output, 'The method must output nothing for columns other than coauthors.' );
 	}
+
+	/**
+	 * Core shows Contributors other users' posts in the list, and only
+	 * users who can list users see email addresses.
+	 */
+	public function test_posts_custom_column_hides_emails_and_logins_from_users_who_cannot_set_authors(): void {
+		$author = $this->create_author( 'col_author' );
+		$post   = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( $author->user_login ) );
+
+		wp_set_current_user( $this->create_contributor()->ID );
+
+		ob_start();
+		$this->_cap->_filter_manage_posts_custom_column( 'coauthors', $post->ID );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( $author->display_name, $output );
+		$this->assertStringNotContainsString( 'data-user_email', $output );
+		$this->assertStringNotContainsString( 'data-user_login', $output );
+		$this->assertStringNotContainsString( $author->user_email, $output );
+	}
+
+	/**
+	 * Quick edit reads the email and login from the column.
+	 */
+	public function test_posts_custom_column_gives_emails_and_logins_to_users_who_can_set_authors(): void {
+		$author = $this->create_author( 'col_author' );
+		$post   = $this->create_post( $author );
+		$this->_cap->add_coauthors( $post->ID, array( $author->user_login ) );
+
+		wp_set_current_user( $this->create_editor()->ID );
+
+		ob_start();
+		$this->_cap->_filter_manage_posts_custom_column( 'coauthors', $post->ID );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'data-user_email="' . $author->user_email . '"', $output );
+		$this->assertStringContainsString( 'data-user_login="' . $author->user_login . '"', $output );
+	}
 }

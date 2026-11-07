@@ -63,6 +63,17 @@ class CoAuthors_Plus {
 	private $coauthor_save_post_id = 0;
 
 	/**
+	 * Post type of the post being written, while wp_insert_post() runs.
+	 *
+	 * Core checks the author taxonomy's assign_terms cap for `tax_input` without
+	 * saying which post the terms are for, so filter_assign_author_terms_cap()
+	 * reads the post type from here. Set at wp_insert_post_data, cleared at wp_insert_post.
+	 *
+	 * @var string|null
+	 */
+	private $saving_post_type = null;
+
+	/**
 	 * @var CoAuthors_Guest_Authors
 	 */
 	public $guest_authors;
@@ -93,6 +104,7 @@ class CoAuthors_Plus {
 		add_action( 'save_post', array( $this, 'coauthors_update_post' ), 10, 2 );
 		// Filter to set the post_author field when wp_insert_post is called
 		add_filter( 'wp_insert_post_data', array( $this, 'coauthors_set_post_author_field' ), 10, 2 );
+		add_action( 'wp_insert_post', array( $this, 'clear_saving_post_type' ) );
 
 		// Action to reassign posts when a guest author is deleted
 		add_action( 'delete_user', array( $this, 'delete_user_action' ), 10, 2 );
@@ -840,14 +852,17 @@ class CoAuthors_Plus {
 	 */
 	public function _filter_manage_posts_custom_column( $column_name, $post_id ): void {
 		if ( 'coauthors' === $column_name ) {
-			$authors = get_coauthors( $post_id );
+			$authors   = get_coauthors( $post_id );
+			$post_type = get_post_type( $post_id );
+
+			// Only quick edit reads the email and login, and only users who can set authors get it.
+			$can_set_authors = $this->current_user_can_set_authors( $post_type );
 
 			$count = 1;
 			foreach ( $authors as $author ) :
 				$args = array(
 					'author_name' => $author->user_nicename,
 				);
-				$post_type = get_post_type( $post_id );
 				if ( 'post' !== $post_type ) {
 					$args['post_type'] = $post_type;
 				}
@@ -856,9 +871,11 @@ class CoAuthors_Plus {
 				?>
 				<a href="<?php echo esc_url( $author_filter_url ); ?>"
 				data-user_nicename="<?php echo esc_attr( $author->user_nicename ); ?>"
+				<?php if ( $can_set_authors ) : ?>
 				data-user_email="<?php echo esc_attr( $author->user_email ); ?>"
-				data-display_name="<?php echo esc_attr( $author->display_name ); ?>"
 				data-user_login="<?php echo esc_attr( $author->user_login ); ?>"
+				<?php endif; ?>
+				data-display_name="<?php echo esc_attr( $author->display_name ); ?>"
 				data-avatar="<?php echo esc_attr( get_avatar_url( $author->ID, array( 'user_type' => $user_type ) ) ); ?>"
 				><?php echo esc_html( $author->display_name ); ?></a><?php echo ( $count < count( $authors ) ) ? ',' : ''; ?>
 				<?php
@@ -1542,6 +1559,7 @@ class CoAuthors_Plus {
 	 * Filters post data before saving to db to set post_author
 	 */
 	public function coauthors_set_post_author_field( $data, $postarr ) {
+		$this->saving_post_type = $data['post_type'];
 
 		// Bail on autosave
 		if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) {
@@ -1560,8 +1578,13 @@ class CoAuthors_Plus {
 		$processing_rest_save       = $this->processing_rest_save;
 		$this->processing_rest_save = false;
 
-		// Whether this save carries co-author data from the classic meta box form.
-		$has_coauthor_form_data = isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'][0] ) && is_array( $_POST['coauthors'] );
+		// Whether this save carries co-author data from the classic meta box form that
+		// this user may submit. Form fields that are refused must not stop the
+		// re-derivation below, or core's post_author from the request would stand.
+		$has_coauthor_form_data = isset( $_REQUEST['coauthors-nonce'], $_POST['coauthors'][0] )
+			&& is_array( $_POST['coauthors'] )
+			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
+			&& $this->current_user_can_set_authors( $data['post_type'] );
 
 		/*
 		 * Whether to re-derive post_author from the post's first co-author term.
@@ -1578,11 +1601,7 @@ class CoAuthors_Plus {
 			&& $this->has_author_terms( (int) $postarr['ID'] );
 
 		// This action happens when a post is saved while editing a post
-		if (
-			$has_coauthor_form_data
-			&& wp_verify_nonce( sanitize_text_field( wp_unslash( $_REQUEST['coauthors-nonce'] ) ), 'coauthors-edit' )
-			&& $this->current_user_can_set_authors( $data['post_type'] )
-		) {
+		if ( $has_coauthor_form_data ) {
 
 			// rawurlencode() is for encoding co-author name with special characters to compare names when getting co-author.
 			$author = rawurlencode( sanitize_text_field( wp_unslash( $_POST['coauthors'][0] ) ) );
@@ -1643,7 +1662,8 @@ class CoAuthors_Plus {
 	 * @return stdClass|WP_Error The (possibly modified) prepared post object, or an error.
 	 */
 	public function set_post_author_for_rest_save( $prepared_post, $request ) {
-		if ( null !== $request->get_param( 'coauthors' ) && ! $this->current_user_can_set_authors() ) {
+		$post_type = is_object( $prepared_post ) && ! empty( $prepared_post->post_type ) ? $prepared_post->post_type : null;
+		if ( null !== $request->get_param( 'coauthors' ) && ! $this->current_user_can_set_authors( $post_type ) ) {
 			return new WP_Error(
 				'rest_cannot_assign_term',
 				__( 'Sorry, you are not allowed to change the authors of this post.', 'co-authors-plus' ),
@@ -1651,10 +1671,12 @@ class CoAuthors_Plus {
 			);
 		}
 
-		// Flag the REST save so coauthors_set_post_author_field() does not later
-		// re-derive post_author from author terms that have not yet been reordered.
+		// Flag a REST save that sets co-authors, so coauthors_set_post_author_field()
+		// does not re-derive post_author from author terms that have not yet been
+		// reordered. Any other REST save is re-derived, so an `author` sent by a
+		// co-author who can edit the post doesn't make them its owner.
 		// Reset in sync_coauthors_on_rest_save() (rest_after_insert_{post_type}).
-		$this->processing_rest_save = true;
+		$this->processing_rest_save = null !== $request->get_param( 'coauthors' );
 
 		if ( ! is_object( $prepared_post ) || empty( $prepared_post->post_type ) ) {
 			return $prepared_post;
@@ -1721,10 +1743,12 @@ class CoAuthors_Plus {
 	 * exposed via $coauthor->wp_user, or guest authors with no linked user
 	 * (in which case there is no WP_User ID and we return 0).
 	 *
+	 * @internal
+	 *
 	 * @param object $coauthor A coauthor object as returned by get_coauthor_by().
 	 * @return int A WP_User ID, or 0 if the coauthor has no underlying user.
 	 */
-	private function extract_wp_user_id( $coauthor ): int {
+	public function extract_wp_user_id( $coauthor ): int {
 		if ( $coauthor instanceof WP_User ) {
 			return (int) $coauthor->ID;
 		}
@@ -2197,7 +2221,7 @@ class CoAuthors_Plus {
 		}
 
 		// Query actual post count for the specified post types.
-		return $this->get_post_count_for_author_term( $terms, $post_type, $public_only );
+		return $this->get_post_count_for_author_term( $terms, $post_type, $public_only, $user_id );
 	}
 
 	/**
@@ -2210,9 +2234,10 @@ class CoAuthors_Plus {
 	 * @param WP_Term|WP_Term[] $term        Author term object or objects.
 	 * @param string|array      $post_type   Post type(s) to count.
 	 * @param bool              $public_only Whether to only count public posts.
+	 * @param int               $user_id     User whose posts are counted, if any.
 	 * @return int Post count.
 	 */
-	private function get_post_count_for_author_term( $term, $post_type = 'post', $public_only = false ): int {
+	private function get_post_count_for_author_term( $term, $post_type = 'post', $public_only = false, $user_id = 0 ): int {
 		$post_types = (array) $post_type;
 
 		$args = array(
@@ -2230,15 +2255,39 @@ class CoAuthors_Plus {
 			'update_post_term_cache' => false,
 		);
 
-		if ( $public_only ) {
-			$args['post_status'] = 'publish';
-		} else {
-			$args['post_status'] = array( 'publish', 'private' );
+		// Like core, count private posts only for the user themselves or a viewer who can
+		// read them: core's REST users route lets anyone read a user with a non-zero count.
+		$private_types = array();
+		if ( ! $public_only ) {
+			$private_types = ( $user_id && get_current_user_id() === (int) $user_id )
+				? $post_types
+				: array_values(
+					array_filter(
+						$post_types,
+						function ( $type ) {
+							$post_type_object = get_post_type_object( $type );
+							return $post_type_object && current_user_can( $post_type_object->cap->read_private_posts );
+						}
+					)
+				);
 		}
 
-		$query = new \WP_Query( $args );
+		if ( $private_types === $post_types ) {
+			$args['post_status'] = array( 'publish', 'private' );
 
-		return $query->found_posts;
+			return ( new \WP_Query( $args ) )->found_posts;
+		}
+
+		$args['post_status'] = 'publish';
+		$count               = ( new \WP_Query( $args ) )->found_posts;
+
+		if ( $private_types ) {
+			$args['post_type']   = $private_types;
+			$args['post_status'] = 'private';
+			$count              += ( new \WP_Query( $args ) )->found_posts;
+		}
+
+		return $count;
 	}
 
 	/**
@@ -2291,13 +2340,22 @@ class CoAuthors_Plus {
 			return $caps;
 		}
 
+		$post_type_object = $this->saving_post_type ? get_post_type_object( $this->saving_post_type ) : null;
+
 		// current_user_can_set_authors() only answers for the current user, so check
 		// anyone else against its unfiltered default.
 		if ( get_current_user_id() !== (int) $user_id ) {
-			return array( 'edit_others_posts' );
+			return array( $post_type_object ? $post_type_object->cap->edit_others_posts : 'edit_others_posts' );
 		}
 
-		return $this->current_user_can_set_authors() ? array( 'exist' ) : array( 'do_not_allow' );
+		return $this->current_user_can_set_authors( $post_type_object ? $post_type_object->name : null ) ? array( 'exist' ) : array( 'do_not_allow' );
+	}
+
+	/**
+	 * Forget the post type of the post being written, once wp_insert_post() has set its terms.
+	 */
+	public function clear_saving_post_type(): void {
+		$this->saving_post_type = null;
 	}
 
 	/**

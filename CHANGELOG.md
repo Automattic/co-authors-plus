@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.2] - 2026-11-07
+
+**Co-authors now only get comment emails they could act on: guest authors without a linked user no longer receive moderation emails, and Contributors no longer receive them for published posts.**
+
+### Security
+
+* Email new comments to each co-author only when they can read the post, and moderation requests only when they can edit the comment, as core does for the post author. Responsibly disclosed by [antaloaalonso](https://hackerone.com/antaloaalonso) on HackerOne. Fixed by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1589
+* Read guest author profile data only from guest author posts, so another post can't be taken for a guest author by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1590
+* Leave co-authors' email addresses and logins out of the posts list for users who can't set authors by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1591
+* Count a user's private posts only for viewers who can read them, as core does by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1592
+* Keep `post_author` on the first co-author on every save, and check the post type's own edit-others capability whenever co-authors are set. A REST request that sends `author` without `coauthors` now has `post_author` set from the byline by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1593 and https://github.com/Automattic/Co-Authors-Plus/pull/1595
+* Filter the Co-Authors block's prefix and suffix with `wp_kses_post()` when it renders, including markup saved by users with `unfiltered_html` by @GaryJones in https://github.com/Automattic/Co-Authors-Plus/pull/1594
+
 ## [4.2.1] - 2026-11-04
 
 **`wp co-authors-plus export-coauthors` now requires `--file`. If you ran it without `--file` on 4.2.0, delete `wp-content/cap-coauthors-export.json`.**
@@ -906,6 +919,7 @@ Props to the many people who helped make this release possible: [catchmyfame](ht
 **1.1.0 (Apr. 14, 2009)**
 * Initial beta release.
 
+[4.2.2]: https://github.com/automattic/co-authors-plus/compare/4.2.1...4.2.2
 [4.2.1]: https://github.com/automattic/co-authors-plus/compare/4.2.0...4.2.1
 [4.2.0]: https://github.com/automattic/co-authors-plus/compare/4.1.3...4.2.0
 [4.1.3]: https://github.com/automattic/co-authors-plus/compare/4.1.2...4.1.3
