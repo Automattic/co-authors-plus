@@ -1,6 +1,6 @@
 # Co-Authors Plus
 
-Stable tag: 4.2.1  
+Stable tag: 4.2.2  
 Requires at least: 6.4  
 Tested up to: 7.1  
 Requires PHP: 7.4  
@@ -83,6 +83,12 @@ Yes. Many parts of Co-Authors Plus can be changed with a filter, for example mak
 
 The highlights of recent releases are below. Every change, including older releases, is listed in [CHANGELOG.md](https://github.com/Automattic/co-authors-plus/blob/main/CHANGELOG.md).
 
+### 4.2.2
+
+- **Changed:** Guest authors without a linked user no longer receive comment moderation emails, and Contributors no longer receive them for published posts.
+- **Security:** Co-authors only receive comment emails for posts and comments they can access.
+- **Security:** Tighten how guest author profiles are looked up, who can see co-authors' email addresses, how private posts are counted, and who can change a post's author.
+
 ### 4.2.1
 
 - **Changed:** `wp co-authors-plus export-coauthors` now requires `--file`. If you ran it without `--file` on 4.2.0, delete `wp-content/cap-coauthors-export.json`.
@@ -109,13 +115,11 @@ The highlights of recent releases are below. Every change, including older relea
 - **Fixed:** Many WP-CLI commands now do what they report, including `swap-coauthors --dry-run`, `reassign-terms` and the author term backfills.
 - **Security:** Tighter permission checks for managing guest authors, and no more user logins in public REST responses.
 
-### 4.1.3
-
-- **Changed:** Co-authors now get the rights the post's author would have under the co-author's own role. A Subscriber credited on a post can no longer edit it, and co-authors can trash posts they are credited on when their role allows it for their own posts.
-- **Changed:** Only Administrators can link a guest author to a WordPress account by default. Change this with the `coauthors_guest_author_manage_cap` filter.
-- **Security:** Tighten permission checks when changing a post's co-authors, linking guest authors to accounts, and reading author details through the REST API.
-
 ## Upgrade Notice
+
+### 4.2.2
+
+Security release that tightens co-author permission checks and comment emails. Unlinked guest authors no longer receive moderation emails. Update soon.
 
 ### 4.2.1
 
@@ -124,7 +128,3 @@ Security and bug fix release that tightens how co-authors and author queries are
 ### 4.2.0
 
 Includes behaviour changes: feeds now credit co-authors, managing guest authors needs the manage capability on every screen, and core REST author routes need edit_posts. If you customise permissions, feeds or REST, read the changelog first.
-
-### 4.1.3
-
-Security release that tightens several co-author permission checks. Co-authors now get the rights the post's author would have under their own role, and only Administrators can link guest authors to accounts by default. Updating is recommended.
