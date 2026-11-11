@@ -180,6 +180,8 @@ When you delete a user, Co-Authors Plus deletes the user's author term, which re
 - If you delete the content instead, a post the user shares with another co-author who has an account is kept, and that co-author becomes its `post_author`. A guest author linked to an account counts as that account. WordPress deletes the user's other posts: posts and pages go to the trash, and other post types are deleted permanently, unless the post type is registered with `delete_with_user` set to `false`.
 - If the user was linked to a guest author, that guest author is deleted too, and removed from the byline of every post it was on. This happens whether or not you attribute the content to someone else.
 
+The **Delete Users** screen explains these rules and names any linked guest author. It also offers to attribute the content to another user when the user is only on bylines, even if no post has them as `post_author`.
+
 This covers deleting a user from a site. Deleting a user from the whole network, from **Network Admin > Users** or with `wp user delete --network`, doesn't reassign bylines or keep shared posts.
 
 To keep a linked guest author, remove the link before you delete the user. See [Migrating users to guest authors](#migrating-users-to-guest-authors).

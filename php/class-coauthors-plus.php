@@ -2831,6 +2831,120 @@ class CoAuthors_Plus {
 	 */
 	public function load_users_screen(): void {
 		add_filter( 'pre_count_many_users_posts', array( $this, 'bypass_user_post_count' ), 10, 2 );
+		add_filter( 'users_have_additional_content', array( $this, 'filter_users_have_additional_content' ), 10, 2 );
+		add_action( 'delete_user_form', array( $this, 'delete_user_form_note' ), 10, 2 );
+	}
+
+	/**
+	 * Count a user's bylines as content on the Delete Users screen.
+	 *
+	 * WordPress only checks post_author, so a user who is only a later co-author
+	 * would get no choice to reassign their bylines. The byline of a linked guest
+	 * author counts too, since it's deleted with the user.
+	 *
+	 * @param bool  $has_content Whether the users have additional content.
+	 * @param int[] $user_ids    IDs of the users being deleted.
+	 * @return bool
+	 */
+	public function filter_users_have_additional_content( $has_content, $user_ids ) {
+		if ( $has_content ) {
+			return $has_content;
+		}
+
+		$term_ids = array();
+		foreach ( (array) $user_ids as $user_id ) {
+			$user = get_user_by( 'id', $user_id );
+			if ( ! $user ) {
+				continue;
+			}
+
+			$user_term  = $this->shares_term_with_unlinked_guest_author( $user ) ? false : $this->get_author_term( $user );
+			$guest_term = $this->get_author_term( $this->get_linked_guest_author( $user ) );
+			$term_ids   = array_merge( $term_ids, wp_list_pluck( array_filter( array( $user_term, $guest_term ) ), 'term_id' ) );
+		}
+
+		if ( ! $term_ids ) {
+			return $has_content;
+		}
+
+		// Term counts can include revisions, so look for a real post.
+		$query = new WP_Query(
+			array(
+				'post_type'      => $this->supported_post_types(),
+				// Reassigning reaches trashed posts too, so count them.
+				'post_status'    => array_values( array_diff( get_post_stati(), array( 'auto-draft' ) ) ),
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+				'tax_query'      => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Runs once per user on the Delete Users screen.
+					array(
+						'taxonomy' => $this->coauthor_taxonomy,
+						'field'    => 'term_id',
+						'terms'    => $term_ids,
+					),
+				),
+			)
+		);
+
+		return ! empty( $query->posts );
+	}
+
+	/**
+	 * Explain on the Delete Users screen what happens to bylines and linked guest authors.
+	 *
+	 * @param WP_User $current_user The current user.
+	 * @param int[]   $user_ids     IDs of the users being deleted.
+	 */
+	public function delete_user_form_note( $current_user, $user_ids = array() ): void {
+		$guest_authors = array();
+		foreach ( (array) $user_ids as $user_id ) {
+			$user = get_user_by( 'id', $user_id );
+			if ( ! $user ) {
+				continue;
+			}
+			$guest_author = $this->get_linked_guest_author( $user );
+			if ( $guest_author ) {
+				$guest_authors[] = array( $user, $guest_author );
+			}
+		}
+		?>
+		<div class="coauthors-delete-user-note">
+			<p><strong><?php esc_html_e( 'Co-authors:', 'co-authors-plus' ); ?></strong></p>
+			<ul class="ul-disc">
+				<li><?php esc_html_e( 'Each user is removed from every byline they are on, including posts where they are not the main author.', 'co-authors-plus' ); ?></li>
+				<li><?php esc_html_e( 'If you attribute the content to another user, that user takes their place on each byline, in the same position. If that user is already on the byline, the deleted user is just removed.', 'co-authors-plus' ); ?></li>
+				<li><?php esc_html_e( 'If you delete the content, a post shared with another co-author who has an account is kept and given to that co-author. Other posts and pages go to the trash, and other post types are deleted permanently, unless they are set to be kept.', 'co-authors-plus' ); ?></li>
+				<?php foreach ( $guest_authors as list( $user, $guest_author ) ) : ?>
+					<li>
+						<?php
+						printf(
+							/* translators: 1: User login. 2: Guest author display name. */
+							esc_html__( '%1$s is linked to the guest author %2$s. The guest author will be deleted too and removed from every byline it is on, whichever option you choose. If you attribute the content, the other user takes its place. To keep the guest author, remove the link first.', 'co-authors-plus' ),
+							'<strong>' . esc_html( $user->user_login ) . '</strong>',
+							'<strong>' . esc_html( $guest_author->display_name ) . '</strong>'
+						);
+						?>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Get the guest author linked to a user, if guest authors are enabled.
+	 *
+	 * @param WP_User $user The user.
+	 * @return object|false The guest author, or false if there is none.
+	 */
+	private function get_linked_guest_author( WP_User $user ) {
+		if ( ! $this->is_guest_authors_enabled() ) {
+			return false;
+		}
+
+		$guest_author = $this->guest_authors->get_guest_author_by( 'linked_account', $user->user_login );
+
+		return is_object( $guest_author ) ? $guest_author : false;
 	}
 
 	/**
