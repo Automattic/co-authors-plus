@@ -38,7 +38,9 @@ concurrency:
 jobs:
   e2e:
     name: Playwright E2E (block editor, WP ${{ matrix.wordpress }})
-    runs-on: ubuntu-latest
+    # Pinned: on ubuntu-26.04 runners, `playwright install --with-deps` can't
+    # resolve the Ubuntu apt mirrors. Move back to ubuntu-latest once it can.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 
