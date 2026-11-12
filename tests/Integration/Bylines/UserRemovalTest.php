@@ -23,6 +23,37 @@ class UserRemovalTest extends TestCase {
 	}
 
 	/**
+	 * Get the logins on a post's byline, in byline order.
+	 *
+	 * @param int $post_id Post to read.
+	 * @return string[]
+	 */
+	private function get_byline_logins( int $post_id ): array {
+		return wp_list_pluck( get_coauthors( $post_id ), 'user_login' );
+	}
+
+	/**
+	 * Create a published post with a byline in the given order.
+	 *
+	 * The post_author becomes the first co-author with an account.
+	 *
+	 * @param object[] $coauthors Users or guest authors, first one first.
+	 * @param string   $post_type Post type to create.
+	 * @return int Post ID.
+	 */
+	private function create_post_with_byline( array $coauthors, string $post_type = 'post' ): int {
+		$post_id = $this->factory()->post->create(
+			array(
+				'post_status' => 'publish',
+				'post_type'   => $post_type,
+			)
+		);
+		$this->_cap->add_coauthors( $post_id, wp_list_pluck( $coauthors, 'user_nicename' ) );
+
+		return $post_id;
+	}
+
+	/**
 	 * Get the author term slugs assigned to a post.
 	 *
 	 * @param int $post_id Post to read.
@@ -47,7 +78,153 @@ class UserRemovalTest extends TestCase {
 
 		wp_delete_user( $deleted->ID, $reassign->ID );
 
-		$this->assertPostHasCoAuthors( $post_id, array( $other, $reassign ) );
+		$this->assertSame( array( 'reassignauthor', 'otherauthor' ), $this->get_byline_logins( $post_id ) );
+		$this->assertSame( $reassign->ID, (int) get_post( $post_id )->post_author );
+	}
+
+	/**
+	 * The reassign user takes the deleted user's place when the deleted user
+	 * isn't the post_author.
+	 *
+	 * @covers ::delete_user_action
+	 */
+	public function test_delete_user_with_reassign_replaces_a_later_coauthor_in_place(): void {
+		$deleted  = $this->create_author( 'deletedauthor' );
+		$boss     = $this->create_author( 'bossauthor' );
+		$reassign = $this->create_author( 'reassignauthor' );
+		$post_id  = $this->create_post_with_byline( array( $boss, $deleted ) );
+
+		wp_delete_user( $deleted->ID, $reassign->ID );
+
+		$this->assertSame( array( 'bossauthor', 'reassignauthor' ), $this->get_byline_logins( $post_id ) );
+		$this->assertSame( $boss->ID, (int) get_post( $post_id )->post_author );
+	}
+
+	/**
+	 * When the reassign user is already on the byline, the deleted user is just removed.
+	 *
+	 * @covers ::delete_user_action
+	 */
+	public function test_delete_user_with_reassign_already_on_byline_only_removes_the_deleted_user(): void {
+		$deleted  = $this->create_author( 'deletedauthor' );
+		$boss     = $this->create_author( 'bossauthor' );
+		$reassign = $this->create_author( 'reassignauthor' );
+		$post_id  = $this->create_post_with_byline( array( $deleted, $boss, $reassign ) );
+
+		wp_delete_user( $deleted->ID, $reassign->ID );
+
+		$this->assertSame( array( 'bossauthor', 'reassignauthor' ), $this->get_byline_logins( $post_id ) );
+		$this->assertSame( $boss->ID, (int) get_post( $post_id )->post_author );
+	}
+
+	/**
+	 * The guest author linked to the deleted user is deleted with them, so the
+	 * reassign user takes its place too.
+	 *
+	 * @covers ::delete_user_action
+	 */
+	public function test_delete_user_with_reassign_replaces_their_linked_guest_author_in_place(): void {
+		$deleted  = $this->create_author( 'deletedauthor' );
+		$boss     = $this->create_author( 'bossauthor' );
+		$reassign = $this->create_author( 'reassignauthor' );
+		$guest_id = $this->_cap->guest_authors->create(
+			array(
+				'display_name'   => 'Pen Name',
+				'user_login'     => 'penname',
+				'linked_account' => $deleted->user_login,
+			)
+		);
+		$guest    = $this->_cap->guest_authors->get_guest_author_by( 'ID', $guest_id );
+		$post_id  = $this->create_post_with_byline( array( $boss, $guest ) );
+
+		wp_delete_user( $deleted->ID, $reassign->ID );
+
+		$this->assertSame( array( 'bossauthor', 'reassignauthor' ), $this->get_byline_logins( $post_id ) );
+		$this->assertFalse( $this->_cap->guest_authors->get_guest_author_by( 'ID', $guest_id, true ) );
+	}
+
+	/**
+	 * Without a reassignment, a post the deleted user shares with another user is
+	 * handed to that user instead of being trashed.
+	 *
+	 * @covers ::delete_user_action
+	 */
+	public function test_delete_user_without_reassign_keeps_a_post_shared_with_another_user(): void {
+		$deleted = $this->create_author( 'deletedauthor' );
+		$boss    = $this->create_author( 'bossauthor' );
+		$post_id = $this->create_post_with_byline( array( $deleted, $boss ) );
+
+		wp_delete_user( $deleted->ID );
+
+		$this->assertSame( 'publish', get_post_status( $post_id ) );
+		$this->assertSame( $boss->ID, (int) get_post( $post_id )->post_author );
+		$this->assertSame( array( 'bossauthor' ), $this->get_byline_logins( $post_id ) );
+	}
+
+	/**
+	 * WordPress deletes a custom post type outright, so a shared one must be handed over too.
+	 *
+	 * @covers ::delete_user_action
+	 */
+	public function test_delete_user_without_reassign_keeps_a_shared_custom_post_type(): void {
+		register_post_type(
+			'cap_book',
+			array(
+				'public'   => true,
+				'supports' => array( 'title', 'author' ),
+			)
+		);
+
+		$deleted = $this->create_author( 'deletedauthor' );
+		$boss    = $this->create_author( 'bossauthor' );
+		$post_id = $this->create_post_with_byline( array( $deleted, $boss ), 'cap_book' );
+		$solo_id = $this->create_post_with_byline( array( $deleted ), 'cap_book' );
+
+		wp_delete_user( $deleted->ID );
+		unregister_post_type( 'cap_book' );
+
+		$this->assertSame( 'publish', get_post_status( $post_id ) );
+		$this->assertSame( $boss->ID, (int) get_post( $post_id )->post_author );
+		$this->assertNull( get_post( $solo_id ), 'A post with no other co-author is still deleted.' );
+	}
+
+	/**
+	 * A guest author linked to another user counts as that user.
+	 *
+	 * @covers ::delete_user_action
+	 */
+	public function test_delete_user_without_reassign_hands_a_post_to_a_linked_guest_authors_user(): void {
+		$deleted  = $this->create_author( 'deletedauthor' );
+		$boss     = $this->create_author( 'bossauthor' );
+		$guest_id = $this->_cap->guest_authors->create(
+			array(
+				'display_name'   => 'Boss Pen Name',
+				'user_login'     => 'bosspenname',
+				'linked_account' => $boss->user_login,
+			)
+		);
+		$post_id  = $this->create_post_with_byline( array( $deleted, $this->_cap->guest_authors->get_guest_author_by( 'ID', $guest_id ) ) );
+
+		wp_delete_user( $deleted->ID );
+
+		$this->assertSame( 'publish', get_post_status( $post_id ) );
+		$this->assertSame( $boss->ID, (int) get_post( $post_id )->post_author );
+	}
+
+	/**
+	 * A post the deleted user shares only with an unlinked guest author has no one
+	 * to hand it to, so WordPress trashes it as before.
+	 *
+	 * @covers ::delete_user_action
+	 */
+	public function test_delete_user_without_reassign_trashes_a_post_shared_only_with_an_unlinked_guest_author(): void {
+		$deleted  = $this->create_author( 'deletedauthor' );
+		$guest_id = $this->create_guest_author( 'unlinkedguest' );
+		$post_id  = $this->create_post_with_byline( array( $deleted, $this->_cap->guest_authors->get_guest_author_by( 'ID', $guest_id ) ) );
+
+		wp_delete_user( $deleted->ID );
+
+		$this->assertSame( 'trash', get_post_status( $post_id ) );
 	}
 
 	/**
@@ -138,6 +315,36 @@ class UserRemovalTest extends TestCase {
 		$this->assertSame( array( 'cap-reassignauthor' ), $site_terms );
 		$this->assertNull( $guest_author, 'The guest author linked to the removed user should be deleted on that site.' );
 		$this->assertSame( array( 'cap-removedauthor' ), $this->get_author_term_slugs( $setup['main_post_id'] ) );
+	}
+
+	/**
+	 * Removing a user from a site with a reassignment puts the reassign user in
+	 * their place on that site's bylines.
+	 *
+	 * @group ms-required
+	 *
+	 * @covers ::remove_user_from_blog_action
+	 */
+	public function test_remove_user_from_site_with_reassign_replaces_a_later_coauthor_in_place(): void {
+		$removed  = $this->create_author( 'removedauthor' );
+		$boss     = $this->create_author( 'bossauthor' );
+		$reassign = $this->create_author( 'reassignauthor' );
+		$blog_id  = (int) $this->factory()->blog->create();
+		foreach ( array( $removed, $boss, $reassign ) as $user ) {
+			add_user_to_blog( $blog_id, $user->ID, 'author' );
+		}
+
+		switch_to_blog( $blog_id );
+		$post_id = $this->create_post_with_byline( array( $boss, $removed ) );
+		restore_current_blog();
+
+		remove_user_from_blog( $removed->ID, $blog_id, $reassign->ID );
+
+		switch_to_blog( $blog_id );
+		$byline = $this->get_byline_logins( $post_id );
+		restore_current_blog();
+
+		$this->assertSame( array( 'bossauthor', 'reassignauthor' ), $byline );
 	}
 
 	/**

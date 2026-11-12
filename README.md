@@ -54,7 +54,7 @@ If you've just installed Co-Authors Plus, you might notice that the bylines are 
 
 ### What happens to posts and pages when I delete a user assigned to a post or page as a co-author?
 
-When a user is deleted from WordPress, they will be removed from all posts for which they are co-authors. If you reassign their posts to another user, that user will be the co-author instead.
+When a user is deleted from WordPress, they will be removed from all posts for which they are co-authors. If you reassign their posts to another user, that user takes their place on each of those bylines, in the same position. If you delete their content instead, posts they share with another co-author who has an account are kept and handed to that co-author.
 
 ### Can I use Co-Authors Plus with WordPress multisite?
 
