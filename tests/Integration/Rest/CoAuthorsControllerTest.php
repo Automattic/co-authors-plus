@@ -217,6 +217,28 @@ class CoAuthorsControllerTest extends TestCase {
 	}
 
 	/**
+	 * Core calls the permission check for the Allow header even after the params fail validation.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1600
+	 *
+	 * @covers ::get_item_permissions_check
+	 */
+	public function test_get_item_returns_400_when_user_nicename_is_an_array(): void {
+
+		wp_set_current_user( 0 );
+
+		$request = new WP_REST_Request( 'GET', '/coauthors/v1/coauthors/x' );
+		$request->set_query_params( array( 'user_nicename' => array( "[['a']]" ) ) );
+
+		$server   = rest_get_server();
+		$response = rest_do_request( $request );
+		$response = apply_filters( 'rest_post_dispatch', $response, $server, $request );
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 'rest_invalid_param', $response->get_data()['code'] );
+	}
+
+	/**
 	 * Dispatch the live route and assert the response body, not just the permission gate.
 	 *
 	 * @covers ::get_items

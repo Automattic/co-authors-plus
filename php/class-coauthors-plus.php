@@ -523,6 +523,11 @@ class CoAuthors_Plus {
 	 */
 	public function get_coauthor_by( $key, $value, $force = false ) {
 
+		// Request data can be an array, e.g. ?user_nicename[]=x, and the lookups below need a string.
+		if ( ! is_scalar( $value ) ) {
+			return false;
+		}
+
 		// If Guest Authors are enabled, prioritize those profiles
 		if ( $this->is_guest_authors_enabled() && isset( $this->guest_authors ) ) {
 			$guest_author = $this->guest_authors->get_guest_author_by( $key, $value, $force );
