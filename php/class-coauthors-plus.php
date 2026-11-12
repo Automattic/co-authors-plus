@@ -146,6 +146,9 @@ class CoAuthors_Plus {
 		// Support Jetpack Open Graph Tags
 		add_filter( 'jetpack_open_graph_tags', array( $this, 'filter_jetpack_open_graph_tags' ), 10, 2 );
 
+		// Filter oEmbed response data to use co-author display name and URL
+		add_filter( 'oembed_response_data', array( $this, 'filter_oembed_response_data' ), 10, 2 );
+
 		// Filter to send comment moderation notification e-mail to multiple co-authors
 		add_filter( 'comment_moderation_recipients', 'cap_filter_comment_moderation_email_recipients', 10, 2 );
 
@@ -3172,6 +3175,42 @@ class CoAuthors_Plus {
 
 		// Send back the updated Open Graph Tags
 		return apply_filters( 'coauthors_open_graph_tags', $og_tags );
+	}
+
+	/**
+	 * Filter the oEmbed response data to use the first co-author's display name and URL.
+	 *
+	 * WordPress core resolves `author_name` and `author_url` strictly from `post_author`,
+	 * which ignores co-authors and displays the publishing user instead of a guest author.
+	 * Because the oEmbed specification defines `author_name` and `author_url` as single
+	 * values for the resource owner, this sets both fields to the first co-author.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/921
+	 *
+	 * @param array|mixed $data The oEmbed response data.
+	 * @param \WP_Post    $post The post object.
+	 * @return array|mixed The filtered oEmbed response data.
+	 */
+	public function filter_oembed_response_data( $data, $post ) {
+
+		if ( ! is_array( $data ) || ! $post instanceof WP_Post || ! $this->is_post_type_enabled( $post->post_type ) ) {
+			return $data;
+		}
+
+		$coauthors = get_coauthors( $post->ID );
+		if ( empty( $coauthors ) ) {
+			return $data;
+		}
+
+		$first_author = reset( $coauthors );
+		if ( empty( $first_author->display_name ) ) {
+			return $data;
+		}
+
+		$data['author_name'] = $first_author->display_name;
+		$data['author_url']  = get_author_posts_url( $first_author->ID, $first_author->user_nicename );
+
+		return $data;
 	}
 
 	/**
