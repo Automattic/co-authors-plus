@@ -229,7 +229,7 @@ Extra data to include when exporting a guest author's personal data (WordPress p
 
 ### `coauthors_name_field_type_{$field}`
 
-Dynamic filter per field, used to switch the input type of a field in the Name and Contact Info boxes on the guest author profile form. Defaults to the field's `input` value, or `text`. Returning `checkbox` renders a checkbox. The suffix is the field's post meta key, which carries the `cap-` prefix, for example `coauthors_name_field_type_cap-website`.
+Dynamic filter per field, used to switch the input type of a field on the guest author profile form. Defaults to the field's `input` value, or `text` in the Name and Contact Info boxes and `textarea` in the About box. Returning `checkbox` renders a checkbox in the Name and Contact Info boxes, and returning `editor` renders the classic visual editor in the About box. The suffix is the field's post meta key, which carries the `cap-` prefix, for example `coauthors_name_field_type_cap-website`. See [Can I use a visual editor for the guest author bio?](./customizing.md#can-i-use-a-visual-editor-for-the-guest-author-bio)
 
 - **Parameters:** `string $input`
 - **File:** `php/class-coauthors-guest-authors.php`
