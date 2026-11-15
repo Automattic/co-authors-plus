@@ -321,9 +321,19 @@ class GetCoauthorByTest extends TestCase {
 		foreach ( array( 'user_nicename', 'user_login', 'user_email', 'id' ) as $key ) {
 			$this->assertFalse( $this->_cap->get_coauthor_by( $key, array( $this->author1->user_nicename ) ), $key );
 		}
+	}
+
+	/**
+	 * Checks that a value which is not a string or number returns false when guest authors are disabled.
+	 *
+	 * @see https://github.com/Automattic/co-authors-plus/issues/1600
+	 *
+	 * @covers ::get_coauthor_by
+	 */
+	public function test_get_coauthor_by_returns_false_for_non_scalar_value_without_guest_authors(): void {
 
 		add_filter( 'coauthors_guest_authors_enabled', '__return_false' );
+
 		$this->assertFalse( $this->_cap->get_coauthor_by( 'user_nicename', array( $this->author1->user_nicename ) ) );
-		remove_filter( 'coauthors_guest_authors_enabled', '__return_false' );
 	}
 }
