@@ -156,6 +156,7 @@ class CoAuthors_Plus {
 		add_action( 'save_post', array( $this, 'clear_cache' ) );
 		add_action( 'delete_post', array( $this, 'clear_cache' ) );
 		add_action( 'set_object_terms', array( $this, 'clear_cache_on_terms_set' ), 10, 6 );
+		add_action( 'deleted_term_relationships', array( $this, 'clear_cache_on_terms_removed' ), 10, 3 );
 
 		// Filter to correct author on author archive page
 		add_filter( 'get_the_archive_title', array( $this, 'filter_author_archive_title' ), 10, 3 );
@@ -2030,35 +2031,35 @@ class CoAuthors_Plus {
 
 	/**
 	 * Action taken when co-author is deleted.
+	 * - With a reassignment, the reassign user takes the deleted user's place on each byline
+	 * - Without one, a post shared with another co-author with an account is handed to them,
+	 *   so WordPress doesn't delete it
 	 * - Co-Author term is removed from all associated posts
-	 * - Option to specify alternate co-author in place for each post
 	 *
 	 * @param int      $delete_id ID of the user being deleted.
 	 * @param int|null $reassign  ID of the user to reassign posts to, as passed to the
 	 *                            delete_user hook. Null when the content is deleted.
 	 */
 	public function delete_user_action( $delete_id, $reassign = null ): void {
-		global $wpdb;
-
 		$reassign_id = absint( $reassign );
+		$delete_user = get_user_by( 'id', $delete_id );
 
-		// If reassign posts, do that -- use coauthors_update_post
-		if ( $reassign_id ) {
-			// Get posts belonging to deleted author
-			$reassign_user = get_user_by( 'id', $reassign_id );
-			// Set to new guest author
-			if ( is_object( $reassign_user ) ) {
-				$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author = %d", $delete_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk reassignment during user deletion, result changes on each call.
+		$associated_user = null;
+		if ( is_object( $delete_user ) && $this->is_guest_authors_enabled() ) {
+			$associated_user = $this->guest_authors->get_guest_author_by( 'linked_account', $delete_user->user_login );
+		}
 
-				if ( $post_ids ) {
-					foreach ( $post_ids as $post_id ) {
-						$this->add_coauthors( $post_id, array( $reassign_user->user_nicename ), true );
-					}
+		if ( is_object( $delete_user ) ) {
+			if ( $reassign_id ) {
+				$reassign_user = get_user_by( 'id', $reassign_id );
+				if ( is_object( $reassign_user ) ) {
+					$this->reassign_bylines_of_deleted_user( $delete_user, $reassign_user, $associated_user );
 				}
+			} else {
+				$this->hand_shared_posts_to_other_coauthors( $delete_user );
 			}
 		}
 
-		$delete_user = get_user_by( 'id', $delete_id );
 		if ( is_object( $delete_user ) && ! $this->shares_term_with_unlinked_guest_author( $delete_user ) ) {
 			// Delete term
 			$term = $this->get_author_term( $delete_user );
@@ -2067,14 +2068,137 @@ class CoAuthors_Plus {
 			}
 		}
 
-		if ( $this->is_guest_authors_enabled() ) {
-			// Get the associated user from the already fetched $delete_user object.
-			if ( $delete_user ) {
-				$associated_user = $this->guest_authors->get_guest_author_by( 'linked_account', $delete_user->user_login );
+		if ( isset( $associated_user->ID ) ) {
+			// Delete associated guest user.
+			$this->guest_authors->delete( $associated_user->ID );
+		}
+	}
 
-				if ( isset( $associated_user->ID ) ) {
-					// Delete associated guest user.
-					$this->guest_authors->delete( $associated_user->ID );
+	/**
+	 * Get the IDs of the posts, other than revisions, whose post_author is a user.
+	 *
+	 * @param WP_User $user The user.
+	 * @return int[] Post IDs.
+	 */
+	private function get_post_ids_by_post_author( WP_User $user ): array {
+		global $wpdb;
+
+		$post_ids = $wpdb->get_col( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_author = %d AND post_type != %s", $user->ID, 'revision' ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Bulk reassignment during user deletion, result changes on each call.
+
+		return array_map( 'intval', $post_ids );
+	}
+
+	/**
+	 * Put the reassign user in place of a deleted user on every byline the deleted user is on.
+	 *
+	 * The reassign user takes the deleted user's position, so post_author stays the
+	 * first co-author with an account. If the reassign user is already on the byline,
+	 * the deleted user is just removed. The guest author linked to the deleted user is
+	 * deleted with them, so it's replaced in the same way.
+	 *
+	 * @param WP_User     $delete_user     The user being deleted.
+	 * @param WP_User     $reassign_user   The user to reassign posts to.
+	 * @param object|null $associated_user The guest author linked to the deleted user, if any.
+	 */
+	private function reassign_bylines_of_deleted_user( WP_User $delete_user, WP_User $reassign_user, $associated_user ): void {
+		$post_ids = $this->get_post_ids_by_post_author( $delete_user );
+
+		$term_ids = array();
+		foreach ( array( $delete_user, $associated_user ) as $coauthor ) {
+			$term = is_object( $coauthor ) ? $this->get_author_term( $coauthor ) : false;
+			if ( $term ) {
+				$term_ids[] = (int) $term->term_id;
+			}
+		}
+
+		if ( $term_ids ) {
+			$term_post_ids = get_objects_in_term( $term_ids, $this->coauthor_taxonomy );
+			if ( is_array( $term_post_ids ) ) {
+				$post_ids = array_merge( $post_ids, array_map( 'intval', $term_post_ids ) );
+			}
+		}
+
+		foreach ( array_unique( $post_ids ) as $post_id ) {
+			$post = get_post( $post_id );
+			// Bylines only exist on enabled post types, which never include revisions.
+			if ( ! $post || ! $this->is_post_type_enabled( $post->post_type ) ) {
+				continue;
+			}
+
+			$byline = $this->get_byline_with_user_replaced( $post, $delete_user, $reassign_user );
+			if ( null !== $byline ) {
+				$this->add_coauthors( $post_id, $byline );
+			}
+		}
+	}
+
+	/**
+	 * Get a post's byline with a deleted user replaced by the reassign user.
+	 *
+	 * @param WP_Post $post          The post.
+	 * @param WP_User $delete_user   The user being deleted.
+	 * @param WP_User $reassign_user The user to reassign posts to.
+	 * @return string[]|null Co-author nicenames in byline order, or null to leave the post alone.
+	 */
+	private function get_byline_with_user_replaced( WP_Post $post, WP_User $delete_user, WP_User $reassign_user ): ?array {
+		$coauthors        = get_coauthors( $post->ID );
+		$reassign_present = false;
+		foreach ( $coauthors as $coauthor ) {
+			if ( $this->extract_wp_user_id( $coauthor ) === $reassign_user->ID ) {
+				$reassign_present = true;
+				break;
+			}
+		}
+
+		$byline       = array();
+		$was_replaced = false;
+		foreach ( $coauthors as $coauthor ) {
+			if ( $this->extract_wp_user_id( $coauthor ) !== $delete_user->ID ) {
+				$byline[] = $coauthor->user_nicename;
+			} elseif ( ! $was_replaced ) {
+				if ( ! $reassign_present ) {
+					$byline[] = $reassign_user->user_nicename;
+				}
+				$was_replaced = true;
+			}
+		}
+
+		if ( $was_replaced ) {
+			return $byline;
+		}
+
+		// A term shared with an unlinked guest author belongs to that guest author.
+		if ( (int) $post->post_author !== $delete_user->ID ) {
+			return null;
+		}
+
+		// The byline doesn't name the deleted user, but WordPress hands the post over.
+		if ( ! $reassign_present ) {
+			$byline[] = $reassign_user->user_nicename;
+		}
+
+		return $byline;
+	}
+
+	/**
+	 * Hand each post of a user being deleted to the post's next co-author with an account.
+	 *
+	 * WordPress deletes the posts whose post_author is the deleted user, so a post they
+	 * share with someone else would be deleted with them. A guest author linked to an
+	 * account counts as that account. Posts with no other such co-author are left alone.
+	 *
+	 * @param WP_User $delete_user The user being deleted.
+	 */
+	private function hand_shared_posts_to_other_coauthors( WP_User $delete_user ): void {
+		global $wpdb;
+
+		foreach ( $this->get_post_ids_by_post_author( $delete_user ) as $post_id ) {
+			foreach ( get_coauthors( $post_id ) as $coauthor ) {
+				$user_id = $this->extract_wp_user_id( $coauthor );
+				if ( $user_id && $user_id !== $delete_user->ID ) {
+					$wpdb->update( $wpdb->posts, array( 'post_author' => $user_id ), array( 'ID' => $post_id ) ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery -- Must land before WordPress selects the user's posts.
+					clean_post_cache( $post_id );
+					break;
 				}
 			}
 		}
@@ -2707,6 +2831,120 @@ class CoAuthors_Plus {
 	 */
 	public function load_users_screen(): void {
 		add_filter( 'pre_count_many_users_posts', array( $this, 'bypass_user_post_count' ), 10, 2 );
+		add_filter( 'users_have_additional_content', array( $this, 'filter_users_have_additional_content' ), 10, 2 );
+		add_action( 'delete_user_form', array( $this, 'delete_user_form_note' ), 10, 2 );
+	}
+
+	/**
+	 * Count a user's bylines as content on the Delete Users screen.
+	 *
+	 * WordPress only checks post_author, so a user who is only a later co-author
+	 * would get no choice to reassign their bylines. The byline of a linked guest
+	 * author counts too, since it's deleted with the user.
+	 *
+	 * @param bool  $has_content Whether the users have additional content.
+	 * @param int[] $user_ids    IDs of the users being deleted.
+	 * @return bool
+	 */
+	public function filter_users_have_additional_content( $has_content, $user_ids ) {
+		if ( $has_content ) {
+			return $has_content;
+		}
+
+		$term_ids = array();
+		foreach ( (array) $user_ids as $user_id ) {
+			$user = get_user_by( 'id', $user_id );
+			if ( ! $user ) {
+				continue;
+			}
+
+			$user_term  = $this->shares_term_with_unlinked_guest_author( $user ) ? false : $this->get_author_term( $user );
+			$guest_term = $this->get_author_term( $this->get_linked_guest_author( $user ) );
+			$term_ids   = array_merge( $term_ids, wp_list_pluck( array_filter( array( $user_term, $guest_term ) ), 'term_id' ) );
+		}
+
+		if ( ! $term_ids ) {
+			return $has_content;
+		}
+
+		// Term counts can include revisions, so look for a real post.
+		$query = new WP_Query(
+			array(
+				'post_type'      => $this->supported_post_types(),
+				// Reassigning reaches trashed posts too, so count them.
+				'post_status'    => array_values( array_diff( get_post_stati(), array( 'auto-draft' ) ) ),
+				'posts_per_page' => 1,
+				'fields'         => 'ids',
+				'no_found_rows'  => true,
+				'tax_query'      => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_tax_query -- Runs once per user on the Delete Users screen.
+					array(
+						'taxonomy' => $this->coauthor_taxonomy,
+						'field'    => 'term_id',
+						'terms'    => $term_ids,
+					),
+				),
+			)
+		);
+
+		return ! empty( $query->posts );
+	}
+
+	/**
+	 * Explain on the Delete Users screen what happens to bylines and linked guest authors.
+	 *
+	 * @param WP_User $current_user The current user.
+	 * @param int[]   $user_ids     IDs of the users being deleted.
+	 */
+	public function delete_user_form_note( $current_user, $user_ids = array() ): void {
+		$guest_authors = array();
+		foreach ( (array) $user_ids as $user_id ) {
+			$user = get_user_by( 'id', $user_id );
+			if ( ! $user ) {
+				continue;
+			}
+			$guest_author = $this->get_linked_guest_author( $user );
+			if ( $guest_author ) {
+				$guest_authors[] = array( $user, $guest_author );
+			}
+		}
+		?>
+		<div class="coauthors-delete-user-note">
+			<p><strong><?php esc_html_e( 'Co-authors:', 'co-authors-plus' ); ?></strong></p>
+			<ul class="ul-disc">
+				<li><?php esc_html_e( 'Each user is removed from every byline they are on, including posts where they are not the main author.', 'co-authors-plus' ); ?></li>
+				<li><?php esc_html_e( 'If you attribute the content to another user, that user takes their place on each byline, in the same position. If that user is already on the byline, the deleted user is just removed.', 'co-authors-plus' ); ?></li>
+				<li><?php esc_html_e( 'If you delete the content, a post shared with another co-author who has an account is kept and given to that co-author. Other posts and pages go to the trash, and other post types are deleted permanently, unless they are set to be kept.', 'co-authors-plus' ); ?></li>
+				<?php foreach ( $guest_authors as list( $user, $guest_author ) ) : ?>
+					<li>
+						<?php
+						printf(
+							/* translators: 1: User login. 2: Guest author display name. */
+							esc_html__( '%1$s is linked to the guest author %2$s. The guest author will be deleted too and removed from every byline it is on, whichever option you choose. If you attribute the content, the other user takes its place. To keep the guest author, remove the link first.', 'co-authors-plus' ),
+							'<strong>' . esc_html( $user->user_login ) . '</strong>',
+							'<strong>' . esc_html( $guest_author->display_name ) . '</strong>'
+						);
+						?>
+					</li>
+				<?php endforeach; ?>
+			</ul>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Get the guest author linked to a user, if guest authors are enabled.
+	 *
+	 * @param WP_User $user The user.
+	 * @return object|false The guest author, or false if there is none.
+	 */
+	private function get_linked_guest_author( WP_User $user ) {
+		if ( ! $this->is_guest_authors_enabled() ) {
+			return false;
+		}
+
+		$guest_author = $this->guest_authors->get_guest_author_by( 'linked_account', $user->user_login );
+
+		return is_object( $guest_author ) ? $guest_author : false;
 	}
 
 	/**
@@ -3237,6 +3475,21 @@ class CoAuthors_Plus {
 
 		wp_cache_delete( 'coauthors_post_' . $object_id, 'co-authors-plus' );
 
+	}
+
+	/**
+	 * Callback to clear the cache when terms are removed from an object.
+	 *
+	 * Deleting a term removes it from its posts this way, without set_object_terms.
+	 *
+	 * @param int    $object_id Object ID.
+	 * @param array  $tt_ids    Removed term taxonomy IDs.
+	 * @param string $taxonomy  Taxonomy slug.
+	 */
+	public function clear_cache_on_terms_removed( $object_id, $tt_ids, $taxonomy ): void {
+		if ( $this->coauthor_taxonomy === $taxonomy ) {
+			$this->clear_cache( $object_id );
+		}
 	}
 
 	/**
