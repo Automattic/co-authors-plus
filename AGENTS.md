@@ -88,12 +88,11 @@ npm run test:e2e           # Run Playwright E2E tests (requires wp-env and npm r
 
 ## Conventions
 
-Follow the standards documented in `~/code/plugin-standards/` for full details. Key points:
+See `CONTRIBUTING.md` for setup, checks and the contribution workflow. Key points:
 
-- **Commits**: Use the `/commit` skill. Favour explaining "why" over "what".
-- **PRs**: Use the `/pr` skill. Merge with a merge commit; squash and rebase merging are disabled on this repo.
-- **Branch naming**: `feature/description`, `fix/description` from `develop`.
-- **Testing**: Unit tests for logic that doesn't need WordPress, using the `TestCase` base class in `tests/Unit/`. Integration tests for WordPress-dependent behaviour, using the `TestCase` base class in `tests/Integration/`. Behat for WP-CLI acceptance testing.
+- **Commits**: Every commit must be signed; `develop` and `main` reject unsigned commits. Use a [Conventional Commits](https://www.conventionalcommits.org/) prefix (`fix:`, `feat:`, `test:`, `docs:`, `ci:`, `chore:` and so on) with an imperative subject of about 50 characters, and a body that explains why the change was needed rather than what changed. One concern per commit.
+- **PRs**: Open against `develop`. The title describes the outcome in sentence case, without a conventional commit prefix. The description explains the problem first, then how the PR solves it. PRs land as merge commits (squash and rebase merging are disabled), so every commit message reaches `develop` as written.
+- **Testing**: Unit tests for logic that doesn't need WordPress, using the `TestCase` base class in `tests/Unit/`. Integration tests for WordPress-dependent behavior, using the `TestCase` base class in `tests/Integration/`. Behat for WP-CLI acceptance testing.
 - **Code style**: WordPress coding standards via PHPCS. Tabs for indentation.
 - **i18n**: All user-facing strings must use the `co-authors-plus` text domain.
 
