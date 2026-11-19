@@ -43,9 +43,15 @@ composer dev:seed
 `.wp-env.json` defines two environments:
 
 - **Development** at <http://localhost:8888> (log in as `admin` / `password`). PHP 8.2 and the latest WordPress release. Use it for manual testing; the E2E tests also run against it.
-- **Tests** at <http://localhost:8889>. PHP 8.4 and WordPress trunk. The PHPUnit integration suite and Behat run here.
+- **Tests** at <http://localhost:8889>. PHP 8.4 and the same WordPress as the development environment. The PHPUnit integration suite and Behat run here.
 
-Because the tests environment tracks WordPress trunk, the first `npx wp-env start` clones the WordPress repository and can take a while.
+The tests environment sets `core` to WordPress trunk, but wp-env downloads each repository only once, for the development environment, so both environments run the latest release. To test against trunk locally, set `WP_ENV_CORE`, which applies to both environments:
+
+```sh
+WP_ENV_CORE=WordPress/WordPress#master npx wp-env start
+```
+
+CI does the same to pick the WordPress version for each job. The first `npx wp-env start` clones the WordPress repository and can take a while.
 
 If the default ports clash with something else, set `port` and `testsPort` in a `.wp-env.override.json` file next to `.wp-env.json` (it's gitignored). Use the same file to change anything else for your machine only.
 
