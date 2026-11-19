@@ -6,6 +6,10 @@
  *
  * wp-env is started externally — locally and in CI — so the default webServer
  * (which would run `npm run wp-env start`) is disabled.
+ *
+ * The specs delete every post and user they can, so they run against the
+ * disposable tests site (the default WP_BASE_URL, port 8889), never the
+ * development site on port 8888.
  */
 const baseConfig = require( '@wordpress/scripts/config/playwright.config.js' );
 

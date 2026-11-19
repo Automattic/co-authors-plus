@@ -42,8 +42,8 @@ composer dev:seed
 
 `.wp-env.json` defines two environments:
 
-- **Development** at <http://localhost:8888> (log in as `admin` / `password`). PHP 8.2 and the latest WordPress release. Use it for manual testing; the E2E tests also run against it.
-- **Tests** at <http://localhost:8889>. PHP 8.4 and the same WordPress as the development environment. The PHPUnit integration suite and Behat run here.
+- **Development** at <http://localhost:8888> (log in as `admin` / `password`). PHP 8.2 and the latest WordPress release. Use it for manual testing; no test suite touches it.
+- **Tests** at <http://localhost:8889>. PHP 8.4 and the same WordPress as the development environment. The PHPUnit integration suite, Behat and the E2E tests run here. Behat and the E2E tests delete its posts and users, so don't keep anything on it.
 
 The tests environment sets `core` to WordPress trunk, but wp-env downloads each repository only once, for the development environment, so both environments run the latest release. To test against trunk locally, set `WP_ENV_CORE`, which applies to both environments:
 
@@ -88,7 +88,7 @@ composer test:integration-ms   # multisite
 
 Tests that only make sense on multisite are tagged `@group ms-required` and are excluded from the single-site run. Tests tagged `@group ms-excluded` are excluded from the multisite run.
 
-Run the two one after the other, not at the same time: they share the tests database, and each run reinstalls it.
+The suite installs WordPress into its own `wptests_` tables (set in `phpunit.xml.dist`), so it leaves the tests site's own tables alone. Run the two one after the other, not at the same time: they share those tables, and each run reinstalls them.
 
 To run a subset, call PHPUnit in the container directly and add `--filter`:
 
@@ -124,12 +124,12 @@ npm run test:unit:watch
 
 ### End-to-end tests
 
-The Playwright specs in `tests/e2e/` drive the block editor and the classic admin screens. They run against the development environment, not the tests environment, so set `WP_BASE_URL` (the default is port 8889):
+The Playwright specs in `tests/e2e/` drive the block editor and the classic admin screens. They delete every post and user when they finish, so they run against the tests environment on port 8889, the default `WP_BASE_URL`. If you changed `testsPort`, set `WP_BASE_URL` to match.
 
 ```sh
 npm run build
 npx playwright install chromium
-WP_BASE_URL=http://localhost:8888 npm run test:e2e
+npm run test:e2e
 ```
 
 The editor loads `build/`, so rebuild after changing `src/`. Single-file fixture plugins for the specs live in `tests/e2e/plugins/`, which `.wp-env.json` maps to `wp-content/plugins/cap-e2e-plugins/`. Run `npx wp-env start` again after changing `.wp-env.json` so the mapping is picked up.
@@ -172,7 +172,7 @@ GitHub Actions runs these workflows on pull requests. Most only run when the pul
 | `js-test.yml` | JavaScript unit tests. |
 | `lint.yml` | ESLint and Stylelint. |
 | `build.yml` | `npm run build`. |
-| `e2e.yml` | Playwright against the development environment. |
+| `e2e.yml` | Playwright against the tests environment. |
 
 Two results are informational: the PHPCS step for runtime code in `cs-lint.yml` (PHPCS on `tests/` must pass), and the WordPress trunk job in `integration.yml`, which may fail because of changes in WordPress itself. Everything else should pass before a pull request is merged.
 

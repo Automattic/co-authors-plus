@@ -87,9 +87,10 @@ jobs:
           WP_ENV_CORE: ${{ matrix.core }}
           WP_ENV_PHP_VERSION: ${{ matrix.php }}
 
-      # E2E runs against the dev environment, served in CI on the default port 8888.
-      # WP_ENV_CORE sets the matrix's WordPress for both environments.
+      # E2E runs against the tests environment on port 8889, because the specs
+      # delete every post and user. WP_ENV_CORE and WP_ENV_PHP_VERSION set the
+      # matrix's WordPress and PHP for both environments.
       - name: Run E2E tests
         run: npm run test:e2e
         env:
-          WP_BASE_URL: http://localhost:8888
+          WP_BASE_URL: http://localhost:8889
