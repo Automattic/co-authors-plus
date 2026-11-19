@@ -58,6 +58,28 @@ class AuthorTermOwnershipTest extends TestCase {
 	}
 
 	/**
+	 * Create a guest author whose login was stored with the prefix.
+	 *
+	 * The login, the post_name and the term slug all read cap-jane-doe, which is
+	 * what the plugin only ever writes when it's given that login.
+	 *
+	 * @param string $term_name The name of the guest author's term.
+	 * @return object The guest author.
+	 */
+	private function create_guest_author_with_prefixed_login( string $term_name ): object {
+		$guest_id = $this->create_guest_author( 'jane-doe' );
+		$term     = get_term_by( 'slug', 'cap-jane-doe', $this->_cap->coauthor_taxonomy );
+
+		update_post_meta( $guest_id, 'cap-user_login', 'cap-jane-doe' );
+		wp_update_term( $term->term_id, $this->_cap->coauthor_taxonomy, array( 'name' => $term_name ) );
+
+		$this->_cap->guest_authors->delete_guest_author_cache( $guest_id );
+		wp_cache_delete( 'author-term-cap-jane-doe', 'co-authors-plus' );
+
+		return $this->_cap->guest_authors->get_guest_author_by( 'ID', $guest_id, true );
+	}
+
+	/**
 	 * @dataProvider data_prefixed_usernames
 	 *
 	 * @param string $user_login The login of the other user.
@@ -280,6 +302,19 @@ class AuthorTermOwnershipTest extends TestCase {
 		$term = $this->_cap->update_author_term( $this->_cap->guest_authors->get_guest_author_by( 'ID', $guest_id ) );
 
 		$this->assertSame( $guest_id, (int) $this->_cap->get_coauthor_by_term( $term )->ID );
+	}
+
+	public function test_a_guest_author_with_a_prefixed_login_has_no_term_when_its_name_is_not_their_login(): void {
+		$guest = $this->create_guest_author_with_prefixed_login( 'jane doe' );
+
+		$this->assertSame( 'cap-jane-doe', $guest->user_nicename );
+		$this->assertFalse( $this->_cap->get_author_term( $guest ) );
+	}
+
+	public function test_a_guest_author_with_a_prefixed_login_owns_a_term_named_after_their_login(): void {
+		$guest = $this->create_guest_author_with_prefixed_login( 'cap-jane-doe' );
+
+		$this->assertSame( 'cap-jane-doe', $this->_cap->get_author_term( $guest )->slug );
 	}
 
 	public function test_a_term_with_no_author_does_not_belong_to_a_prefixed_username(): void {

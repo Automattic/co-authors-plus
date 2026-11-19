@@ -65,6 +65,68 @@ wp eval 'global $coauthors_plus; $coauthors_plus->add_coauthors( <post-id>, arra
 
 You can also set the byline in the post editor.
 
+### When a guest author's archive is empty
+
+Since 4.2.1, and still in 4.2.2, a guest author's archive and feed can go empty even though their posts still show their byline. The page loads normally, and the feed is valid but has no items, so a 200 response doesn't prove anything. A cached page can hide the problem too.
+
+It happens when a guest author's login was stored with the `cap-` prefix, and their term's name isn't that login. Three things have to agree:
+
+- The login is the `cap-user_login` meta. The nicename is made from it.
+- The author term's slug is `cap-` plus the nicename, and its name is a copy of the login.
+- The guest author's `post_name` is usually `cap-` plus the slug they were created with.
+
+A term whose slug equals a co-author's `cap-` nicename reads as another co-author's prefixed term, so it only counts as theirs when its name is their login. With the login `cap-jane-doe` and a term `cap-jane-doe` named `jane doe`, that check rejects the term and the guest author resolves to none. The check is correct, and it's what stops one co-author matching another's term. See [Identity model](./identity-model.md).
+
+To find affected guest authors, run the report. It changes nothing.
+
+```sh
+wp co-authors-plus list-unclaimed-guest-terms
+```
+
+A row doesn't mean a login is wrong. "Cap Ri" gives the login `cap-ri` legitimately, so check each row before changing anything.
+
+**Avoid these until you've read the report.** Each one gives a `no-term` guest author a new doubled term, such as `cap-cap-jane-doe`. The guest author then resolves to it and looks healthy, while their older posts stay on the first term and the archive only shows the new ones. The row becomes `split`.
+
+- Saving the guest author's profile.
+- Adding the guest author to a post.
+- Running `wp co-authors-plus update-author-terms`, which does this for every affected guest author at once.
+
+Rows that need a closer look:
+
+- `term-owned-by-other`: the term belongs to the co-author named in `matching_term_owner`, so the guest author can't have it. Don't take it from them.
+- A row with a `linked_account`: the archive also shows the linked user's posts, so it can look partly right. The posts on the guest author's own term are still missing.
+
+#### Correcting a login by hand
+
+These steps are only for a `no-term` row with no `linked_account`, where `matching_term` is `cap-<clean-login>` and holds that guest author's posts. Don't use them for any other row. A `split` row has posts on two terms, and changing the login doesn't bring them together.
+
+1. Take a database backup.
+2. Check that nobody else has the clean login. Leave out `--network` on a single site.
+
+    ```sh
+    wp user list --network --login=<clean-login> --fields=ID,user_login,user_nicename
+    wp user list --network --nicename=<clean-login> --fields=ID,user_login,user_nicename
+    wp post list --post_type=guest-author --post_status=any --meta_key=cap-user_login --meta_value=<clean-login> --fields=ID,post_title
+    ```
+
+    If any of these finds someone, stop. A clean login can belong to a WordPress user who isn't linked to this guest author, and the two would then be looked up as one co-author. See [When a slug matches a user](#when-a-slug-matches-a-user).
+3. Check that the guest author's `post_name` is `cap-<clean-login>`. If it isn't, stop.
+
+    ```sh
+    wp post get <guest-author-id> --field=post_name
+    ```
+
+4. Change the login, and clear the plugin's cached lookups.
+
+    ```sh
+    wp post meta update <guest-author-id> cap-user_login <clean-login>
+    wp eval 'global $coauthors_plus; $coauthors_plus->guest_authors->delete_guest_author_cache( <guest-author-id> );'
+    ```
+
+5. Run the report again, then count the items in the guest author's feed. Clear any page cache first.
+
+The archive's address changes to `/author/<clean-login>/`. The old `/author/cap-<clean-login>/` address keeps working, but it doesn't redirect.
+
 ### Other ways to create guest authors
 
 - From the Users list, with a **Create Profile** row action that makes a profile linked to that user. The action is hidden by default. Turn it on with the [`coauthors_show_create_profile_user_link`](./filters.md#coauthors_show_create_profile_user_link) filter. Users who already have a profile get an **Edit Profile** action instead.

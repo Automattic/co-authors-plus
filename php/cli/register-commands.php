@@ -31,6 +31,7 @@ use Automattic\CoAuthorsPlus\CLI\Guest_Author_Creator;
 use Automattic\CoAuthorsPlus\CLI\Import_Coauthors_Command;
 use Automattic\CoAuthorsPlus\CLI\List_Authors_Command;
 use Automattic\CoAuthorsPlus\CLI\List_Posts_Without_Terms_Command;
+use Automattic\CoAuthorsPlus\CLI\List_Unclaimed_Guest_Terms_Command;
 use Automattic\CoAuthorsPlus\CLI\Migrate_Author_Terms_Command;
 use Automattic\CoAuthorsPlus\CLI\Reassign_Terms_Command;
 use Automattic\CoAuthorsPlus\CLI\Remove_Terms_From_Revisions_Command;
@@ -41,6 +42,7 @@ use Automattic\CoAuthorsPlus\Services\Coauthor_Assignment_Service;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Export_Service;
 use Automattic\CoAuthorsPlus\Services\Coauthor_Import_Service;
 use Automattic\CoAuthorsPlus\Services\Guest_Author_Service;
+use Automattic\CoAuthorsPlus\Services\Guest_Author_Term_Report_Service;
 
 if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 	return;
@@ -50,6 +52,7 @@ if ( ! defined( 'WP_CLI' ) || ! WP_CLI ) {
 // explicitly, as the rest of the plugin does.
 require_once __DIR__ . '/../services/class-coauthor-assignment-service.php';
 require_once __DIR__ . '/../services/class-guest-author-service.php';
+require_once __DIR__ . '/../services/class-guest-author-term-report-service.php';
 require_once __DIR__ . '/../services/class-coauthor-export-service.php';
 require_once __DIR__ . '/../services/class-coauthor-import-service.php';
 require_once __DIR__ . '/class-migrate-author-terms-command.php';
@@ -66,6 +69,7 @@ require_once __DIR__ . '/class-create-author-terms-for-posts-command.php';
 require_once __DIR__ . '/class-create-terms-for-posts-command.php';
 require_once __DIR__ . '/class-delete-skip-backfill-postmeta-command.php';
 require_once __DIR__ . '/class-list-posts-without-terms-command.php';
+require_once __DIR__ . '/class-list-unclaimed-guest-terms-command.php';
 require_once __DIR__ . '/class-update-author-terms-command.php';
 require_once __DIR__ . '/class-command-namespace.php';
 require_once __DIR__ . '/class-assign-coauthors-command.php';
@@ -202,6 +206,13 @@ add_action(
 			'co-authors-plus import-coauthors',
 			new Import_Coauthors_Command(
 				new Coauthor_Import_Service( $guest_authors, $assignments )
+			)
+		);
+
+		WP_CLI::add_command(
+			'co-authors-plus list-unclaimed-guest-terms',
+			new List_Unclaimed_Guest_Terms_Command(
+				new Guest_Author_Term_Report_Service( $coauthors_plus )
 			)
 		);
 	},

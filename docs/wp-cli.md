@@ -15,7 +15,7 @@ Most commands write to the database, several of them across many posts. Only `sw
 
 The commands are registered on `init`, so they exist only on a site where the plugin is active.
 
-The commands that read or write guest author profiles are not registered when guest authors are turned off with the `coauthors_guest_authors_enabled` filter. Those are `create-author`, `create-guest-authors`, `create-guest-authors-from-csv`, `create-guest-authors-from-wxr`, `export-coauthors` and `import-coauthors`. Every other command works on author terms and bylines, and is always registered. The registration lives in `php/cli/register-commands.php`.
+The commands that read or write guest author profiles are not registered when guest authors are turned off with the `coauthors_guest_authors_enabled` filter. Those are `create-author`, `create-guest-authors`, `create-guest-authors-from-csv`, `create-guest-authors-from-wxr`, `export-coauthors`, `import-coauthors` and `list-unclaimed-guest-terms`. Every other command works on author terms and bylines, and is always registered. The registration lives in `php/cli/register-commands.php`.
 
 ## Global options
 
@@ -57,6 +57,33 @@ wp co-authors-plus list-posts-without-terms [--post_type=<post-type>]
 It checks every post status except trashed posts and auto-drafts. Each matching post is printed as one CSV line, with no header row: the post ID, title, permalink and post date. When nothing matches, it prints nothing.
 
 Run it before and after a backfill. See [Backfilling author terms](./backfilling-author-terms.md#check-what-needs-backfilling) for how its results compare with the backfill's.
+
+### `list-unclaimed-guest-terms`
+
+Reports guest authors who have no usable author term. It changes nothing, and a row doesn't mean a login is wrong: a login that starts with `cap-` can be legitimate. See [When a guest author's archive is empty](./guest-authors.md#when-a-guest-authors-archive-is-empty) for what to do with the results.
+
+```sh
+wp co-authors-plus list-unclaimed-guest-terms [--records-per-batch=<number>] [--field=<field>] [--fields=<fields>] [--format=<format>]
+```
+
+- `--records-per-batch`: how many guest authors to check at a time. Defaults to 100.
+- `--field`: print one field for each guest author.
+- `--fields`: comma-separated fields to show.
+- `--format`: `table` (the default), `csv`, `json`, `count` or `yaml`.
+
+Each row has one of these statuses:
+
+| Status | Meaning |
+| --- | --- |
+| `no-term` | The guest author resolves to no term. |
+| `split` | The guest author resolves to a doubled term, such as `cap-cap-jane-doe`, and posts are still on the term that matches their nicename. |
+| `term-owned-by-other` | The guest author resolves to no term, and the term that matches their nicename belongs to another co-author. |
+
+The default fields are `ID`, `user_login`, `status`, `linked_account`, `resolved_term`, `matching_term`, `matching_term_owner`, `matching_term_count`, `doubled_term` and `doubled_term_count`. `display_name`, `matching_term_name`, `matching_term_objects` and `doubled_term_objects` are also available.
+
+The `count` fields come from the term, so they only cover published posts. The `objects` fields cover everything attached to the term, in any status, leaving out the guest author's own profile. Check both, because a term with a count of 0 can still hold drafts.
+
+It checks guest authors in any status except the trash. It only reads guest author posts, so `cap-` meta on any other post type is ignored. A guest author is left out when they resolve to a term of their own and the matching term is empty or belongs to someone else, because that's how a guest author named "Cap Ri" looks next to a co-author named "Ri".
 
 ## Backfilling and maintaining author terms
 
@@ -115,7 +142,7 @@ It has no options. It works in three passes:
 2. For every user on the site, it creates an author term if there isn't one. That includes users of every role, and users who have never written a post.
 3. When guest authors are enabled, it does the same for every guest author.
 
-Run it if author term counts look wrong, or after bulk changes to users or guest authors. A term with no matching user or guest author is still reported as refreshed, although nothing changed. See the [behavior notes](./cli-behaviour-notes.md#update-author-terms).
+Run it if author term counts look wrong, or after bulk changes to users or guest authors. Run [`list-unclaimed-guest-terms`](#list-unclaimed-guest-terms) first: this command gives every guest author it reports as `no-term` a new doubled term, which splits their posts. A term with no matching user or guest author is still reported as refreshed, although nothing changed. See the [behavior notes](./cli-behaviour-notes.md#update-author-terms).
 
 ### `migrate-author-terms`
 
@@ -358,6 +385,7 @@ The commands are only registered on sites where the plugin is active, so this fa
 ## Troubleshooting
 
 - **`No co-author found for <login>` or `Please specify a valid co-author login`:** the login isn't a user or guest author on this site. Check with `wp user list --field=user_login`, and `wp post list --post_type=guest-author --post_status=any --fields=ID,post_title,post_name`. A guest author's `post_name` is `cap-` followed by its login.
-- **Author term counts look wrong:** run `update-author-terms`.
+- **Author term counts look wrong:** run `list-unclaimed-guest-terms`, then `update-author-terms`.
+- **A guest author's archive or feed is empty:** run `list-unclaimed-guest-terms`. See [When a guest author's archive is empty](./guest-authors.md#when-a-guest-authors-archive-is-empty).
 - **The backfill keeps missing some posts:** check them for `_cap_skip_backfill` post meta. Fix the cause, then run `delete-postmeta-that-skip-author-term-backfill`. See [Backfilling author terms](./backfilling-author-terms.md#posts-the-backfill-skips).
 - **Long runs:** most commands print a line per post. When running from a scheduler, send the output to a file, for example `wp co-authors-plus create-author-terms-for-posts > backfill.log 2>&1`.
