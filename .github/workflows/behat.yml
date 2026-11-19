@@ -48,8 +48,13 @@ jobs:
       - name: Install Composer dependencies
         uses: ramsey/composer-install@65e4f84970763564f46a70b8a54b90d033b3bdda # 4.0.0
 
+      # wp-env downloads WordPress/WordPress once, for the development environment,
+      # so the tests environment's own "core" is never fetched. WP_ENV_CORE sets
+      # both environments, so Behat (which uses tests-cli) really runs trunk.
       - name: Setup wp-env
         run: wp-env start
+        env:
+          WP_ENV_CORE: WordPress/WordPress#master
 
       - name: Run Behat tests
         run: composer behat
