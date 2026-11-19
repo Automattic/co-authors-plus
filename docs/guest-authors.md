@@ -107,7 +107,7 @@ Each field is stored as post meta on the guest author post, with a `cap-` prefix
 
 There is also an `ID` field in the `hidden` group, which has no input.
 
-The group decides where a field appears. Fields in `name` appear in the **Name** box, `contact-info` in **Contact Info**, and `about` in **About the guest author** (as a text area). The **Unique Slug** box only shows the two built-in `slug` fields, so other groups are not rendered on the screen.
+The group decides where a field appears. Fields in `name` appear in the **Name** box, `contact-info` in **Contact Info**, and `about` in **About the guest author** (as a text area, or a [visual editor](./customizing.md#can-i-use-a-visual-editor-for-the-guest-author-bio)). The **Unique Slug** box only shows the two built-in `slug` fields, so other groups are not rendered on the screen.
 
 ### Adding a field
 
@@ -135,7 +135,7 @@ A field can have these keys:
 - `key`: the field name. Stored as `cap-<key>`.
 - `label`: the label on the edit screen and in the [personal data export](#privacy).
 - `group`: one of the groups above.
-- `input`: the input type for the Name and Contact Info boxes. Defaults to `text`. Use `checkbox` for a checkbox. The [`coauthors_name_field_type_{$field}`](./filters.md#coauthors_name_field_type_field) filter can change it per field.
+- `input`: the input type. In the Name and Contact Info boxes it defaults to `text`; use `checkbox` for a checkbox. In the About box it defaults to `textarea`; use `editor` for the classic visual editor. The [`coauthors_name_field_type_{$field}`](./filters.md#coauthors_name_field_type_field) filter can change it per field.
 - `sanitize_function`: a callable that cleans the value on save. Defaults to `sanitize_text_field()`.
 - `required`: when `true`, profiles created in code or with WP-CLI need a value.
 
