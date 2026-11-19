@@ -518,10 +518,15 @@ class CoAuthors_Plus {
 	 * Get a guest author object by a specific type of key
 	 *
 	 * @param string $key Key to search by (slug,email)
-	 * @param string $value Value to search for
+	 * @param string|int $value Value to search for
 	 * @return object|false The co-author on success, false on failure
 	 */
 	public function get_coauthor_by( $key, $value, $force = false ) {
+
+		// Request data can be an array, e.g. ?user_nicename[]=x, and the lookups below need a string.
+		if ( ! is_scalar( $value ) ) {
+			return false;
+		}
 
 		// If Guest Authors are enabled, prioritize those profiles
 		if ( $this->is_guest_authors_enabled() && isset( $this->guest_authors ) ) {
