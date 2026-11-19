@@ -110,7 +110,7 @@ Follow the standards documented in `~/code/plugin-standards/` for full details. 
 
 - Do not edit WordPress core files or bundled dependencies in `vendor/`.
 - Run `composer cs` before committing. CI will reject code standard violations.
-- Integration tests require `npx wp-env start` running first.
+- Integration tests require `npx --no wp-env start` running first. Run `npm ci` before it, so `npx` uses the `@wordpress/env` pinned in `package.json`. Always keep `--no`: without an installed `@wordpress/env`, plain `npx wp-env` fetches the unrelated `wp-env` package from npm.
 - **Template tags are public API**: Functions in `template-tags.php` (`coauthors()`, `get_coauthors()`, `coauthors_posts_links()`, etc.) are used by themes in production. Do not rename, remove, or change their signatures without a deprecation cycle.
 - **Coauthor term ordering is significant**: The plugin maintains term order for coauthors. Bulk edits or direct term manipulation can reset ordering.
 - **Guest author deletion**: When a guest author is deleted, posts need reassignment. The plugin handles this via `delete_user_action`, but test carefully.

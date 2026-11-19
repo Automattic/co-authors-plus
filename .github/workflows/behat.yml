@@ -9,6 +9,8 @@ on:
       - 'behat.yml'
       - 'composer.json'
       - '.wp-env.json'
+      - 'package.json'
+      - 'package-lock.json'
   push:
     branches:
       - develop
@@ -20,6 +22,8 @@ on:
       - 'behat.yml'
       - 'composer.json'
       - '.wp-env.json'
+      - 'package.json'
+      - 'package-lock.json'
   workflow_dispatch:
 
 permissions:
@@ -36,8 +40,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install wordpress environment
-        run: npm install -g @wordpress/env
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Set up PHP 8.4
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
@@ -52,7 +62,7 @@ jobs:
       # so the tests environment's own "core" is never fetched. WP_ENV_CORE sets
       # both environments, so Behat (which uses tests-cli) really runs trunk.
       - name: Setup wp-env
-        run: wp-env start
+        run: npx --no wp-env start
         env:
           WP_ENV_CORE: WordPress/WordPress#master
 

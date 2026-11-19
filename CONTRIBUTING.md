@@ -11,7 +11,6 @@ Please report security vulnerabilities privately, as described in the [security 
 - [Node.js](https://nodejs.org/) and npm. `@wordpress/scripts` requires Node.js 22.22.2 or later in the 22 line, 24.15.0 or later in the 24 line, or 26 and later. CI uses Node.js 24.
 - [Composer](https://getcomposer.org/) and PHP 7.4 or later on your machine. The PHP unit tests, Behat, and PHPCS run on the host, not in a container.
 - [Docker](https://www.docker.com/) for the local WordPress environments.
-- [`@wordpress/env`](https://www.npmjs.com/package/@wordpress/env) installed globally (`npm install -g @wordpress/env`). It isn't a project dependency, and the Composer scripts call `wp-env` directly.
 
 ### Installing dependencies
 
@@ -19,7 +18,7 @@ Please report security vulnerabilities privately, as described in the [security 
 git clone https://github.com/Automattic/co-authors-plus.git
 cd co-authors-plus
 composer install
-npm install
+npm ci
 npm run build
 ```
 
@@ -29,7 +28,7 @@ Keep the directory name `co-authors-plus`. wp-env mounts the plugin under its di
 
 ## Local development
 
-Run `wp-env start` to spin up a local WordPress environment. On start it
+Run `npx wp-env start` to spin up a local WordPress environment. On start it
 activates Query Monitor and seeds demo data (`bin/seed-demo-data.php`): a spread
 of users, standalone and linked guest authors, and posts covering single,
 multiple, mixed, fallback, and orphaned-author bylines. All demo users share the
@@ -46,11 +45,11 @@ composer dev:seed
 - **Development** at <http://localhost:8888> (log in as `admin` / `password`). PHP 8.2 and the latest WordPress release. Use it for manual testing; the E2E tests also run against it.
 - **Tests** at <http://localhost:8889>. PHP 8.4 and WordPress trunk. The PHPUnit integration suite and Behat run here.
 
-Because the tests environment tracks WordPress trunk, the first `wp-env start` clones the WordPress repository and can take a while.
+Because the tests environment tracks WordPress trunk, the first `npx wp-env start` clones the WordPress repository and can take a while.
 
 If the default ports clash with something else, set `port` and `testsPort` in a `.wp-env.override.json` file next to `.wp-env.json` (it's gitignored). Use the same file to change anything else for your machine only.
 
-`wp-env stop` shuts both environments down. `wp-env destroy` removes them, for a clean slate.
+`npx wp-env stop` shuts both environments down. `npx wp-env destroy` removes them, for a clean slate.
 
 ## Running the tests
 
@@ -88,7 +87,7 @@ Run the two one after the other, not at the same time: they share the tests data
 To run a subset, call PHPUnit in the container directly and add `--filter`:
 
 ```sh
-wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus \
+npx wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus \
 	./vendor/bin/phpunit --testsuite integration --exclude=ms-required \
 	--no-coverage --filter=CoAuthorsControllerTest
 ```
@@ -127,7 +126,7 @@ npx playwright install chromium
 WP_BASE_URL=http://localhost:8888 npm run test:e2e
 ```
 
-The editor loads `build/`, so rebuild after changing `src/`. Single-file fixture plugins for the specs live in `tests/e2e/plugins/`, which `.wp-env.json` maps to `wp-content/plugins/cap-e2e-plugins/`. Run `wp-env start` again after changing `.wp-env.json` so the mapping is picked up.
+The editor loads `build/`, so rebuild after changing `src/`. Single-file fixture plugins for the specs live in `tests/e2e/plugins/`, which `.wp-env.json` maps to `wp-content/plugins/cap-e2e-plugins/`. Run `npx wp-env start` again after changing `.wp-env.json` so the mapping is picked up.
 
 ## Coding standards
 

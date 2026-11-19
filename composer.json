@@ -71,7 +71,7 @@
 		"cs-fix": [
 			"@php ./vendor/bin/phpcbf -q"
 		],
-		"dev:seed": "wp-env run cli wp eval 'require dirname( COAUTHORS_PLUS_FILE ) . \"/bin/seed-demo-data.php\";'",
+		"dev:seed": "npx --no wp-env run cli wp eval 'require dirname( COAUTHORS_PLUS_FILE ) . \"/bin/seed-demo-data.php\";'",
 		"i18n": [
 			"@php wp i18n make-pot . languages/co-authors-plus.pot --slug=co-authors-plus"
 		],
@@ -81,9 +81,9 @@
 		"lint-ci": [
 			"@php ./vendor/php-parallel-lint/php-parallel-lint/parallel-lint . -e php --exclude vendor --exclude .git --checkstyle"
 		],
-		"prepare-behat-tests": "wp-env start",
-		"test:integration": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus ./vendor/bin/phpunit --testsuite integration --exclude=ms-required --no-coverage",
-		"test:integration-ms": "wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --testsuite integration --exclude=ms-excluded --no-coverage'",
+		"prepare-behat-tests": "npx --no wp-env start",
+		"test:integration": "npx --no wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus ./vendor/bin/phpunit --testsuite integration --exclude=ms-required --no-coverage",
+		"test:integration-ms": "npx --no wp-env run tests-cli --env-cwd=wp-content/plugins/co-authors-plus /bin/bash -c 'WP_MULTISITE=1 ./vendor/bin/phpunit --testsuite integration --exclude=ms-excluded --no-coverage'",
 		"test:unit": "@php ./vendor/bin/phpunit --testsuite unit --no-coverage"
 	},
 	"scripts-descriptions": {
