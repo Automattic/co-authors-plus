@@ -181,7 +181,7 @@ To change the list before it is rendered, use the [`coauthors_wp_list_authors_ar
 
 ## Adding co-authors to custom post types
 
-Co-Authors Plus attaches to every post type that supports `author`. To show the Authors box on your custom post type, include `'author'` in `supports` when you call `register_post_type()`, or call `add_post_type_support( 'my_cpt_slug', 'author' )`. The support must be in place before the plugin registers its taxonomy on `init`. See [`coauthors_supported_post_types`](./filters.md#coauthors_supported_post_types) for the timing and the post types that are always excluded.
+Co-Authors Plus attaches to every post type that supports `author`. To show the Authors box on your custom post type, include `'author'` in `supports` when you call `register_post_type()`, or call `add_post_type_support( 'my_cpt_slug', 'author' )`. The support must be in place before `init` priority 100, when the plugin registers its taxonomy for the final list of post types. See [`coauthors_supported_post_types`](./filters.md#coauthors_supported_post_types) for the timing and the post types that are always excluded.
 
 Published post counts only include `post` by default. To count posts of your custom post type too, use the `coauthors_count_published_post_types` filter:
 

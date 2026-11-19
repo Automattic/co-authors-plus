@@ -881,7 +881,7 @@ class AddCoauthorsTest extends TestCase {
 	 * writes wp_term_relationships.term_order in the order the slugs are
 	 * passed, and the taxonomy's 'args' force the read path to order by
 	 * term_order ASC. This test pins that contract, because both halves of it
-	 * live in easily-removed registration args (see action_init_late()).
+	 * live in easily-removed registration args (see register_author_taxonomy()).
 	 *
 	 * The second assignment deliberately uses a different, non-alphabetic order
 	 * so a passing first assertion cannot be explained by the read path falling
