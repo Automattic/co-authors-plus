@@ -81,11 +81,8 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      - name: Install wordpress environment
-        run: npm install -g @wordpress/env
-
       - name: Start wp-env
-        run: wp-env start
+        run: npx --no wp-env start
         env:
           WP_ENV_CORE: ${{ matrix.core }}
           WP_ENV_PHP_VERSION: ${{ matrix.php }}

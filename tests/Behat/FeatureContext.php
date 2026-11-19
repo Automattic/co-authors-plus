@@ -106,7 +106,7 @@ final class FeatureContext extends WpEnvFeatureContext {
 
 		throw new RuntimeException(
 			sprintf(
-				'No running wp-env tests-cli container bind-mounts %s. Run `wp-env start` in this checkout first.',
+				'No running wp-env tests-cli container bind-mounts %s. Run `npm ci && npx --no wp-env start` in this checkout first.',
 				$repo_root
 			)
 		);
