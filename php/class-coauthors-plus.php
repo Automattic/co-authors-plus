@@ -2450,6 +2450,11 @@ class CoAuthors_Plus {
 	 * Other loops on the page, such as a Latest Posts block in a sidebar, need
 	 * $authordata to stay on each post's own author. setup_postdata() passes the
 	 * main query whichever post it's given, so also check the post belongs to it.
+	 * That still matches a post on the archive that another loop sets up with
+	 * setup_postdata(), which restoring the global post after a loop relies on.
+	 *
+	 * A clone of the main query, as an inheriting Query Loop block makes when
+	 * it renders inside the loop, isn't the main query, so it's left alone.
 	 *
 	 * @param WP_Post       $post  The post being set up.
 	 * @param WP_Query|null $query The query setting up the post.

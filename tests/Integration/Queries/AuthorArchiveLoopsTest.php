@@ -188,6 +188,21 @@ class AuthorArchiveLoopsTest extends TestCase {
 		$this->assertSame( 'Bob Other', get_the_author() );
 	}
 
+	/**
+	 * A post on the archive shows the archive's author even when another loop
+	 * sets it up with setup_postdata(), which can't say which loop it's in.
+	 * Restoring the global post after a secondary loop relies on this.
+	 */
+	public function test_setup_postdata_on_a_main_query_post_shows_the_archive_author(): void {
+		$shared_post = $this->create_shared_post();
+
+		$this->go_to( home_url( '/?author_name=alice' ) );
+
+		setup_postdata( $shared_post );
+
+		$this->assertSame( 'Alice Archive', get_the_author() );
+	}
+
 	public function test_latest_posts_block_shows_each_posts_own_author(): void {
 		$this->go_to( home_url( '/?author_name=alice' ) );
 
