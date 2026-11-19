@@ -23,6 +23,11 @@
         </testsuite>
     </testsuites>
 
+    <php>
+        <!-- The integration tests share the wp-env tests site's database. The test suite drops and reinstalls every table with its prefix, leaving that site with no active plugins and a missing theme, and the E2E specs run there. So give the tests their own tables. wp-env's wp-config.php reads this variable. -->
+        <env name="WORDPRESS_TABLE_PREFIX" value="wptests_"/>
+    </php>
+
     <coverage cacheDirectory=".phpunit.cache/code-coverage"
               processUncoveredFiles="true">
         <include>
