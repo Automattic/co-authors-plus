@@ -161,6 +161,10 @@ Feature: Guest authors can be created from a CSV file
 		"""
 		When I run `wp post list --post_type=guest-author --format=ids`
 		And save STDOUT as {DIRTY_ID}
+		# The bio is whatever wp_kses_post gives on this WordPress: from 7.2 its HTML
+		# API parser drops script contents, where the legacy parser kept the text.
+		And I run `wp eval 'echo wp_kses_post( "<script>alert(1)</script><em>Bio</em>" );'`
+		And save STDOUT as {KSES_BIO}
 		And I run `wp post meta list {DIRTY_ID} --format=csv`
 		Then STDOUT should be:
 		"""
@@ -171,7 +175,7 @@ Feature: Guest authors can be created from a CSV file
 		{DIRTY_ID},cap-user_login,"Dirty Login!"
 		{DIRTY_ID},cap-user_email,DIRTY@Example.com
 		{DIRTY_ID},cap-website,http://example.com/x?a=1&b=2
-		{DIRTY_ID},cap-description,alert(1)<em>Bio</em>
+		{DIRTY_ID},cap-description,{KSES_BIO}
 		{DIRTY_ID},_original_author_login,"Dirty Login!"
 		"""
 		When I run `wp post get {DIRTY_ID} --field=post_name`

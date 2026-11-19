@@ -83,15 +83,17 @@ Feature: A single guest author can be created
 
 	# Sanitised as the admin edit screen sanitises the same values: each declared
 	# sanitiser, falling back to sanitize_text_field. So tags are stripped from the
-	# name and login, the script tag leaves only its text, the website is schemed
-	# by its declared esc_url_raw, and — deliberately — the login's space and
+	# name and login, the bio keeps its <em> (which sanitize_text_field would strip)
+	# and gets whatever wp_kses_post gives on this WordPress (from 7.2 its HTML API
+	# parser drops script contents, where the legacy parser kept the text), the
+	# website is schemed by its declared esc_url_raw, and — deliberately — the login's space and
 	# punctuation survive, because the admin fallback keeps them too. This pins
 	# parity, not perfection. The
 	# provenance meta keeps the login exactly as the source supplied it.
 	# Contrast create-guest-authors-from-csv, which layers stricter per-cell
 	# sanitisers (sanitize_email, esc_url_raw) on top before the creator runs.
 	Scenario: Field values are sanitised as the admin edit screen would sanitise them
-		When I run `wp co-authors-plus create-author --display_name="<b>Raw</b> Name" --user_login="<b>Raw</b> User!" --user_email=raw@example.com --website=example.com/raw --description="<script>x</script>bio"`
+		When I run `wp co-authors-plus create-author --display_name="<b>Raw</b> Name" --user_login="<b>Raw</b> User!" --user_email=raw@example.com --website=example.com/raw --description="<script>x</script><em>bio</em>"`
 		Then the return code should be 0
 		And STDOUT should contain:
 		"""
@@ -99,6 +101,8 @@ Feature: A single guest author can be created
 		"""
 		When I run `wp post list --post_type=guest-author --format=ids`
 		And save STDOUT as {RAW_ID}
+		And I run `wp eval 'echo wp_kses_post( "<script>x</script><em>bio</em>" );'`
+		And save STDOUT as {KSES_BIO}
 		And I run `wp post meta list {RAW_ID} --format=csv`
 		Then STDOUT should be:
 		"""
@@ -107,7 +111,7 @@ Feature: A single guest author can be created
 		{RAW_ID},cap-user_login,"Raw User!"
 		{RAW_ID},cap-user_email,raw@example.com
 		{RAW_ID},cap-website,http://example.com/raw
-		{RAW_ID},cap-description,xbio
+		{RAW_ID},cap-description,{KSES_BIO}
 		{RAW_ID},_original_author_login,"<b>Raw</b> User!"
 		"""
 		When I run `wp post get {RAW_ID} --field=post_title`
