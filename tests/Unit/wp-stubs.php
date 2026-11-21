@@ -20,4 +20,19 @@ if ( ! class_exists( 'WP_REST_Controller' ) ) {
 if ( ! class_exists( 'WP_User' ) ) {
 	class WP_User {}
 }
+
+if ( ! class_exists( 'WP_Post' ) ) {
+	class WP_Post {
+		public $ID = 0;
+		public $post_type = '';
+
+		public function __construct( $post = null ) {
+			if ( is_object( $post ) ) {
+				foreach ( get_object_vars( $post ) as $key => $value ) {
+					$this->$key = $value;
+				}
+			}
+		}
+	}
+}
 // phpcs:enable
