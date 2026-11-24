@@ -45,10 +45,14 @@ jobs:
           - wordpress: '6.4'
             php: '7.4'
             allowed_failure: false
-          # Check latest WP with the latest PHP (may fail due to bleeding edge changes).
+          # Check the latest WP release with the latest PHP it supports.
           # A version number, not 'latest': wp-env uses it to pick the Docker image.
-          - wordpress: 'master'
+          - wordpress: '7.1'
             php: '8.5'
+            allowed_failure: false
+          # Check trunk with the newest PHP (may fail due to bleeding edge changes).
+          - wordpress: 'master'
+            php: '8.6'
             allowed_failure: true
       fail-fast: false
 

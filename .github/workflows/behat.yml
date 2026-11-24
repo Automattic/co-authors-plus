@@ -31,7 +31,7 @@ permissions:
 
 jobs:
   behat:
-    name: Behat Tests (WP trunk, PHP 8.4)
+    name: Behat Tests (WP trunk, PHP 8.6)
     runs-on: ubuntu-latest
 
     steps:
@@ -49,10 +49,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Set up PHP 8.4
+      - name: Set up PHP 8.6
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
-          php-version: '8.4'
+          php-version: '8.6'
           coverage: none
 
       - name: Install Composer dependencies
@@ -65,6 +65,8 @@ jobs:
         run: npx --no wp-env start
         env:
           WP_ENV_CORE: WordPress/WordPress#master
+          # Without this, wp-env runs the PHP version in .wp-env.json.
+          WP_ENV_PHP_VERSION: '8.6'
 
       - name: Run Behat tests
         run: composer behat
