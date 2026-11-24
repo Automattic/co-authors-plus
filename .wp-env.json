@@ -5,7 +5,7 @@
   "mappings": {
     "wp-content/plugins/cap-e2e-plugins": "./tests/e2e/plugins"
   },
-  "phpVersion": "8.2",
+  "phpVersion": "8.5",
   "config": {
     "WP_DEBUG": true,
     "WP_DEBUG_LOG": true,
@@ -16,7 +16,7 @@
   },
   "env": {
     "tests": {
-      "phpVersion": "8.4",
+      "phpVersion": "8.5",
       "core": "WordPress/WordPress#master"
     }
   }
