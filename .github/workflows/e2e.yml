@@ -45,10 +45,11 @@ jobs:
     strategy:
       matrix:
         include:
-          # Check lowest supported WP version, with the lowest supported PHP.
+          # Check lowest supported WP version. E2E tests vary WordPress, not
+          # PHP, so this runs on the latest PHP that WP 6.4 can run cleanly.
           - wordpress: '6.4'
             core: 'WordPress/WordPress#6.4'
-            php: '7.4'
+            php: '8.5'
           # The WP version in the readme's "Tested up to", with the latest PHP.
           # The -branch ref tracks the latest point release; '#7.1' is the 7.1.0 tag.
           - wordpress: '7.1'
@@ -57,7 +58,7 @@ jobs:
           # The next WP version, with the latest PHP.
           - wordpress: 'trunk'
             core: 'WordPress/WordPress#master'
-            php: '8.5'
+            php: '8.6'
       fail-fast: false
 
     steps:
